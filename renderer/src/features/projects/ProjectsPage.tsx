@@ -1,3 +1,5 @@
+import { useBeforeSessionNavigation } from "../../app/session-navigation";
+import { useSessionOrigin } from "../../app/session-origin-context";
 import { useFeedback } from "../../feedback-context";
 import { MenuItem, Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
@@ -35,11 +37,15 @@ const projectViewForSection = (section: ProjectSection): ProjectView => section 
 export function ProjectsPage({
   initialProjectName,
   initialSection = "tasks",
-  initialItem
+  initialItem,
+  initialFileKind,
+  restoreSelection = false
 }: {
   initialProjectName?: string;
   initialSection?: ProjectSection;
   initialItem?: string;
+  initialFileKind?: "material" | "output";
+  restoreSelection?: boolean;
 }) {
   const locale = useLocale();
   const ui = useAiUi();
@@ -49,6 +55,13 @@ export function ProjectsPage({
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [activeProject, setActiveProject] = useState<ProjectDetail | null>(null);
   const [view, setView] = useState<ProjectView>(projectViewForSection(initialSection));
+  const [fileLocation, setFileLocation] = useState<{ projectId: string; view: ProjectView; relativePath: string; kind: "material" | "output" } | null>(null);
+  const currentFile = fileLocation?.projectId === activeProject?.id && fileLocation?.view === view ? fileLocation : null;
+  useSessionOrigin(activeProject ? { page: "projects", projectId: activeProject.id, projectName: activeProject.name,
+    section: view === "files" ? "materials" : view, filePath: currentFile?.relativePath || null, fileKind: currentFile?.kind } : null);
+  const onFileChange = useCallback((selection: { relativePath: string; kind: "material" | "output" } | null) => {
+    setFileLocation(selection && activeProject ? { ...selection, projectId: activeProject.id, view: "files" } : null);
+  }, [activeProject?.id]);
   const [createAction, setCreateAction] = useState<ProjectCreateAction | null>(null);
   const [taskSeed, setTaskSeed] = useState<ProjectTaskSeed | null>(null);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
@@ -152,6 +165,8 @@ export function ProjectsPage({
     if (discard) guard.discard();
     return discard;
   }, []);
+
+  useBeforeSessionNavigation(canLeaveCurrentOutput);
 
   const navigateProject = useCallback(async (action: () => void) => {
     if (!await canLeaveCurrentOutput()) return false;
@@ -354,8 +369,9 @@ export function ProjectsPage({
   }, [compactWorkspace, showCompactPane]);
 
   const handleOutputSelectionChange = useCallback((relativePath?: string) => {
+    setFileLocation(relativePath && activeProject ? { projectId: activeProject.id, view: "outputs", relativePath, kind: "output" } : null);
     handleFileSelectionChange(Boolean(relativePath));
-  }, [handleFileSelectionChange]);
+  }, [handleFileSelectionChange, activeProject?.id]);
 
   const activeProjectName = activeProject?.name;
   const activeProjects = useMemo(() => projects.filter(project => project.status === "active")
@@ -501,8 +517,8 @@ export function ProjectsPage({
       {attachedPanelsReady ? (
         <>
           {view === "tasks" ? <ProjectTasksPanel key={`tasks:${activeProject!.name}`} project={activeProject!} initialTaskId={initialSection === "tasks" ? initialItem : undefined} createRequested={createAction === "tasks"} seed={taskSeed} onCreateHandled={() => { setCreateAction(null); setTaskSeed(null); }} onChanged={() => void refreshActive()} onSelectionChange={handleTaskSelectionChange} listHost={sectionListHost} detailHost={detailHost} /> : null}
-          {view === "outputs" ? <ProjectOutputsPanel key={`outputs:${activeProject!.name}`} project={activeProject!} initialOutputPath={initialSection === "outputs" ? initialItem : undefined} createRequested={createAction === "outputs"} onCreateHandled={() => setCreateAction(null)} onChanged={() => void refreshActive()} onSelectionChange={handleOutputSelectionChange} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost} detailHost={detailHost} /> : null}
-          {view === "files" ? <ProjectFilesPanel key={`files:${activeProject!.name}`} project={activeProject!} initialSection={initialSection} initialItem={initialItem} createRequested={createAction === "materials" || createAction === "outputs" ? createAction : null} onCreateHandled={() => setCreateAction(null)} onCreateTask={(seed) => { void navigateProject(() => { setTaskSeed(seed); setCreateAction("tasks"); presentProjectView("tasks"); }); }} onChanged={() => void refreshActive()} onSelectionChange={handleFileSelectionChange} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost!} detailHost={detailHost!} /> : null}
+          {view === "outputs" ? <ProjectOutputsPanel autoSelectFirst={!restoreSelection} key={`outputs:${activeProject!.name}`} project={activeProject!} initialOutputPath={initialSection === "outputs" ? initialItem : undefined} createRequested={createAction === "outputs"} onCreateHandled={() => setCreateAction(null)} onChanged={() => void refreshActive()} onSelectionChange={handleOutputSelectionChange} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost} detailHost={detailHost} /> : null}
+          {view === "files" ? <ProjectFilesPanel restoreSelection={restoreSelection} initialFileKind={initialFileKind} onFileChange={onFileChange} key={`files:${activeProject!.name}`} project={activeProject!} initialSection={initialSection} initialItem={initialItem} createRequested={createAction === "materials" || createAction === "outputs" ? createAction : null} onCreateHandled={() => setCreateAction(null)} onCreateTask={(seed) => { void navigateProject(() => { setTaskSeed(seed); setCreateAction("tasks"); presentProjectView("tasks"); }); }} onChanged={() => void refreshActive()} onSelectionChange={handleFileSelectionChange} onNavigationGuardChange={handleOutputNavigationGuard} listHost={sectionListHost!} detailHost={detailHost!} /> : null}
         </>
       ) : null}
       <ProjectDialog open={createProjectOpen} title={messages.projectUi.createProject} description={messages.projectUi.projectNameHint} confirmLabel={messages.projectUi.createProject} busy={busy} onClose={() => setCreateProjectOpen(false)} onConfirm={createProject}>

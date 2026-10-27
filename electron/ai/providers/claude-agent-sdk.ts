@@ -300,7 +300,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const serviceProvider = context.session
       ? resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null)
       : resolveCliProvider("claude");
-    const key = warmKey(context.session?.id || null, context.provider.id, context.cwd, context.permissionProfile, context.interactionMode || "default", context.providerSessionId, serviceProvider, context.protectedPaths, context.skillCatalog, context.skillBridge);
+    const key = warmKey(context.session?.id || null, context.provider.id, context.cwd, context.permissionProfile, context.interactionMode || "default", context.providerSessionId, serviceProvider, context.protectedPaths, context.providerModel, context.skillCatalog, context.skillBridge);
     const existing = this.warmSlots.get(key);
     if (existing) return true;
     // A manually edited providers.yaml may change a draft before Main has sent
@@ -650,10 +650,10 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
   private claimWarmSlot(context: ProviderRunContext): WarmSlot | null {
     const serviceProvider = resolveCliProvider("claude", context.session.serviceProviderId ?? null, context.session.serviceProviderRevision ?? null);
     const keys = [
-      warmKey(context.session.id, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", context.session.providerSessionId, serviceProvider, context.protectedPaths, context.skillCatalog, context.skillBridge)
+      warmKey(context.session.id, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", context.session.providerSessionId, serviceProvider, context.protectedPaths, context.providerModel, context.skillCatalog, context.skillBridge)
     ];
     if (!context.session.providerSessionId && context.session.scope?.type !== "project-task") {
-      keys.push(warmKey(null, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", null, serviceProvider, context.protectedPaths, context.skillCatalog, context.skillBridge));
+      keys.push(warmKey(null, context.provider.id, context.cwd, context.session.permissionProfile, context.session.interactionMode || "default", null, serviceProvider, context.protectedPaths, context.providerModel, context.skillCatalog, context.skillBridge));
     }
     for (const key of keys) {
       const slot = this.warmSlots.get(key);
@@ -665,11 +665,11 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
   }
 }
 
-function warmKey(sessionId: string | null, providerId: string, cwd: string, permissionProfile: string, interactionMode: string, providerSessionId: string | null, serviceProvider: ProviderYamlEntry | null, protectedPaths: readonly string[] | undefined, skillCatalog?: ProviderRunContext["skillCatalog"], skillBridge?: ProviderRunContext["skillBridge"]): string {
+function warmKey(sessionId: string | null, providerId: string, cwd: string, permissionProfile: string, interactionMode: string, providerSessionId: string | null, serviceProvider: ProviderYamlEntry | null, protectedPaths: readonly string[] | undefined, providerModel: string, skillCatalog?: ProviderRunContext["skillCatalog"], skillBridge?: ProviderRunContext["skillBridge"]): string {
   const serviceRevision = serviceProvider
     ? providerConfigurationRevision(serviceProvider)
     : "cli";
-  return [sessionId || "draft", providerId, cwd, permissionProfile, interactionMode, providerSessionId || "", serviceRevision, [...(protectedPaths ?? [])].sort().join("\n"), JSON.stringify((skillCatalog ?? []).map((entry) => [entry.id, entry.digest, entry.skillPath, entry.description])), skillBridge?.digest ?? ""].join("\0");
+  return [sessionId || "draft", providerId, cwd, permissionProfile, interactionMode, providerSessionId || "", serviceRevision, providerModel, [...(protectedPaths ?? [])].sort().join("\n"), JSON.stringify((skillCatalog ?? []).map((entry) => [entry.id, entry.digest, entry.skillPath, entry.description])), skillBridge?.digest ?? ""].join("\0");
 }
 
 function runOptionsContext(context: ProviderRunContext): Pick<ProviderRunContext, "provider" | "cwd"> & {

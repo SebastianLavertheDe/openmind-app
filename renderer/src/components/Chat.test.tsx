@@ -169,6 +169,42 @@ afterEach(() => {
 });
 
 describe("Chat composer", () => {
+  it.each(["append", "replace", "switch"])("does not overwrite newer input when slash selection is delayed (%s)", async edit => {
+    const entry: SkillLibraryEntry = {
+      id: "rss-article-saver", skillId: "rss-article-saver", title: "RSS 文章抓取", subtitle: "", description: "",
+      inputHint: "提供订阅地址", category: "research", origin: "git", installed: true, enabled: true,
+      usable: true, reason: null, key: "fixture/rss-article-saver", digest: "a".repeat(64), version: "1.0.0",
+      authoringId: null, revision: 0, draft: false, imageCount: 0, source: "fixture", executionModel: null
+    };
+    const list = vi.fn(async () => [entry]);
+    window.openmind.listSkillLibrary = list;
+    const user = userEvent.setup();
+    render(<AiProvider initial={snapshot} skills={skills}><SessionSwitchProbe sessionId="another-session" /><ChatComposer /></AiProvider>);
+    await waitFor(() => expect(list).toHaveBeenCalled());
+    const input = screen.getByLabelText("AI 消息") as HTMLTextAreaElement;
+    await user.type(input, "/rss");
+    await screen.findByRole("option", { name: /RSS 文章抓取/ });
+    let resolve!: (entries: SkillLibraryEntry[]) => void;
+    list.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(resolve).toBeTypeOf("function");
+    if (edit === "append") await user.type(input, " 保留后续输入");
+    else {
+      if (edit === "switch") fireEvent.click(screen.getByRole("button", { name: "switch session" }));
+      await user.clear(input);
+      await user.type(input, "新的草稿");
+    }
+    await act(async () => { resolve([entry]); });
+    expect(input.value).toBe(edit === "append" ? " 保留后续输入" : "新的草稿");
+    if (edit === "append") {
+      await waitFor(() => expect(input.selectionStart).toBe(input.value.length));
+      fireEvent.click(screen.getByRole("button", { name: "发送" }));
+      await waitFor(() => expect(startRun).toHaveBeenCalledWith(expect.objectContaining({
+        prompt: " 保留后续输入", selectedSkill: { key: entry.key, digest: entry.digest }
+      })));
+    } else expect(screen.queryByRole("button", { name: m.skillLibrary.clearSelection })).toBeNull();
+  });
+
   it("sends the chosen Skill identity with ordinary text and preserves selection after failure", async () => {
     const entry: SkillLibraryEntry = {
       id: "om-article-writer", skillId: "om-article-writer", title: "长文写作", subtitle: "", description: "",
@@ -1347,7 +1383,7 @@ describe("chat timeline", () => {
     await user.click(within(assistant.querySelector<HTMLElement>(".message-actions")!).getByRole("button", { name: "复制" }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(answer));
     await user.click(within(assistant).getByRole("button", { name: "按原上下文重新运行" }));
-    await waitFor(() => expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session", prompt: "test" })));
+    await waitFor(() => expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session", prompt: "test", retryOfRunId: run.id })));
     await user.click(within(assistant).getByRole("button", { name: "从此回复创建新会话" }));
     await waitFor(() => expect((screen.getByLabelText("AI 消息") as HTMLTextAreaElement).value).toBe("test"));
   });

@@ -153,6 +153,7 @@ class AiWorkerClient {
         OPENMIND_ROOT_GENERATION: String(settings.getOpenmindRootSnapshot()?.rootGeneration || 1),
         OPENMIND_PYTHON_RUNTIME_ASSET_ROOT: bundledPythonAssetRoot(),
         OPENMIND_SKILL_LIBRARY_BUNDLE: resolveSkillLibraryBundleRoot(),
+        OPENMIND_ELECTRON_EXECUTABLE: process.execPath,
         ...(browserCli ? {
           OPENMIND_BROWSER_SKILL_CLI: browserCli,
           PATH: [path.dirname(browserCli), process.env.PATH || process.env.Path || ""].join(path.delimiter)

@@ -27,6 +27,9 @@ export function ProjectFilesPanel({
   project,
   initialSection,
   initialItem,
+  initialFileKind,
+  restoreSelection = false,
+  onFileChange,
   createRequested,
   onCreateHandled,
   onCreateTask,
@@ -39,6 +42,9 @@ export function ProjectFilesPanel({
   project: ProjectDetail;
   initialSection: ProjectSection;
   initialItem?: string;
+  initialFileKind?: ProjectFileKind;
+  restoreSelection?: boolean;
+  onFileChange?(selection: ProjectFileSelection | null): void;
   createRequested: Extract<ProjectCreateAction, "materials" | "outputs"> | null;
   onCreateHandled(): void;
   onCreateTask(seed: ProjectTaskSeed): void;
@@ -53,9 +59,10 @@ export function ProjectFilesPanel({
   const [materials, setMaterials] = useState<ProjectMaterial[]>([]);
   const [outputs, setOutputs] = useState<ProjectOutput[]>([]);
   const [selection, setSelection] = useState<ProjectFileSelection | null>(() => initialItem ? {
-    kind: initialSection === "outputs" ? "output" : "material",
+    kind: initialFileKind || (initialSection === "outputs" ? "output" : "material"),
     relativePath: initialItem
   } : null);
+  useEffect(() => { onFileChange?.(selection); }, [selection, onFileChange]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -100,18 +107,18 @@ export function ProjectFilesPanel({
       const currentStillExists = current && entries.some((item) => sameSelection(item, current));
       const currentIsCreateTarget = current?.relativePath === "";
       if (!currentStillExists && !currentIsCreateTarget) {
-        const initialKind: ProjectFileKind = initialSection === "outputs" ? "output" : "material";
+        const initialKind: ProjectFileKind = initialFileKind || (initialSection === "outputs" ? "output" : "material");
         const preferred = initialItem
           ? entries.find((item) => item.kind === initialKind && item.relativePath === initialItem)
           : undefined;
-        updateSelection(preferred || entries[0] || null);
+        updateSelection(preferred || (restoreSelection ? null : entries[0]) || null);
       }
     } catch (cause) {
       if (request === loadSequence.current) setError(errorText(cause));
     } finally {
       if (request === loadSequence.current) setLoading(false);
     }
-  }, [initialItem, initialSection, project.name, updateSelection]);
+  }, [initialItem, initialFileKind, initialSection, restoreSelection, project.name, updateSelection]);
 
   useEffect(() => {
     void load();
@@ -179,6 +186,7 @@ export function ProjectFilesPanel({
     updateSelection(relativePath ? { kind: "output", relativePath } : null);
   }, [updateSelection]);
 
+  const clearMissingFile = useCallback(() => updateSelection(null), [updateSelection]);
   const isSelected = (entry: ProjectFileSelection) => Boolean(selectionRef.current && sameSelection(selectionRef.current, entry));
 
   const submitRename = async () => {
@@ -343,6 +351,7 @@ export function ProjectFilesPanel({
     : selection?.kind === activeKind ? selection.relativePath : "";
   const detailContent = activeKind === "material" ? (
     <ProjectMaterialDetail
+      onMissing={restoreSelection && selection?.relativePath === initialItem ? clearMissingFile : undefined}
       project={project}
       materialPath={activePath || undefined}
       material={materials.find(item => item.relativePath === activePath)}
@@ -353,6 +362,7 @@ export function ProjectFilesPanel({
     />
   ) : activeKind === "output" ? (
     <ProjectOutputDetail
+      onMissing={restoreSelection && selection?.relativePath === initialItem ? clearMissingFile : undefined}
       project={project}
       outputPath={activePath || undefined}
       onOutputChange={acceptOutput}

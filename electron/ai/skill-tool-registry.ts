@@ -148,13 +148,14 @@ export class SkillToolRegistry {
       const bridge = this.providerSkillBridge(entry);
       if (!bridge) return [];
       const installed = this.installedResolver?.installed(bridge.id);
-      const metadata = installed && isAppLibraryInstall(installed) ? readSkillLibraryMetadata(bridge.packageRoot) : null;
+      const libraryMetadata = readSkillLibraryMetadata(bridge.packageRoot);
+      const metadata = installed && (isAppLibraryInstall(installed) || libraryMetadata?.origin === "authored") ? libraryMetadata : null;
       let requirement = metadata?.requirement;
       if (!requirement && installed && isLegacyAppLibraryInstall(installed)) {
         try { requirement = readSkillLibraryCatalog().skills.find(preset => preset.id === bridge.id)?.requirement; }
         catch { /* An unavailable discovery catalog does not invalidate installed instructions. */ }
       }
-      const needsTools = requirement === "python" || requirement === "ffmpeg";
+      const needsTools = requirement === "image" || requirement === "python" || requirement === "ffmpeg";
       if (needsTools && this.runtimePaths) tools ??= resolveSkillLibraryTools(this.runtimePaths);
       return [{
         id: bridge.id,

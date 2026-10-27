@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
+import { ProjectService } from "./project/project-service";
 import { ProjectPathResolver } from "./project/project-path-resolver";
 import { IPC_INVOKE_REGISTRY, IPC_METHOD_CHANNELS } from "../shared/ipc-registry";
 import { createDesktopInvokeBridge } from "../shared/ipc-bridge";
@@ -53,6 +54,12 @@ describe("ipc registry", () => {
     expect(IPC_INVOKE_REGISTRY).toHaveLength(148);
     expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(148);
     expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(148);
+  });
+
+  it("does not expose or register the removed Skill copy operation", () => {
+    const bridge = createDesktopInvokeBridge(vi.fn(async () => undefined));
+    expect("copyLibrarySkill" in bridge).toBe(false);
+    expect(createIpcHandlerEntries(makeCtx()).some(entry => entry.channel === "skill-library:copyLibrarySkill")).toBe(false);
   });
 
   it("builds preload bridge entries from the registry", async () => {
@@ -120,6 +127,25 @@ function makeCtx(overrides: Partial<IpcMainContext> = {}): IpcMainContext {
 }
 
 describe("ipc handlers", () => {
+  it("forwards the file origin through Project admission without changing the trusted root", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-origin-ipc-"));
+    try {
+      fs.mkdirSync(path.join(directory, "content"));
+      const service = new ProjectService(path.join(directory, "content"), { stateRoot: path.join(directory, "state") });
+      const project = service.createProject({ name: "Project1", description: "" }).project;
+      const task = service.createProjectTask(project.name, "Review A", "codex-native");
+      const origin = { page: "projects", projectId: project.id, projectName: project.name, section: "materials", filePath: "materials/A.md", fileKind: "material" };
+      const call = vi.fn(async () => { throw new Error("fixture stops before provider execution"); });
+      const ctx = makeCtx({ ensureProjectService: () => service, ensureAiWorker: () => ({ call }) as never });
+      await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.projectStartTaskRun, {
+        projectName: project.name, taskId: task.taskId, providerId: "codex-native", prompt: "review A", origin
+      })).rejects.toThrow("fixture stops before provider execution");
+      expect(call).toHaveBeenCalledWith("start-project-run", expect.objectContaining({
+        origin, projectId: project.id, projectRoot: service.resolveProjectRoot(project.name), taskId: task.taskId
+      }));
+    } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+  });
+
   it("keeps media metadata inside project materials/outputs and rejects traversal or extra root arguments", async () => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-media-ipc-"));
     try {
@@ -1167,3 +1193,39 @@ async function waitForCondition(predicate: () => boolean): Promise<void> {
   }
   throw new Error("condition not reached");
 }
+
+describe("Skill contributor avatar admission", () => {
+  it("uses one native file selection, preserves cancellation and rejects a changed workspace", async () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-avatar-ipc-"));
+    const settings = await import("./lib/settings");
+    const { dialog } = await import("electron");
+    const { buildAppPaths, ensureAppPaths } = await import("./paths/app-paths-service");
+    const { SkillPackageService } = await import("./skills/skill-package-service");
+    const { SkillLibraryService } = await import("./skills/skill-library-service");
+    try {
+      const root = vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue(directory);
+      const paths = buildAppPaths(path.join(directory, "state"), path.join(directory, ".agent/skills")); ensureAppPaths(paths);
+      const packages = new SkillPackageService(paths);
+      const document = new SkillLibraryService(directory, paths, packages, path.join(directory, "bundle")).editor();
+      const avatar = { id: crypto.randomUUID(), name: "avatar.png", kind: "image" as const, extension: ".png" };
+      const imported = vi.spyOn(SkillLibraryService.prototype, "importAvatar").mockImplementation(async (_id, _file, assertCurrent) => { assertCurrent?.(); return avatar; });
+      const ctx = makeCtx({ ensureSkillPackageService: () => packages });
+      electronMock.dialogResult = { canceled: true, filePaths: [] };
+      await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.importSkillAvatar, document.id)).resolves.toBeNull();
+      expect(imported).not.toHaveBeenCalled();
+      electronMock.dialogResult = { canceled: false, filePaths: [path.join(directory, "selected.webp")] };
+      await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.importSkillAvatar, document.id)).resolves.toEqual(avatar);
+      expect(dialog.showOpenDialog).toHaveBeenLastCalledWith(null, expect.objectContaining({ properties: ["openFile"], filters: [expect.objectContaining({ extensions: ["png", "jpg", "jpeg", "webp"] })] }));
+      imported.mockClear();
+      vi.mocked(dialog.showOpenDialog).mockImplementationOnce(async () => {
+        root.mockReturnValue(path.join(directory, "another-workspace"));
+        return { ...electronMock.dialogResult };
+      });
+      await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.importSkillAvatar, document.id)).rejects.toThrow();
+      expect(imported).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks(); electronMock.dialogResult = { canceled: true, filePaths: [] };
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});

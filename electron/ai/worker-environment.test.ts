@@ -11,6 +11,7 @@ describe("AI Worker environment", () => {
       OPENAI_API_KEY: "should-not-cross",
       PLAYWRIGHT_MCP_EXTENSION_TOKEN: "should-not-cross",
       OPENMIND_STATE_ROOT: "/untrusted/parent-state",
+      OPENMIND_ELECTRON_EXECUTABLE: "/untrusted/runtime",
       NODE_OPTIONS: "--require=/tmp/injected.js",
       PYTHONPATH: "/tmp/injected-python",
       LD_PRELOAD: "/tmp/injected.so",
@@ -19,6 +20,7 @@ describe("AI Worker environment", () => {
       OPENMIND_REPO_ROOT: "/workspace",
       OPENMIND_USER_DATA_DIR: "/app-user-data",
       OPENMIND_SKILL_LIBRARY_BUNDLE: "/app-resources/skill-library",
+      OPENMIND_ELECTRON_EXECUTABLE: "/app/OpenMind",
       OPENMIND_BROWSER_SKILL_CLI: "/tools/bsk",
       BSK_HOME: "/browser-runtime"
     });
@@ -31,6 +33,7 @@ describe("AI Worker environment", () => {
       OPENMIND_REPO_ROOT: "/workspace",
       OPENMIND_USER_DATA_DIR: "/app-user-data",
       OPENMIND_SKILL_LIBRARY_BUNDLE: "/app-resources/skill-library",
+      OPENMIND_ELECTRON_EXECUTABLE: "/app/OpenMind",
       OPENMIND_BROWSER_SKILL_CLI: "/tools/bsk",
       BSK_HOME: "/browser-runtime"
     });

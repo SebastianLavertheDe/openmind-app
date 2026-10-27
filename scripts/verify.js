@@ -4,6 +4,7 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const requiredFiles = [
   "package.json",
+  ".build/electron/electron/entry.js",
   ".build/electron/electron/main.js",
   ".build/electron/electron/preload.js",
   ".build/electron/electron/ai/worker.js",
@@ -25,7 +26,7 @@ for (const file of requiredFiles) {
 }
 
 const pkg = require(path.join(root, "package.json"));
-if (pkg.main !== ".build/electron/electron/main.js") throw new Error("Desktop entry does not target the TypeScript build.");
+if (pkg.main !== ".build/electron/electron/entry.js") throw new Error("Desktop entry does not target the TypeScript build.");
 if (!pkg.scripts.typecheck) throw new Error("Type checking is not part of the desktop build.");
 const preloadOutput = fs.readFileSync(path.join(root, ".build/electron/electron/preload.js"), "utf8");
 if (/require\((["'])\.\.?[\\/]/.test(preloadOutput)) {

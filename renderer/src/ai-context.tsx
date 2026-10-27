@@ -1,3 +1,5 @@
+import { createSessionOriginStore, SessionOriginContext } from "./app/session-origin-context";
+import type { AiSessionOrigin } from "@shared/ai-session-origin";
 import type { SkillLibraryEntry, SkillSelectionInput } from "@shared/skill-library";
 import { FeedbackBoundary, useFeedback, useFeedbackState, type FeedbackActions, type FeedbackState } from "./feedback-context";
 import {
@@ -44,6 +46,8 @@ type PanelMode = "collapsed" | "default" | "wide" | "full";
 export type { ConfirmAction, ConfirmOptions } from "./feedback-context";
 
 type SendOptions = {
+  origin?: AiSessionOrigin;
+  retryOfRunId?: string;
   selectedSkill?: SkillSelectionInput | null;
   imageGeneration?: import("@shared/image-generation").ImageSelection | null;
   providerId?: string;
@@ -457,6 +461,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sendingRef = useRef(false);
+  const [originStore] = useState(createSessionOriginStore);
   const cancellingRunsRef = useRef(new Set<string>());
   const [cancellingRunIds, setCancellingRunIds] = useState<ReadonlySet<string>>(() => new Set());
   const selectionRequest = useRef(0);
@@ -686,6 +691,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     if (!providerId) throw new Error(m.ai.error.noProvider);
     const sourceKey = targetSession?.id || NEW_SESSION_DRAFT;
     const contexts = options.contexts || contextsByDraftRef.current[sourceKey] || [];
+    const origin = options.origin ?? originStore.get();
     sendingRef.current = true;
     setIsSending(true);
     setError(null);
@@ -695,6 +701,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     try {
       const startInput = (acknowledgeProviderChange?: boolean) => ({
         sessionId: targetSession?.id,
+        ...(!targetSession ? { origin } : {}),
         providerId,
         permissionProfile: options.permissionProfile || targetSession?.permissionProfile || "auto",
         interactionMode: options.interactionMode || targetSession?.interactionMode || "default",
@@ -703,11 +710,18 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
         contexts,
         selectedSkill: options.selectedSkill !== undefined ? options.selectedSkill : (() => { const skill = draftStore.getSkill(sourceKey); return skill?.key && skill.digest ? { key: skill.key, digest: skill.digest } : null; })(),
         imageGeneration: options.imageGeneration,
+        ...(options.retryOfRunId ? { retryOfRunId: options.retryOfRunId } : {}),
         ...(acknowledgeProviderChange ? { acknowledgeProviderChange: true } : {})
       });
       let result: Awaited<ReturnType<typeof window.openmind.aiStartRun>>;
+      const start = (acknowledgeProviderChange?: boolean) => {
+        const input = startInput(acknowledgeProviderChange);
+        return targetSession?.scope?.type === "project-task"
+          ? window.openmind.projectStartTaskRun({ ...input, projectName: targetSession.scope.projectName, taskId: targetSession.scope.taskId })
+          : window.openmind.aiStartRun(input);
+      };
       try {
-        result = await window.openmind.aiStartRun(startInput());
+        result = await start();
       } catch (cause) {
         // 会话绑定的 Provider 指纹已变更：弹确认框，同意后按当前配置重试一次，
         // worker 会把会话冻结的指纹刷新为当前值；取消则按原错误文案提示。
@@ -719,7 +733,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
           confirmText: m.ai.providerChange.confirm
         });
         if (!acknowledged) throw new Error(change.message);
-        result = await window.openmind.aiStartRun(startInput(true));
+        result = await start(true);
       }
       if (!options.preserveDraft) {
         draftStore.set(sourceKey, "");
@@ -777,6 +791,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     const run = snapshotRef.current.runs.find((candidate) => candidate.id === runId);
     if (!run) throw new Error(m.ai.error.rerunNotFound);
     await send(run.prompt, {
+      retryOfRunId: run.id,
       sessionId: run.sessionId,
       providerId: run.providerId,
       permissionProfile: run.permissionProfile,
@@ -1000,7 +1015,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
           <ActionsContext.Provider value={actionsValue}>
             <DraftStoreContext.Provider value={draftStore}>
               <DraftKeyContext.Provider value={draftKey}>
-                <StreamingContext.Provider value={streamingStore}>{children}</StreamingContext.Provider>
+                <StreamingContext.Provider value={streamingStore}><SessionOriginContext.Provider value={originStore}>{children}</SessionOriginContext.Provider></StreamingContext.Provider>
               </DraftKeyContext.Provider>
             </DraftStoreContext.Provider>
           </ActionsContext.Provider>

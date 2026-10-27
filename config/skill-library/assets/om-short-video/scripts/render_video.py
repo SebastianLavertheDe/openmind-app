@@ -5,6 +5,7 @@ Input: {"slides": [{"text": "Hello", "duration": 2, "image": "optional.png"}]}
 """
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -38,7 +39,9 @@ def render(data, output, electron=None, ffmpeg=None):
                 raise RuntimeError('This ffmpeg build lacks drawtext. Pass --electron with the OpenMind runtime executable from the Skill context.')
             config = {**data, 'width': width, 'height': height}
             (work / 'frames.json').write_text(json.dumps(config), encoding='utf-8')
-            subprocess.run([str(Path(electron).resolve()), '--no-sandbox', str(Path(__file__).with_name('render_frames.cjs')), str(work / 'frames.json'), str(work)], check=True, timeout=120)
+            environment = dict(os.environ)
+            environment.pop('ELECTRON_RUN_AS_NODE', None)
+            subprocess.run([str(Path(electron).resolve()), '--no-sandbox', str(Path(__file__).with_name('render_frames.cjs')), '--openmind-render-video-frames', str(work / 'frames.json'), str(work)], env=environment, check=True, timeout=120)
         for i, slide in enumerate(slides):
             duration = float(slide.get('duration', 3))
             if not .1 <= duration <= 60:

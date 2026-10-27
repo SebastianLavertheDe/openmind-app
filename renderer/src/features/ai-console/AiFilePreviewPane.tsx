@@ -1,3 +1,4 @@
+import { useBeforeSessionNavigation } from "../../app/session-navigation";
 import { useFeedback } from "../../feedback-context";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
@@ -128,6 +129,8 @@ export function AiFilePreviewPane({
     confirmText: m.ai.workbench.unsavedConfirmText,
     danger: true
   }), [feedback]);
+
+  useBeforeSessionNavigation(useCallback(() => !preview.dirty || confirmLeavePreview(), [preview.dirty, confirmLeavePreview]));
 
   const openSource = useCallback(async (source: FilePreviewSource, logicalPath: string) => {
     if (openingSourceRef.current === source.id) return;

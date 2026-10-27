@@ -1,3 +1,4 @@
+import { AiSessionOriginSchema } from "./ai-session-origin";
 import { SkillSelectionInputSchema } from "./skill-library";
 import { messages } from "./messages";
 import { z } from "zod";
@@ -288,6 +289,8 @@ export const ProjectTaskMessageSchema = z.object({
 export type ProjectTaskMessage = z.infer<typeof ProjectTaskMessageSchema>;
 
 export const ProjectStartTaskRunInputSchema = z.object({
+  origin: AiSessionOriginSchema.nullable().optional(),
+  retryOfRunId: z.string().min(1).max(160).optional(),
   selectedSkill: SkillSelectionInputSchema.nullable().optional(),
   projectName: ProjectNameSchema,
   taskId: z.string().uuid(),
@@ -298,6 +301,9 @@ export const ProjectStartTaskRunInputSchema = z.object({
   imageGeneration: ImageSelectionSchema.nullable().optional(),
   contexts: z.array(ContextReferenceSchema).max(50).default([])
 }).superRefine((input, context) => {
+  if (input.retryOfRunId && !input.sessionId) {
+    context.addIssue({ code: "custom", path: ["sessionId"], message: messages.ai.error.rerunNotFound });
+  }
   if (!input.sessionId && !input.providerId) {
     context.addIssue({ code: "custom", path: ["providerId"], message: messages.validation.project.providerRequired });
   }

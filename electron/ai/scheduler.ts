@@ -1,3 +1,4 @@
+import type { AiSessionOrigin } from "../../shared/ai-session-origin";
 import type { SkillSelectionInput } from "../../shared/skill-library";
 import { messages } from "../../shared/messages";
 import path from "node:path";
@@ -324,11 +325,13 @@ export class RunScheduler {
       session,
       sessionRoot,
       scope: session?.scope ?? { type: "workspace" },
+      origin: input.origin,
       providerId: input.providerId,
       permissionProfile: input.permissionProfile,
       interactionMode: input.interactionMode,
       cwd,
       selectedSkill: input.selectedSkill,
+      retryOfRunId: input.retryOfRunId,
       prompt: input.prompt,
       imageGeneration: input.imageGeneration,
       contexts: input.contexts,
@@ -354,7 +357,8 @@ export class RunScheduler {
         interactionMode: session.interactionMode ?? "default",
         cwd: session.cwd,
         selectedSkill: input.selectedSkill,
-      prompt: input.prompt,
+        retryOfRunId: input.retryOfRunId,
+        prompt: input.prompt,
         imageGeneration: input.imageGeneration,
         contexts: input.contexts
       });
@@ -363,6 +367,7 @@ export class RunScheduler {
     const sessionRoot = canonicalizeTrustedProjectRoot(this.projectsRoot, input.projectName, input.projectRoot);
     return this.scheduleRun({
       session: null,
+      origin: input.origin,
       sessionRoot,
       scope: { type: "project-task", projectId: input.projectId, projectName: input.projectName, taskId: input.taskId },
       providerId: input.providerId,
@@ -377,6 +382,7 @@ export class RunScheduler {
   }
 
   private scheduleRun(input: {
+    origin?: AiSessionOrigin | null;
     session: AiSession | null;
     sessionRoot: string;
     scope: AiSessionScope;
@@ -386,6 +392,7 @@ export class RunScheduler {
     cwd: string;
     prompt: string;
     selectedSkill?: SkillSelectionInput | null;
+    retryOfRunId?: string;
     contexts: AiRun["contexts"];
     imageGeneration?: ImageSelection | null;
     acknowledgeProviderChange?: boolean;
@@ -393,6 +400,10 @@ export class RunScheduler {
     // Every turn refreshes enabled Installed Skills, including continuations
     // and Project Tasks. Full instructions are read only when applicable.
     const projectScoped = isProjectTaskScope(input.scope);
+    const retry = input.retryOfRunId ? this.store.getRun(input.retryOfRunId) : null;
+    if (retry && (!input.session || retry.sessionId !== input.session.id || retry.providerId !== input.providerId || retry.prompt !== input.prompt)) {
+      throw new Error(messages.ai.error.rerunNotFound);
+    }
     this.skillTools.refresh();
     const contexts = normalizeContextReferences(input.sessionRoot, input.contexts);
     const skillSnapshot = this.skillTools.captureSessionSnapshot();
@@ -402,7 +413,7 @@ export class RunScheduler {
     const skillInvocation = parseSkillSlashInvocation(input.prompt, skillSnapshot.map((entry) => entry.definition));
     const slashEntry = skillInvocation && skillSnapshot.find(entry => entry.definition.id === skillInvocation.skill.id);
     if (input.selectedSkill && slashEntry?.installed && input.selectedSkill.key !== slashEntry.installed.key) throw new Error(messages.skillLibrary.errors.skillConflict);
-    const selection = input.selectedSkill || slashEntry?.installed;
+    const selection = retry?.selectedSkill !== undefined ? retry.selectedSkill?.installed : input.selectedSkill || slashEntry?.installed;
     const selectedSkill = selection ? this.skillTools.resolveSelection(selection, skillSnapshot, input.selectedSkill ? "picker" : "slash") : null;
     const commandError = selectedSkill || skillInvocation ? null : slashCommandValidationError(input.prompt, contexts);
     if (commandError) throw new Error(commandError);
@@ -434,11 +445,13 @@ export class RunScheduler {
       throw new Error(provider?.diagnostic || "所选 AI Provider 当前不可用。");
     }
     const chosenModel = selectedSkill?.executionModel;
+    if (retry?.executionModel && session?.executionModel && retry.executionModel !== session.executionModel) throw new Error(messages.skillLibrary.errors.model);
     if (chosenModel && (chosenModel.provider !== provider.provider || session && (session.executionModel || this.resolveProviderModel(provider.provider)) !== chosenModel.model)) throw new Error(messages.skillLibrary.errors.model);
     if (session && session.providerId !== provider.id) throw new Error("会话 Provider 已锁定，不能中途切换。");
     if (!session) {
       const selectedServiceProvider = resolveCliProvider(provider.provider);
       session = this.store.createSession({
+        origin: input.origin,
         provider: provider.provider,
         providerId: provider.id,
         // Freeze the selected API service into the session. Changing the
@@ -479,7 +492,7 @@ export class RunScheduler {
     const materializedContexts = materializeImages(session.projectRoot, runId, contexts, this.stateRoot);
     if (chosenModel && !session.executionModel) session = this.store.updateSession(session.id, { executionModel: chosenModel.model });
     let run = this.store.createRun(session, input.prompt, materializedContexts, runId);
-    run = this.store.updateRun(run.id, { selectedSkill, executionModel: session.executionModel || this.resolveProviderModel(provider.provider) });
+    run = this.store.updateRun(run.id, { selectedSkill, executionModel: retry?.executionModel || session.executionModel || this.resolveProviderModel(provider.provider) });
     if (projectScoped) this.store.setProjectTaskStatus(session.id, "active");
     this.queue.push(run.id);
     this.publishSnapshot();

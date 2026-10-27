@@ -27,7 +27,7 @@ export function skillDiscoveryInstructions(
     ...(browserCli ? [
       `bsk CLI 的实际可执行文件是 ${JSON.stringify(mapPath(browserCli))}；执行 Skill 示例命令时使用这个路径（含空格时加引号）。`
     ] : []),
-    ...catalog.filter(entry => entry.tools).map(entry => `Existing runtime tools for ${entry.id}: ${JSON.stringify(Object.fromEntries(Object.entries(entry.tools!).map(([name, executable]) => [name, executable ? mapPath(executable) : null])))}. Use the provided Python interpreter and --ffmpeg / --electron options when needed. Electron frame rendering must use the disposable profile specified by the package script. Null means the dependency is unavailable; report it without installing anything.`),
+    ...catalog.filter(entry => entry.tools).map(entry => `Existing runtime tools for ${entry.id}: ${JSON.stringify(Object.fromEntries(Object.entries(entry.tools!).map(([name, executable]) => [name, executable ? mapPath(executable) : null])))}. Use the provided Python interpreter and --ffmpeg / --electron options when needed. For image composition, launch electron with imageComposer as its script, then --openmind-compose-image, a job JSON path and a new output PNG path; unset ELECTRON_RUN_AS_NODE for that child only. Electron rendering uses an isolated temporary profile. Null means the dependency is unavailable; report it without installing anything.`),
     ...catalog.map((entry) => JSON.stringify({
       name: entry.id,
       description: entry.description,

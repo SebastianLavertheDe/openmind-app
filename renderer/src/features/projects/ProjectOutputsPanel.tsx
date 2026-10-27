@@ -34,6 +34,7 @@ export function ProjectOutputsPanel({ project, initialOutputPath, createRequeste
     setSelectedPath(path || "");
     callbacks.current.onSelectionChange?.(path);
   }, []);
+  const clearMissingFile = useCallback(() => select(), [select]);
   const request = useRef(0);
   const load = useCallback(async () => {
     const id = ++request.current;
@@ -79,7 +80,7 @@ export function ProjectOutputsPanel({ project, initialOutputPath, createRequeste
       </div>
     </>
   );
-  const detail = <ProjectOutputDetail renderDetail={!hosted || Boolean(detailHost)} project={project} outputPath={selectedPath} onOutputChange={acceptOutput} onNavigationGuardChange={setGuard} createRequested={createRequested || localCreate} onCreateHandled={() => { setLocalCreate(false); onCreateHandled(); }} onSelectionChange={select} onChanged={changed} />;
+  const detail = <ProjectOutputDetail onMissing={!autoSelectFirst && selectedPath === initialOutputPath ? clearMissingFile : undefined} renderDetail={!hosted || Boolean(detailHost)} project={project} outputPath={selectedPath} onOutputChange={acceptOutput} onNavigationGuardChange={setGuard} createRequested={createRequested || localCreate} onCreateHandled={() => { setLocalCreate(false); onCreateHandled(); }} onSelectionChange={select} onChanged={changed} />;
   if (hosted) return <>{listHost ? createPortal(list, listHost) : null}{detailHost ? createPortal(detail, detailHost) : detail}</>;
   return <ProjectListDetail storageKey={"openmind:projects:outputs-layout:" + project.name} detailOpen={Boolean(selectedPath)} list={list} detail={detail} detailLabel={messages.projectUi.document} onBack={() => { void canNavigate().then(allowed => { if (allowed) select(); }); }} />;
 }

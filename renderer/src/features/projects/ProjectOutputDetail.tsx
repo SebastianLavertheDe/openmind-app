@@ -1,3 +1,4 @@
+import { isMissingFileError } from "../file-preview/missing-file";
 import { useFeedback } from "../../feedback-context";
 import { MenuItem, Button } from "../../design-system/components";
 import { useLocale } from "../../i18n";
@@ -32,10 +33,11 @@ export type ProjectOutputDetailProps = {
   onNavigationGuardChange?(guard: ProjectOutputNavigationGuard | null): void;
   onSelectionChange?(relativePath?: string): void;
   renderDetail?: boolean;
+  onMissing?(): void;
 };
 
 /** Editor controller and detail UI; list/selection ownership stays with its host. */
-export function ProjectOutputDetail({ project, outputPath, createRequested, onCreateHandled, onChanged, onOutputChange, onNavigationGuardChange, onSelectionChange, renderDetail = true }: ProjectOutputDetailProps) {
+export function ProjectOutputDetail({ project, outputPath, createRequested, onCreateHandled, onChanged, onOutputChange, onNavigationGuardChange, onSelectionChange, renderDetail = true, onMissing }: ProjectOutputDetailProps) {
   const locale = useLocale();
   const feedback = useFeedback();
 
@@ -200,6 +202,7 @@ export function ProjectOutputDetail({ project, outputPath, createRequested, onCr
     }
   };
 
+  useEffect(() => { if (isMissingFileError(preview.error)) onMissing?.(); }, [preview.error, onMissing]);
   const error = preview.error;
   const saving = preview.saving || saveState === "saving";
   const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle size={18} className="spin" />{messages.projectUi.readingDocument}</div> : error ? <ErrorState message={error} retry={() => { if (selectedPath) void readOutput(selectedPath, false); }} /> : selected && resource ? (

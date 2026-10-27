@@ -8,9 +8,9 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "getSkillEditor", channel: IPC.SKILL_LIBRARY_EDITOR },
   { method: "saveSkillDraft", channel: IPC.SKILL_LIBRARY_DRAFT },
   { method: "publishSkill", channel: IPC.SKILL_LIBRARY_PUBLISH },
-  { method: "copyLibrarySkill", channel: IPC.SKILL_LIBRARY_COPY },
   { method: "deleteAuthoredSkill", channel: IPC.SKILL_LIBRARY_DELETE },
   { method: "importSkillAssets", channel: IPC.SKILL_LIBRARY_ASSETS },
+  { method: "importSkillAvatar", channel: IPC.SKILL_LIBRARY_AVATAR },
   { method: "readSkillAssetImage", channel: IPC.SKILL_LIBRARY_IMAGE },
   { method: "suggestSkillField", channel: IPC.SKILL_LIBRARY_SUGGEST },
 

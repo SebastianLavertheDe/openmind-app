@@ -18,7 +18,10 @@
       },
       "instructions": [
         "Research a question using provided materials. Clarify scope and assumptions; inspect the supplied sources, separate evidence from inference, compare conflicting information, and write a useful report with source references. Do not invent citations or imply current web verification without reading sources."
-      ]
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
     },
     {
       "id": "om-source-compare",
@@ -37,7 +40,10 @@
       },
       "instructions": [
         "Read all supplied materials. Agree on comparison dimensions, align definitions and time periods, then present a comparison table with specific evidence, disagreements, missing data and a reasoned recommendation. Distinguish absent information from evidence of absence."
-      ]
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
     },
     {
       "id": "om-article-writer",
@@ -56,7 +62,10 @@
       },
       "instructions": [
         "Determine topic, audience, purpose and tone from the request. Read supplied materials. Build a clear narrative and deliver the complete article with concrete examples and supported claims. Use the existing openmind-artifact text protocol for a standalone written deliverable."
-      ]
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
     },
     {
       "id": "om-text-rewriter",
@@ -75,26 +84,550 @@
       },
       "instructions": [
         "Preserve facts, intent and required terminology. Improve structure, clarity, voice and grammar according to the requested audience. Deliver the complete revised text, and briefly explain material changes when helpful. Never invent quotations or add unsupported facts."
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
+    },
+    {
+      "id": "om-article-cover",
+      "version": "1.0.0",
+      "category": "image",
+      "requirement": "image",
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "avatars/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "display": {
+        "zh-CN": {
+          "title": "文章封面设计",
+          "subtitle": "从文章提炼主题，生成有辨识度的封面",
+          "description": "从文章提炼主题，生成有辨识度的封面。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
+          "inputHint": "提供文章、主题或字幕，也可以指定画风和画幅。"
+        },
+        "en": {
+          "title": "Article cover designer",
+          "subtitle": "Turn an article into a distinctive visual cover",
+          "description": "Turn an article into a distinctive visual cover. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
+          "inputHint": "Provide an article, topic or transcript, with an optional style and aspect ratio."
+        }
+      },
+      "instructions": [
+        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
+        "Read the attached or current article, topic or transcript. Identify its main claim, audience and one concrete visual metaphor. Keep the original article and its title unchanged; use a shorter cover headline only when necessary and explain that choice. Never fabricate a stronger claim for clickbait.",
+        "Default to one finished cover. For an article use 2350 × 1000; for a video/transcript use 1600 × 900; for a portrait social cover use 1200 × 1600. A user-specified destination or dimension takes precedence. These are design presets, not a guarantee about any platform’s current rules.",
+        "Compose a prominent short headline, minimal small text and one dominant metaphor. Keep critical text and subjects away from the edges. Pick a style and palette appropriate to the article, call openmind_generate_image, and use the image compositor to deliver the exact chosen dimensions. Use contain if cropping would remove lettering or the subject.",
+        "Deliver the finished cover PNG, with a concise explanation of its visual concept and dimensions; do not return only a cover prompt."
+      ],
+      "files": [
+        {
+          "source": "_shared/handraw-style/image-workflow.md",
+          "target": "references/image-workflow.md"
+        },
+        {
+          "source": "_shared/handraw-style/visual-library.json",
+          "target": "references/visual-library.json"
+        },
+        {
+          "source": "_shared/handraw-style/LICENSE",
+          "target": "LICENSE.handraw-style"
+        },
+        {
+          "source": "_shared/handraw-style/ATTRIBUTION.md",
+          "target": "ATTRIBUTION.md"
+        },
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "avatars/yang0.jpg"
+        }
+      ]
+    },
+    {
+      "id": "om-article-illustrator",
+      "version": "1.0.0",
+      "category": "image",
+      "requirement": "image",
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "avatars/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "display": {
+        "zh-CN": {
+          "title": "长文自动配图",
+          "subtitle": "生成插图，并交付保留原文的图文副本",
+          "description": "生成插图，并交付保留原文的图文副本。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
+          "inputHint": "提供 Markdown 文章，说明想要的配图数量或风格。"
+        },
+        "en": {
+          "title": "Article illustrator",
+          "subtitle": "Illustrate an article while preserving the original",
+          "description": "Illustrate an article while preserving the original. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
+          "inputHint": "Provide a Markdown article and optional illustration count or style."
+        }
+      },
+      "instructions": [
+        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
+        "Read the full article before planning illustrations. For explanatory writing choose useful diagrams, comparisons or process steps from IG layouts; for stories choose meaningful narrative or emotional transitions. Default to three illustrations for a long article, fewer for short text, and honor an explicit count. Spread the illustrations across meaningful sections instead of clustering them at the top.",
+        "Create a working manifest with each image’s purpose, unique exact paragraph anchor, factual labels, layout, style, palette and output path. Use one coherent style across the article. Preserve all numbers, formulas, quotations, code blocks, source links and headings; do not invent data to fill a chart.",
+        "Generate each illustration separately with openmind_generate_image and reuse the first approved visual as a style reference where useful. Default to 1600 × 1200; fit each finished image with the compositor. Copy final images into a new companion asset directory inside the allowed output directory; never write user content into the installed package.",
+        "Create a new <article-name>_illustrated.md without overwriting any existing file. Insert image links and useful alt text after the verified paragraph anchors; an ambiguous or missing anchor must be resolved by reading the surrounding text, never by global replacement. Do not delete, summarize or rewrite original prose unless the user explicitly requested editing. If moving the copy, resolve existing relative links against the original document and rebase them to the copy; keep code examples and external URLs unchanged. If the conversation only permits text output, present the complete illustrated Markdown through openmind-artifact and report that no file was saved.",
+        "Validate the illustrated copy against the source: original prose, headings, formulas, tables and code remain, with only illustration insertions and necessary local-link rebasing. Verify every inserted image exists and resolves from the copy. Report any incomplete image or unresolved reference honestly. Deliver the new Markdown and finished illustrations, not the internal manifest or prompts. Leave the original file untouched."
+      ],
+      "files": [
+        {
+          "source": "_shared/handraw-style/image-workflow.md",
+          "target": "references/image-workflow.md"
+        },
+        {
+          "source": "_shared/handraw-style/visual-library.json",
+          "target": "references/visual-library.json"
+        },
+        {
+          "source": "_shared/handraw-style/LICENSE",
+          "target": "LICENSE.handraw-style"
+        },
+        {
+          "source": "_shared/handraw-style/ATTRIBUTION.md",
+          "target": "ATTRIBUTION.md"
+        },
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "avatars/yang0.jpg"
+        }
+      ]
+    },
+    {
+      "id": "om-social-cards",
+      "version": "1.0.0",
+      "category": "image",
+      "requirement": "image",
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "avatars/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "display": {
+        "zh-CN": {
+          "title": "小红书图文卡片",
+          "subtitle": "把文章和笔记变成风格统一的多页图文",
+          "description": "把文章和笔记变成风格统一的多页图文。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
+          "inputHint": "提供主题或笔记，可指定页数、受众和视觉风格。"
+        },
+        "en": {
+          "title": "Social carousel cards",
+          "subtitle": "Turn notes into a consistent multi-page visual story",
+          "description": "Turn notes into a consistent multi-page visual story. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
+          "inputHint": "Provide a topic or notes, optionally with page count, audience and style."
+        }
+      },
+      "instructions": [
+        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
+        "Read the supplied material and extract a clear audience, useful takeaway and supporting facts. Default to five pages: one cover, three content pages and a closing summary. Adjust to the amount of evidence and any explicit page count. Do not invent experience, statistics, quotations or testimonials.",
+        "Plan each page with one message, a short exact headline and at most three concise supporting points. Choose SC-001 for a cover with an illustration, SC-010 for a list, SC-007 for a meaningful supplied quote, or SC-016 for a short conclusion. Keep typography hierarchy, palette, margins and repeated motifs consistent.",
+        "Generate the cover first, then call openmind_generate_image separately for each remaining page with its own exact copy and layout; count is not a substitute for different page prompts. Pass the first page as a reference image for visual continuity. Default every page to 1200 × 1600 and use the compositor to normalize dimensions without cropping text.",
+        "Inspect reading order, duplicate or missing pages and exact wording; correct obvious text errors. Save numbered files in reading order. Deliver every finished page as an individual image plus a short caption in the reply. A contact sheet or a set of prompts alone is not the requested carousel."
+      ],
+      "files": [
+        {
+          "source": "_shared/handraw-style/image-workflow.md",
+          "target": "references/image-workflow.md"
+        },
+        {
+          "source": "_shared/handraw-style/visual-library.json",
+          "target": "references/visual-library.json"
+        },
+        {
+          "source": "_shared/handraw-style/LICENSE",
+          "target": "LICENSE.handraw-style"
+        },
+        {
+          "source": "_shared/handraw-style/ATTRIBUTION.md",
+          "target": "ATTRIBUTION.md"
+        },
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "avatars/yang0.jpg"
+        }
+      ]
+    },
+    {
+      "id": "om-knowledge-infographic",
+      "version": "1.0.0",
+      "category": "image",
+      "requirement": "image",
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "avatars/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "display": {
+        "zh-CN": {
+          "title": "知识信息图",
+          "subtitle": "把知识、流程和对比关系讲成一张图",
+          "description": "把知识、流程和对比关系讲成一张图。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
+          "inputHint": "提供知识点、操作步骤或需要对比的资料。"
+        },
+        "en": {
+          "title": "Knowledge infographic",
+          "subtitle": "Explain a concept, process or comparison visually",
+          "description": "Explain a concept, process or comparison visually. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
+          "inputHint": "Provide a concept, procedure or comparison material."
+        }
+      },
+      "instructions": [
+        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
+        "Extract the exact concepts, sequence, relationships and evidence from the user’s material. Choose one primary question the image should answer. Preserve units, dates, labels, formulas and uncertainty; ask only if a missing fact prevents an accurate diagram.",
+        "Choose IG-008 for steps, IG-004 for comparisons, IG-009 for a timeline, IG-012 for hierarchy, IG-014 for a quadrant or IG-017 for a mind map. Use relationships and spatial grouping to explain the idea, not decorative boxes containing a pasted essay. Use a clean background and ample separation between labels.",
+        "Generate one finished image through openmind_generate_image, defaulting to 1600 × 1200, or portrait 1200 × 1600 when the structure is vertical. Normalize dimensions with the compositor. Check arrow direction, chronological order, labels, numbers and readability against the original material. If a formula or dense label cannot be rendered faithfully, supply its exact text alongside the image and state the limitation.",
+        "Deliver the finished infographic with a concise textual equivalent of the important relationships so the knowledge is still accessible and checkable."
+      ],
+      "files": [
+        {
+          "source": "_shared/handraw-style/image-workflow.md",
+          "target": "references/image-workflow.md"
+        },
+        {
+          "source": "_shared/handraw-style/visual-library.json",
+          "target": "references/visual-library.json"
+        },
+        {
+          "source": "_shared/handraw-style/LICENSE",
+          "target": "LICENSE.handraw-style"
+        },
+        {
+          "source": "_shared/handraw-style/ATTRIBUTION.md",
+          "target": "ATTRIBUTION.md"
+        },
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "avatars/yang0.jpg"
+        }
       ]
     },
     {
       "id": "om-poster-maker",
+      "version": "1.1.0",
       "category": "image",
       "requirement": "image",
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "avatars/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
       "display": {
         "zh-CN": {
-          "title": "主题海报",
-          "subtitle": "把主题、文案和视觉方向变成海报",
-          "inputHint": "海报的主题、文案、比例和风格是什么？"
+          "title": "活动／节日海报",
+          "subtitle": "围绕活动、节日或主题制作完整海报",
+          "description": "围绕活动、节日或主题制作完整海报。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
+          "inputHint": "提供主题、宣传文案，以及需要展示的时间、地点等信息。"
         },
         "en": {
-          "title": "Poster maker",
-          "subtitle": "Turn a theme and message into a visual poster",
-          "inputHint": "Describe your theme, copy, aspect ratio and style."
+          "title": "Event and theme poster",
+          "subtitle": "Create a finished event, holiday or thematic poster",
+          "description": "Create a finished event, holiday or thematic poster. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
+          "inputHint": "Provide the theme, copy and any date, venue or other required details."
         }
       },
       "instructions": [
-        "Extract the theme, exact copy, aspect ratio and visual direction. Use the application image-generation tool with the selected image service; do not substitute a prompt for an actual requested image. Inspect the resulting image when supported. Declare the final image through the existing deliverables protocol only after successful generation."
+        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
+        "Create an actual finished poster for the requested event, holiday or general theme. Extract the audience, message, exact supplied headline, date, venue and call to action. Do not infer an event date from a holiday name, invent an address or generate a fake QR code. Ask for indispensable factual details or omit optional missing details.",
+        "Choose a visual metaphor, appropriate style and restrained palette, then build a clear hierarchy: headline first, key event information second, action last. A user-provided logo or QR code must remain usable; do not redraw it and claim it is faithful.",
+        "Call openmind_generate_image rather than only returning a prompt. Default to one portrait 1200 × 1600 poster; adapt to the user’s specified format. Fit the result to the exact dimensions with the compositor, keeping lettering and essential artwork intact. Inspect spelling, dates and small-text readability.",
+        "Deliver the final poster image and briefly note any omitted information or rendering limitation. Do not publish or share it to external services."
+      ],
+      "files": [
+        {
+          "source": "_shared/handraw-style/image-workflow.md",
+          "target": "references/image-workflow.md"
+        },
+        {
+          "source": "_shared/handraw-style/visual-library.json",
+          "target": "references/visual-library.json"
+        },
+        {
+          "source": "_shared/handraw-style/LICENSE",
+          "target": "LICENSE.handraw-style"
+        },
+        {
+          "source": "_shared/handraw-style/ATTRIBUTION.md",
+          "target": "ATTRIBUTION.md"
+        },
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "avatars/yang0.jpg"
+        }
+      ]
+    },
+    {
+      "id": "om-four-panel-comic",
+      "version": "1.0.0",
+      "category": "image",
+      "requirement": "image",
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "avatars/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "display": {
+        "zh-CN": {
+          "title": "四格故事漫画",
+          "subtitle": "把故事或知识点画成有起承转合的四格漫画",
+          "description": "把故事或知识点画成有起承转合的四格漫画。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
+          "inputHint": "描述一个故事、生活场景或想解释的知识点。"
+        },
+        "en": {
+          "title": "Four-panel comic",
+          "subtitle": "Tell a story or explain an idea in four connected panels",
+          "description": "Tell a story or explain an idea in four connected panels. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
+          "inputHint": "Describe a story, everyday scene or concept to explain."
+        }
+      },
+      "instructions": [
+        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
+        "Build four short beats from the request: setup, development, change and payoff. For a factual explanation preserve the supplied facts; do not introduce a misleading twist for comedy. Decide one main character, an identifiable silhouette, clothing and a small consistent palette.",
+        "Use SB-002: four equal panels in a 2 × 2 page, read left to right then top to bottom. Keep gutters clear. Prepare short exact captions or speech bubbles in the user’s language. Avoid densely lettered dialogue and show actions visually.",
+        "Generate the complete four-panel page in one openmind_generate_image call to help continuity. Use user-supplied character references when available. Default to 1600 × 1600 and normalize with contain; never crop away a panel. Check all four beats, character identity, bubble placement and reading order.",
+        "Deliver the complete comic PNG and the four short captions as accessible text. If the user requests separate panels, generate or crop those explicitly in addition; a script alone is not the finished comic."
+      ],
+      "files": [
+        {
+          "source": "_shared/handraw-style/image-workflow.md",
+          "target": "references/image-workflow.md"
+        },
+        {
+          "source": "_shared/handraw-style/visual-library.json",
+          "target": "references/visual-library.json"
+        },
+        {
+          "source": "_shared/handraw-style/LICENSE",
+          "target": "LICENSE.handraw-style"
+        },
+        {
+          "source": "_shared/handraw-style/ATTRIBUTION.md",
+          "target": "ATTRIBUTION.md"
+        },
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "avatars/yang0.jpg"
+        }
+      ]
+    },
+    {
+      "id": "om-photo-diptych",
+      "version": "1.0.0",
+      "category": "image",
+      "requirement": "image",
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "avatars/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "display": {
+        "zh-CN": {
+          "title": "照片转手绘双拼",
+          "subtitle": "保留原照片，配上一张同构图的手绘版本",
+          "description": "保留原照片，配上一张同构图的手绘版本。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
+          "inputHint": "上传一张照片，可指定水彩、蜡笔、线描等画风。"
+        },
+        "en": {
+          "title": "Photo-to-illustration diptych",
+          "subtitle": "Pair the original photo with a hand-drawn interpretation",
+          "description": "Pair the original photo with a hand-drawn interpretation. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
+          "inputHint": "Attach a photo and optionally choose watercolor, crayon or another visual style."
+        }
+      },
+      "instructions": [
+        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
+        "Require a real local reference photo from the conversation or permitted content root. If none is available, ask for the photo; do not fabricate an original photo. Identify its main subject, framing and landmarks. Choose or honor a visual medium from the bundled references.",
+        "Generate only the illustrated interpretation using openmind_generate_image with the photo in referenceImages. Preserve the subject, pose and framing where possible while expressing actual drawn lines and material texture. Do not ask the model to reproduce the original half of the comparison.",
+        "Use the deterministic diptych compositor from references/image-workflow.md, passing the actual original path and generated illustration path. Choose vertical stacking (original above) for a landscape photo, horizontal pairing (original left) for a portrait photo, and derive canvas dimensions so both equal panels respect the original aspect ratio. Use contain for both panels and a narrow neutral gutter. Do not crop, stretch, filter or overwrite the original file.",
+        "Deliver the composed PNG and, if useful, the standalone illustrated version. Describe the style transfer without claiming the generated interpretation preserves every detail. Never call a model-regenerated image the unchanged original."
+      ],
+      "files": [
+        {
+          "source": "_shared/handraw-style/image-workflow.md",
+          "target": "references/image-workflow.md"
+        },
+        {
+          "source": "_shared/handraw-style/visual-library.json",
+          "target": "references/visual-library.json"
+        },
+        {
+          "source": "_shared/handraw-style/LICENSE",
+          "target": "LICENSE.handraw-style"
+        },
+        {
+          "source": "_shared/handraw-style/ATTRIBUTION.md",
+          "target": "ATTRIBUTION.md"
+        },
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "avatars/yang0.jpg"
+        }
+      ]
+    },
+    {
+      "id": "om-product-highlights",
+      "version": "1.0.0",
+      "category": "image",
+      "requirement": "image",
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "avatars/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "display": {
+        "zh-CN": {
+          "title": "商品卖点图",
+          "subtitle": "围绕真实商品资料，生成清晰的卖点标注图",
+          "description": "围绕真实商品资料，生成清晰的卖点标注图。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
+          "inputHint": "提供商品照片和真实规格、功能或卖点。"
+        },
+        "en": {
+          "title": "Product feature image",
+          "subtitle": "Present a real product with clear feature callouts",
+          "description": "Present a real product with clear feature callouts. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
+          "inputHint": "Provide a product photo and factual specifications or benefits."
+        }
+      },
+      "instructions": [
+        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
+        "Read the product photo and supplied specifications. Extract three to five supported buying reasons and their priority for the stated audience. Do not invent certifications, performance data, discounts, sales volumes or customer reviews. If there is no actual product photo, request it unless the user explicitly wants a concept mockup.",
+        "Use EC-005 feature callouts around a large product subject, EC-001 for a clean hero image or EC-009 for a useful lifestyle setting. Keep the product’s real shape, color, label and branding; stylize only the surrounding scene or accents. Supply the original photo as referenceImages.",
+        "Call openmind_generate_image for one finished image, default 1600 × 1600. Normalize via the compositor without cutting off the product or labels. Compare generated details against the original photo and verify every written claim. If the generator changes product details and cannot correct them, identify the result as a concept preview rather than claiming it is an accurate product photo.",
+        "Deliver the finished image and a concise list of the supplied facts it depicts. Never publish to a shop or an advertising platform automatically."
+      ],
+      "files": [
+        {
+          "source": "_shared/handraw-style/image-workflow.md",
+          "target": "references/image-workflow.md"
+        },
+        {
+          "source": "_shared/handraw-style/visual-library.json",
+          "target": "references/visual-library.json"
+        },
+        {
+          "source": "_shared/handraw-style/LICENSE",
+          "target": "LICENSE.handraw-style"
+        },
+        {
+          "source": "_shared/handraw-style/ATTRIBUTION.md",
+          "target": "ATTRIBUTION.md"
+        },
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "avatars/yang0.jpg"
+        }
+      ]
+    },
+    {
+      "id": "om-brand-character",
+      "version": "1.0.0",
+      "category": "image",
+      "requirement": "image",
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "avatars/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "display": {
+        "zh-CN": {
+          "title": "品牌 IP 形象设计",
+          "subtitle": "设计角色形象、三视图和配套表情",
+          "description": "设计角色形象、三视图和配套表情。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
+          "inputHint": "介绍品牌、目标受众，以及角色的性格或原型。"
+        },
+        "en": {
+          "title": "Brand character designer",
+          "subtitle": "Design a character, turnaround and expression sheet",
+          "description": "Design a character, turnaround and expression sheet. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
+          "inputHint": "Describe the brand, audience and desired personality or character basis."
+        }
+      },
+      "instructions": [
+        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
+        "Infer a concise character brief from the brand, audience and requested personality. Choose one concept, a distinctive silhouette, recognizable proportions, a limited palette and one or two signature features. Honor existing brand or character references. Default to a small coherent set, not the upstream full eighteen-card package.",
+        "First generate one full-body neutral hero character at 1200 × 1600 using openmind_generate_image. Inspect and establish this as the reference identity before generating further sheets. Preserve its proportions, colors, clothing and distinguishing features in all subsequent prompts.",
+        "Generate a separate 1600 × 1200 front/side/back turnaround with aligned proportions and neutral poses. Generate a separate 1600 × 1200 four-expression sheet with clearly distinct happy, sad, surprised and thoughtful expressions, or user-specified expressions. For every follow-up call pass the established hero image and any relevant supplied brand reference in referenceImages. Fit each sheet to its final dimensions.",
+        "Check identity and proportions across all three deliverables. If a sheet drifts, correct that sheet against the hero reference before declaring the set complete. Deliver the hero, turnaround and expression sheet with a short reusable character brief; do not claim trademark clearance or production-ready 3D geometry."
+      ],
+      "files": [
+        {
+          "source": "_shared/handraw-style/image-workflow.md",
+          "target": "references/image-workflow.md"
+        },
+        {
+          "source": "_shared/handraw-style/visual-library.json",
+          "target": "references/visual-library.json"
+        },
+        {
+          "source": "_shared/handraw-style/LICENSE",
+          "target": "LICENSE.handraw-style"
+        },
+        {
+          "source": "_shared/handraw-style/ATTRIBUTION.md",
+          "target": "ATTRIBUTION.md"
+        },
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "avatars/yang0.jpg"
+        }
+      ]
+    },
+    {
+      "id": "om-style-fusion",
+      "version": "1.0.0",
+      "category": "image",
+      "requirement": "image",
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "avatars/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "display": {
+        "zh-CN": {
+          "title": "双风格融合插画",
+          "subtitle": "让不同画风的角色和场景自然共处",
+          "description": "让不同画风的角色和场景自然共处。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
+          "inputHint": "描述主题，可分别指定角色画风和场景画风。"
+        },
+        "en": {
+          "title": "Dual-style illustration",
+          "subtitle": "Unite distinct character and scene styles in one image",
+          "description": "Unite distinct character and scene styles in one image. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
+          "inputHint": "Describe the subject and optional character and scene styles."
+        }
+      },
+      "instructions": [
+        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
+        "Identify the requested subject and separately choose the character medium and environment medium. Preserve either style the user specifies. If unspecified, use an expressive crayon character in a realistic everyday environment, or another clearly contrasting pair suited to the topic. Explain the chosen pair briefly and proceed.",
+        "Keep the two visual languages visibly distinct: character contours, pigment and texture belong to one medium; the scene’s space, lighting and materials belong to the other. Use a miniature character scale only when appropriate to the requested scene; it is not mandatory for every subject.",
+        "Unify perspective, light direction, contact shadows, occlusion and physical contact so the character inhabits the scene. Avoid a floating sticker, a split-screen comparison or a muddled average of the two styles. Express a clear narrative moment without adding an unrelated story.",
+        "Generate one image with openmind_generate_image, honoring any supplied references. Default to 1200 × 1600 and normalize with the compositor. Inspect style separation, grounding and lighting, then deliver the finished illustration with the selected style pair."
+      ],
+      "files": [
+        {
+          "source": "_shared/handraw-style/image-workflow.md",
+          "target": "references/image-workflow.md"
+        },
+        {
+          "source": "_shared/handraw-style/visual-library.json",
+          "target": "references/visual-library.json"
+        },
+        {
+          "source": "_shared/handraw-style/LICENSE",
+          "target": "LICENSE.handraw-style"
+        },
+        {
+          "source": "_shared/handraw-style/ATTRIBUTION.md",
+          "target": "ATTRIBUTION.md"
+        },
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "avatars/yang0.jpg"
+        }
       ]
     },
     {
@@ -115,7 +648,10 @@
       },
       "instructions": [
         "Inspect the attached reference image. Identify the requested changes and elements to preserve, then use the application image-generation/editing tool with the selected compatible model and reference images. Keep identity and requested geometry consistent. Deliver a real edited image, not merely editing instructions."
-      ]
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
     },
     {
       "id": "om-slide-outline",
@@ -134,7 +670,10 @@
       },
       "instructions": [
         "Clarify the audience, objective, duration and number of slides. Read supplied materials. Produce a coherent slide-by-slide outline with titles, concise key points, suggested visuals and speaker notes. Clearly describe the result as a content plan, rather than a completed presentation file."
-      ]
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
     },
     {
       "id": "om-slide-deck",
@@ -157,7 +696,10 @@
       ],
       "files": [
         "scripts/create_deck.py"
-      ]
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
     },
     {
       "id": "om-storyboard",
@@ -176,7 +718,10 @@
       },
       "instructions": [
         "Clarify the message, audience, duration, aspect ratio and available materials. Deliver a timed storyboard with shots, visual actions, on-screen text, narration and asset requirements. Ensure the durations add up. Clearly label the result as a storyboard rather than an actual rendered video."
-      ]
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
     },
     {
       "id": "om-short-video",
@@ -200,7 +745,10 @@
       "files": [
         "scripts/render_frames.cjs",
         "scripts/render_video.py"
-      ]
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
     },
     {
       "id": "om-landing-page",
@@ -219,7 +767,10 @@
       },
       "instructions": [
         "Turn the product, audience, content and visual direction into a polished responsive landing page. Write actual HTML/CSS/JS and needed assets under the allowed task output directory. Prefer semantic HTML, keyboard-accessible interactions and responsive layouts. Preview and verify the page. Deliver the runnable entry file and explain any required local server."
-      ]
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
     },
     {
       "id": "om-mini-tool",
@@ -238,7 +789,10 @@
       },
       "instructions": [
         "Translate the requested workflow into a small usable web tool with real inputs, state and results. Write runnable HTML/CSS/JS and assets in the allowed task output directory. Implement validation, keyboard support and a clear empty/error state. Exercise representative inputs and deliver the runnable artifact, not just a source snippet."
-      ]
+      ],
+      "contributor": {
+        "nick": "OpenMind"
+      }
     }
   ],
   "executionRules": [

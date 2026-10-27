@@ -1,4 +1,4 @@
-import { AuthoredSkillSchema, SkillAssetSchema, SkillPublishInputSchema, SkillSelectionInputSchema } from "../shared/skill-library";
+import { AuthoredSkillSchema, SkillAssetSchema, SkillPublishInputSchema } from "../shared/skill-library";
 import { SkillLibraryService } from "./skills/skill-library-service";
 import { resolveSkillLibraryBundleRoot } from "./skills/skill-library-catalog";
 import { buildAppPaths, resolveSkillStoreRoot } from "./paths/app-paths-service";
@@ -236,13 +236,27 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       await ai().call("refresh-skills");
       return entry;
     }) },
-    { channel: C.copyLibrarySkill, handler: raw => library().copy(SkillSelectionInputSchema.parse(raw)) },
     { channel: C.deleteAuthoredSkill, handler: id => projectAdmission.run(async () => {
       await assertNoActiveTasks(ctx);
       library().remove(z.string().uuid().parse(id));
       await ai().call("refresh-skills");
       return true;
     }) },
+    { channel: C.importSkillAvatar, handler: async rawId => {
+      const id = z.string().uuid().parse(rawId);
+      const root = settings.resolveOpenmindRoot();
+      const service = library();
+      service.editor(id);
+      const result = await dialog.showOpenDialog(ctx.getMainWindow()!, {
+        title: messages.skillLibrary.uploadAvatar,
+        properties: ["openFile"],
+        filters: [{ name: messages.skillLibrary.contributorAvatar, extensions: ["png", "jpg", "jpeg", "webp"] }]
+      });
+      if (root !== settings.resolveOpenmindRoot()) throw new Error(messages.skillLibrary.errors.root);
+      return result.canceled || !result.filePaths[0] ? null : service.importAvatar(id, result.filePaths[0], () => {
+        if (root !== settings.resolveOpenmindRoot()) throw new Error(messages.skillLibrary.errors.root);
+      });
+    } },
     { channel: C.importSkillAssets, handler: async (rawId, rawImages) => {
       const id = z.string().uuid().parse(rawId);
       const images = z.boolean().parse(rawImages);
@@ -976,6 +990,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
             }
             trustedInput = {
               sessionId: input.sessionId,
+              ...(input.retryOfRunId ? { retryOfRunId: input.retryOfRunId } : {}),
               permissionProfile: input.permissionProfile,
               prompt: input.prompt,
               imageGeneration: input.imageGeneration,
@@ -986,6 +1001,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
             if (task.sessionId) throw new Error(messages.desktopErrors.project.sessionRequired);
             if (input.providerId !== task.providerId) throw new Error(messages.desktopErrors.project.providerMismatch);
             trustedInput = {
+              origin: input.origin,
               projectRoot,
               projectId: task.projectId,
               projectName: input.projectName,

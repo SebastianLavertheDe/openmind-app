@@ -45,7 +45,7 @@ function settingsSections(): readonly SettingsSectionDefinition[] { return [
 
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
-export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory, initialSkillLibraryMode, skillReturnSessionId }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image"; initialSkillLibraryMode?: SkillLibraryMode; skillReturnSessionId?: string | null }) {
+export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory, initialSkillLibraryMode, skillReturnSessionId }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(sessionId?: string): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image"; initialSkillLibraryMode?: SkillLibraryMode; skillReturnSessionId?: string | null }) {
   const locale = useLocale();
   const ai = useAiSnapshot();
   const feedback = useFeedback();
@@ -302,8 +302,8 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     if (sessionBusyId) return;
     setSessionBusyId(sessionId);
     try {
-      await actions.setActiveSession(sessionId);
-      onOpenSession?.();
+      if (onOpenSession) onOpenSession(sessionId);
+      else await actions.setActiveSession(sessionId);
     } catch {
       feedback.notify(m.settings.notify.sessionOpenFailed, "error");
     } finally {
@@ -354,7 +354,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
                 const target = skillReturnSessionId === undefined ? null : skillReturnSessionId;
                 await actions.setActiveSession(target?.startsWith("project:") ? null : target);
                 actions.selectSkill(entry, target);
-                onOpenSession?.();
+                onOpenSession?.(target && !target.startsWith("project:") ? target : undefined);
               }} initialSkillId={initialSkillId} initialSourcePickerOpen={initialSkillImportOpen} onInstallationChange={onRepo} onAvailabilityChange={actions.refreshSkills} /> : null}
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}
               {activeSection === "browser" ? <BrowserSettingsSection status={browserStatus} busy={browserBusy} onInstall={() => void installBrowserSkill()} onRefresh={() => void refreshBrowserSkill()} onOpenDocs={() => void openBrowserExtensionDocs()} /> : null}

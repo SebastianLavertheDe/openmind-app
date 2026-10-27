@@ -11,6 +11,7 @@ import { SkillLibraryService } from "../skills/skill-library-service";
 import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
 import { ProjectService } from "../project/project-service";
 import { buildProviderSkillContext } from "./providers/skill-bridge";
+import { prepareSkillLibraryBundle } from "../skills/skill-library-bundle";
 
 vi.mock("../config/providers-yaml", async original => ({
   ...await original<typeof import("../config/providers-yaml")>(),
@@ -25,7 +26,12 @@ function fixture() {
   const state = path.join(directory, "state"); vi.stubEnv("OPENMIND_USER_DATA_DIR", state);
   const paths = buildAppPaths(state, path.join(content, ".agent", "skills")); ensureAppPaths(paths);
   const packages = new SkillPackageService(paths);
-  const library = new SkillLibraryService(content, paths, packages, path.join(directory, "bundle"));
+  const config = path.join(directory, "config"); fs.mkdirSync(config);
+  fs.writeFileSync(path.join(config, "catalog.json"), JSON.stringify({ schemaVersion: 1, skills: [] }));
+  const bundle = path.join(directory, "bundle");
+  prepareSkillLibraryBundle(config, bundle);
+  vi.stubEnv("OPENMIND_SKILL_LIBRARY_BUNDLE", bundle);
+  const library = new SkillLibraryService(content, paths, packages, bundle);
   const doc = library.editor(); doc.name = "My research"; doc.instructions[0].text = "Use the supplied evidence. Explain uncertainty explicitly.";
   doc.inputHint = "What should I research?"; doc.executionModel = { provider: "claude", model: "fixture-model" };
   const entry = library.publish(doc, crypto.randomUUID());
@@ -38,6 +44,66 @@ function fixture() {
 }
 
 describe("structured Skill selection", () => {
+  it.each([false, true])("freezes the UI origin when admitting a new session (Project=%s)", async projectScoped => {
+    const f = fixture();
+    f.internals.adapters.claude = { run: async context => { await context.emit("assistant-message", { text: "done", phase: "final" }); } };
+    const input = { providerId: f.provider.id, permissionProfile: "auto" as const, prompt: "review", contexts: [] };
+    let first;
+    if (projectScoped) {
+      const projects = new ProjectService(f.content, { stateRoot: f.paths.state });
+      const project = projects.createProject({ name: "Origin", description: "" }).project;
+      const task = projects.createProjectTask(project.name, "Review", f.provider.id);
+      const origin = { page: "projects", projectId: project.id, projectName: project.name, section: "materials", fileKind: "material", filePath: "materials/A.md" } as const;
+      first = f.scheduler.startProjectRun({ ...input, origin, projectRoot: projects.resolveProjectRoot(project.name), projectId: project.id, projectName: project.name, taskId: task.taskId });
+      expect(first.session.origin).toEqual(origin);
+    } else {
+      first = f.scheduler.startRun({ ...input, cwd: ".", origin: { page: "brief", filePath: "A.md" } });
+      expect(first.session.origin).toEqual({ page: "brief", filePath: "A.md" });
+    }
+    await vi.waitFor(() => expect(f.scheduler.snapshot().runs.find(run => run.id === first.run.id)?.status).toBe("completed"));
+    const next = projectScoped
+      ? f.scheduler.startProjectRun({ sessionId: first.session.id, permissionProfile: "auto", prompt: "continue", contexts: [] })
+      : f.scheduler.startRun({ ...input, cwd: ".", sessionId: first.session.id, origin: { page: "creative", filePath: "B.md" } });
+    expect(next.session.origin).toEqual(first.session.origin);
+    await vi.waitFor(() => expect(f.scheduler.snapshot().runs.find(run => run.id === next.run.id)?.status).toBe("completed"));
+  });
+
+  it.each([false, true])("retries an auto-model Skill with its frozen model (Project=%s)", async projectScoped => {
+    const f = fixture(); const seen: ProviderRunContext[] = [];
+    const edit = f.library.editor(f.doc.id); edit.executionModel = null;
+    const entry = f.library.publish(edit, crypto.randomUUID());
+    const selection = { key: entry.key!, digest: entry.digest! };
+    f.internals.adapters.claude = { run: async context => { seen.push(context); await context.emit("assistant-message", { text: "done", phase: "final" }); } };
+    const input = { providerId: f.provider.id, permissionProfile: "auto" as const, prompt: "Review the evidence", contexts: [], selectedSkill: selection };
+    let first;
+    if (projectScoped) {
+      const projects = new ProjectService(f.content, { stateRoot: f.paths.state });
+      const project = projects.createProject({ name: "Retry", description: "" }).project;
+      const task = projects.createProjectTask(project.name, "Evidence", f.provider.id);
+      first = f.scheduler.startProjectRun({ ...input, projectRoot: projects.resolveProjectRoot(project.name), projectId: project.id, projectName: project.name, taskId: task.taskId });
+    } else first = f.scheduler.startRun({ ...input, cwd: "." });
+    await vi.waitFor(() => expect(f.scheduler.snapshot().runs.find(run => run.id === first.run.id)?.status).toBe("completed"));
+    // Change the default after admission; the retry must not consult it.
+    (f.scheduler as unknown as { resolveProviderModel: () => string }).resolveProviderModel = () => "new-default-model";
+    const retryInput = { ...input, sessionId: first.session.id, retryOfRunId: first.run.id };
+    const { providerId: _providerId, ...projectRetryInput } = retryInput;
+    const retry = projectScoped ? f.scheduler.startProjectRun(projectRetryInput) : f.scheduler.startRun({ ...retryInput, cwd: "." });
+    await vi.waitFor(() => expect(f.scheduler.snapshot().runs.find(run => run.id === retry.run.id)?.status).toBe("completed"));
+    expect(seen.map(context => context.providerModel)).toEqual(["different-default-model", "different-default-model"]);
+    expect(retry.run.selectedSkill?.installed).toMatchObject(selection);
+    expect(retry.run.executionModel).toBe(first.run.executionModel);
+    if (!projectScoped) {
+      expect(() => f.scheduler.startRun({ ...input, cwd: ".", retryOfRunId: first.run.id })).toThrow();
+      const other = f.scheduler.startRun({ ...input, cwd: "." });
+      await vi.waitFor(() => expect(f.scheduler.snapshot().runs.find(run => run.id === other.run.id)?.status).toBe("completed"));
+      expect(other.run.executionModel).toBe("new-default-model");
+      expect(() => f.scheduler.startRun({ ...retryInput, cwd: ".", sessionId: other.session.id })).toThrow();
+      const updated = f.library.editor(f.doc.id); updated.instructions[0].text = "Replacement rules";
+      f.library.publish(updated, crypto.randomUUID());
+      expect(() => f.scheduler.startRun({ ...retryInput, cwd: "." })).toThrow();
+    }
+  });
+
   it.each([false, true])("injects exact installed rules and model into plain-text requests (Project=%s)", async projectScoped => {
     const f = fixture(); const seen: ProviderRunContext[] = [];
     const prewarmModels: string[] = [];

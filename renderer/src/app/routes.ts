@@ -15,6 +15,11 @@ export function isDefaultSkillsPage(page: AppPage): boolean {
 }
 
 export type AppRouteState = {
+  restoreSessionId?: string;
+  filePath?: string | null;
+  previewPath?: string | null;
+  topicTitle?: string;
+  projectFileKind?: "material" | "output";
   skillLibraryMode?: "explore" | "mine";
   skillReturnSessionId?: string | null;
   date?: string;

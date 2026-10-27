@@ -1,3 +1,4 @@
+import { useOpenSession } from "./session-navigation";
 import { Dialog } from "../design-system/Dialog";
 import { useLocale } from "../i18n";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
@@ -80,6 +81,7 @@ export function GlobalSearch({
   const locale = useLocale();
   const { activeSession } = useAiSnapshot();
   const actions = useAiActions();
+  const openSession = useOpenSession();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GlobalSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -135,7 +137,7 @@ export function GlobalSearch({
       // Project task can be active while the palette is opened from Projects,
       // but that must not absorb unrelated global actions.
       if (activeSession?.scope?.type === "project-task") await actions.setActiveSession(null);
-      await actions.send(target.prompt, { permissionProfile: target.permissionProfile });
+      await actions.send(target.prompt, { permissionProfile: target.permissionProfile, origin: { page: "ai" } });
       setQuery("");
       onClose();
       navigate("ai");
@@ -155,8 +157,7 @@ export function GlobalSearch({
     } else if (result.kind === "creative-project") {
       navigate("creative", { projectDir: result.targetId });
     } else if (result.kind === "session") {
-      await actions.setActiveSession(result.targetId);
-      navigate("ai");
+      await openSession(result.targetId);
     } else {
       navigate("skills", { skillId: result.targetId });
     }

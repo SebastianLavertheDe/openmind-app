@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { AuthoredSkillSchema, SkillAssetSchema, SkillLibraryMetadataSchema, type AuthoredSkill, type SkillAsset, type SkillLibraryEntry, type SkillLibraryMetadata, type SkillSelectionInput } from "../../shared/skill-library";
+import { AuthoredSkillSchema, SkillAssetSchema, SkillLibraryMetadataSchema, type AuthoredSkill, type AuthoredSkillContributor, type SkillAsset, type SkillLibraryEntry, type SkillLibraryMetadata, type SkillSelectionInput } from "../../shared/skill-library";
+import { SkillContributorSchema, type SkillContributor, type SkillContributorView } from "../../shared/skill-contributor";
 import { resolveSkillLibraryCopy, SKILL_LIBRARY_PUBLISHER, SKILL_LIBRARY_SOURCE } from "../../shared/skill-library-catalog";
 import { messages } from "../../shared/messages";
 import type { AppPaths } from "../paths/app-paths-service";
@@ -10,6 +11,7 @@ import type { SkillPackageService } from "./skill-package-service";
 import { ImageConfigurationStore } from "../images/image-configuration";
 import { resolveSkillLibraryTools } from "./skill-library-runtime";
 import { isAppLibraryInstall, isLegacyAppLibraryInstall, readSkillLibraryCatalog } from "./skill-library-catalog";
+import { prepareSkillAvatar, readSkillAvatar, skillAvatarDataUrl } from "./skill-avatar";
 
 type Bindings = Record<string, { key: string; digest: string }>;
 const METADATA = "openmind.library.json";
@@ -45,6 +47,15 @@ export class SkillLibraryService {
     const installed = this.packages.listInstalledViews();
     const bindings = this.bindings();
     const tools = resolveSkillLibraryTools(this.paths);
+    let bundledDigests: Record<string, string> = {};
+    try { bundledDigests = JSON.parse(fs.readFileSync(path.join(this.bundleRoot, "bundle.json"), "utf8")).packages || {}; }
+    catch { /* Installed packages remain usable if discovery resources are unavailable. */ }
+    const runtimeUnavailable = (requirement: AuthoredSkill["requirement"]): string | null => {
+      if (requirement === "image" && !new ImageConfigurationStore(this.root).view().defaultSelection) return m.errors.imageSetup;
+      if ((requirement === "python" || requirement === "ffmpeg") && !tools.python) return m.errors.pythonSetup;
+      if (requirement === "ffmpeg" && !tools.ffmpeg) return m.errors.videoSetup;
+      return null;
+    };
     const dependencyUnavailable = (packagePath: string) => (readSkillLibraryMetadata(packagePath)?.dependencies || []).some(reference =>
       !installed.some(record => record.key === reference.key && record.digest === reference.digest && record.enabled && record.usable));
     const presetKeys = new Set<string>();
@@ -55,25 +66,24 @@ export class SkillLibraryService {
       const copy = resolveSkillLibraryCopy(preset);
       let reason: string | null = !fs.existsSync(path.join(this.bundleRoot, preset.id, "SKILL.md")) && !record ? m.errors.bundle : null;
       if (!reason && record && !record.usable) reason = m.errors.stale;
-      if (!reason && preset.requirement === "image" && !new ImageConfigurationStore(this.root).view().defaultSelection) reason = m.errors.imageSetup;
-      if (!reason && ["python", "ffmpeg"].includes(preset.requirement || "") && !tools.python) reason = m.errors.pythonSetup;
-      if (!reason && preset.requirement === "ffmpeg" && !tools.ffmpeg) reason = m.errors.videoSetup;
-      return { id: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? true), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? null, skillId: preset.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: m.origin.preset, executionModel: null, updatedAt: record?.installedAt };
+      reason ||= runtimeUnavailable(preset.requirement);
+      const updateAvailable = Boolean(record && bundledDigests[preset.id] && bundledDigests[preset.id] !== record.digest);
+      return { id: preset.id, updateAvailable, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? true), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? null, skillId: preset.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: m.origin.preset, executionModel: null, updatedAt: record?.installedAt, contributor: this.contributorView(preset.contributor, path.join(this.bundleRoot, preset.id)) };
     });
     const authored = this.documents();
     for (const doc of authored) {
       const key = `user/om-user-${doc.id}`;
       const record = installed.find(item => item.key === key);
-      const reason = record && !record.usable ? m.errors.stale : record && dependencyUnavailable(record.packagePath) ? m.errors.dependency : null;
+      const reason = record && !record.usable ? m.errors.stale : record && dependencyUnavailable(record.packagePath) ? m.errors.dependency : runtimeUnavailable(doc.requirement);
       if (record) presetKeys.add(key);
-      result.push({ id: doc.id, title: doc.name, subtitle: doc.subtitle, description: doc.description, inputHint: doc.inputHint, category: doc.category, origin: "authored", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? false), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? null, skillId: `om-user-${doc.id}`, authoringId: doc.id, revision: doc.revision, draft: this.hasDraft(doc.id) || !record, imageCount: doc.images.length, source: "user", images: doc.images, updatedAt: record?.installedAt || (fs.existsSync(this.draftFile(doc.id)) ? fs.statSync(this.draftFile(doc.id)).mtime.toISOString() : undefined), cover: doc.images[0], icon: doc.icon, executionModel: doc.executionModel });
+      result.push({ id: doc.id, title: doc.name, subtitle: doc.subtitle, description: doc.description, inputHint: doc.inputHint, category: doc.category, origin: "authored", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? false), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? null, skillId: `om-user-${doc.id}`, authoringId: doc.id, revision: doc.revision, draft: this.hasDraft(doc.id) || !record, imageCount: doc.images.length, source: "user", images: doc.images, updatedAt: record?.installedAt || (fs.existsSync(this.draftFile(doc.id)) ? fs.statSync(this.draftFile(doc.id)).mtime.toISOString() : undefined), cover: doc.images[0], icon: doc.icon, executionModel: doc.executionModel, contributor: this.authoredContributorView(doc) });
     }
     for (const record of installed) {
       if (presetKeys.has(record.key)) continue;
       const inspection = this.packages.inspectInstalledCopy(this.packages.getInstalled(record.key, record.digest)!);
       const display = inspection.manifest?.display;
       const builtin = isAppLibraryInstall(record);
-      result.push({ id: record.key, title: display?.name || record.id, subtitle: display?.description || "", description: display?.description || "", inputHint: "", category: null, origin: builtin ? "preset" : record.sourceType === "git" ? "git" : "local", discoverable: false, installed: true, enabled: record.enabled, usable: record.usable, reason: record.usable ? null : m.errors.stale, key: record.key, digest: record.digest, version: record.version, skillId: record.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: builtin ? m.origin.preset : record.sourceLocator || record.sourceType || "local", executionModel: null, updatedAt: record.installedAt });
+      result.push({ id: record.key, title: display?.name || record.id, subtitle: display?.description || "", description: display?.description || "", inputHint: "", category: null, origin: builtin ? "preset" : record.sourceType === "git" ? "git" : "local", discoverable: false, installed: true, enabled: record.enabled, usable: record.usable, reason: record.usable ? null : m.errors.stale, key: record.key, digest: record.digest, version: record.version, skillId: record.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: builtin ? m.origin.preset : record.sourceLocator || record.sourceType || "local", executionModel: null, updatedAt: record.installedAt, contributor: this.installedContributorView(record.packagePath) });
     }
     return result;
   }
@@ -100,6 +110,7 @@ export class SkillLibraryService {
   editor(id?: string): AuthoredSkill {
     if (!id) {
       const document = AuthoredSkillSchema.parse({ id: crypto.randomUUID(), name: "", subtitle: "", category: "writing", instructions: [{ id: crypto.randomUUID(), text: "" }], inputHint: "", description: "" });
+      document.contributor = this.defaultContributor(document.id);
       this.saveDraft(document);
       return document;
     }
@@ -111,6 +122,13 @@ export class SkillLibraryService {
 
   saveDraft(raw: AuthoredSkill): AuthoredSkill {
     const doc = AuthoredSkillSchema.parse(raw);
+    const currentFile = path.join(this.authorRoot(doc.id), "skill.json");
+    if (fs.existsSync(currentFile)) {
+      const current = AuthoredSkillSchema.parse(JSON.parse(fs.readFileSync(currentFile, "utf8")));
+      // An autosave/unmount can arrive after activation but before its IPC reply.
+      // Ignore the already-published payload; keep genuinely conflicting edits.
+      if (doc.revision < current.revision && JSON.stringify({ ...doc, name: doc.name.trim(), revision: current.revision }) === JSON.stringify(current)) return current;
+    }
     writeJsonAtomic(this.draftFile(doc.id), doc);
     return doc;
   }
@@ -126,6 +144,7 @@ export class SkillLibraryService {
       if (receipt.id !== doc.id || receipt.request !== crypto.createHash("sha256").update(JSON.stringify(doc)).digest("hex")) throw new Error(m.errors.conflict);
       return this.list().find(entry => entry.id === doc.id)!;
     }
+    const contributor = this.packageContributor(doc);
     const current = fs.existsSync(currentFile) ? AuthoredSkillSchema.parse(JSON.parse(fs.readFileSync(currentFile, "utf8"))) : null;
     if ((current?.revision ?? 0) !== doc.revision) throw new Error(m.errors.conflict);
     if (this.documents().some(other => other.id !== doc.id && other.name.trim().normalize("NFC").toLocaleLowerCase() === doc.name.trim().normalize("NFC").toLocaleLowerCase())) throw new Error(m.errors.duplicateName);
@@ -136,7 +155,7 @@ export class SkillLibraryService {
     try {
       const support = path.join(this.authorRoot(doc.id), "support");
       if (fs.existsSync(support)) fs.cpSync(support, stage, { recursive: true, dereference: false });
-      const referencedAssets = [...doc.images, ...doc.instructions.flatMap(block => block.assets)];
+      const referencedAssets = [...doc.images, ...doc.instructions.flatMap(block => block.assets), ...(doc.contributor?.avatar ? [doc.contributor.avatar] : [])];
       for (const asset of referencedAssets) {
         const source = this.assetFile(doc.id, asset);
         fs.mkdirSync(path.join(stage, "references"), { recursive: true });
@@ -149,7 +168,7 @@ export class SkillLibraryService {
         ...block.skills.map(reference => `Referenced installed Skill: ${reference.key} (${reference.digest}). Use the verified rules supplied in the referenced_skill context for this instruction block.`)
       ].join("\n\n")).join("\n\n");
       fs.writeFileSync(path.join(stage, "SKILL.md"), `---\nname: om-user-${doc.id}\ndescription: ${JSON.stringify(summary)}\n---\n\n# ${doc.name}\n\n${text}\n`);
-      writeJsonAtomic(path.join(stage, METADATA), { schemaVersion: 1, origin: "authored", capabilityMode: "session", document: next, category: doc.category, inputHint: doc.inputHint, executionModel: doc.executionModel, dependencies } satisfies SkillLibraryMetadata);
+      writeJsonAtomic(path.join(stage, METADATA), { schemaVersion: 1, origin: "authored", capabilityMode: "session", document: next, category: doc.category, inputHint: doc.inputHint, executionModel: doc.executionModel, requirement: doc.requirement, dependencies, contributor } satisfies SkillLibraryMetadata);
       writeJsonAtomic(path.join(stage, "cctools.skill.yaml"), {
         apiVersion: "cctools.dev/skill/v1", id: `om-user-${doc.id}`, version: `1.0.${next.revision}`, publisher: { id: "user", displayName: "User" }, kind: "agent", display: { name: doc.name, description: summary, group: doc.category },
         capabilities: { openmind: { read: [], write: [] }, network: { required: false, hosts: [] }, subprocess: { allowed: false }, browser: false },
@@ -163,47 +182,12 @@ export class SkillLibraryService {
       writeJsonAtomic(path.join(this.privateRoot, "publishing.json"), { document: next, operationId, request: crypto.createHash("sha256").update(JSON.stringify(doc)).digest("hex"), digest: expected.digest });
       const record = this.packages.install(stage);
       writeJsonAtomic(currentFile, next);
+      this.rememberContributor(next);
       writeJsonAtomic(receiptFile, { id: doc.id, request: crypto.createHash("sha256").update(JSON.stringify(doc)).digest("hex"), digest: record.digest });
       fs.rmSync(this.draftFile(doc.id), { force: true });
       fs.rmSync(path.join(this.privateRoot, "publishing.json"), { force: true });
       return this.list().find(entry => entry.id === doc.id)!;
     } finally { fs.rmSync(stage, { recursive: true, force: true }); }
-  }
-
-  copy(selection: SkillSelectionInput): AuthoredSkill {
-    const record = this.packages.getInstalled(selection.key, selection.digest);
-    if (!record || !this.packages.inspectInstalledCopy(record).valid) throw new Error(m.errors.stale);
-    const metadata = readSkillLibraryMetadata(record.packagePath);
-    let doc = this.editor();
-    if (metadata?.document) {
-      doc = { ...metadata.document, id: doc.id, revision: 0, copiedFrom: selection, instructions: metadata.document.instructions.map(block => ({ ...block, id: crypto.randomUUID() })) };
-      const assets = [...doc.images, ...doc.instructions.flatMap(block => block.assets)];
-      for (const asset of assets) {
-        const from = path.join(record.packagePath, "references", `${asset.id}${asset.extension}`);
-        if (!fs.realpathSync(from).startsWith(`${record.packagePath}${path.sep}`)) throw new Error(m.errors.asset);
-        const to = this.assetFile(doc.id, asset, false);
-        fs.mkdirSync(path.dirname(to), { recursive: true }); fs.copyFileSync(from, to);
-      }
-    }
-    const inspection = this.packages.inspectInstalledCopy(record);
-    const title = inspection.manifest?.display.name || record.id;
-    doc.name = Array.from(title).slice(0, 30).join("");
-    for (let i = 2; this.documents().some(other => other.name === doc.name); i++) doc.name = `${Array.from(title).slice(0, 30).join("")} (${i})`;
-    doc.category = metadata?.category || "writing";
-    doc.subtitle = Array.from(inspection.manifest?.display.description || "").slice(0, 60).join("");
-    doc.inputHint = metadata?.inputHint || "";
-    doc.executionModel = metadata?.executionModel || null;
-    doc.copiedFrom = selection;
-    if (inspection.manifest?.kind !== "agent") {
-      doc.instructions[0].text = `Use the referenced installed Skill ${record.id} to complete the user's task. Read its rules and declared inputs before running it. Preserve the current session's permissions and output scope.`;
-      doc.instructions[0].skills = [selection];
-      return this.saveDraft(doc);
-    }
-    if (!metadata?.document) doc.instructions[0].text = fs.readFileSync(path.join(record.packagePath, "SKILL.md"), "utf8").replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").slice(0, 20_000);
-    const support = path.join(this.authorRoot(doc.id), "support");
-    fs.mkdirSync(support, { recursive: true });
-    for (const file of fs.readdirSync(record.packagePath)) if (!["SKILL.md", METADATA, "cctools.skill.yaml", "openmind.skill.yaml"].includes(file)) fs.cpSync(path.join(record.packagePath, file), path.join(support, file), { recursive: true, dereference: false });
-    return this.saveDraft(doc);
   }
 
   remove(id: string): void {
@@ -232,6 +216,76 @@ export class SkillLibraryService {
       fs.copyFileSync(real, destination, fs.constants.COPYFILE_EXCL);
       return asset;
     });
+  }
+
+  async importAvatar(id: string, file: string, assertCurrent: () => void = () => {}): Promise<SkillAsset> {
+    this.editor(id);
+    const bytes = await prepareSkillAvatar(file);
+    assertCurrent();
+    this.editor(id);
+    return this.storeAvatar(id, bytes);
+  }
+
+  private storeAvatar(id: string, bytes: Buffer, extension = ".png"): SkillAsset {
+    const asset: SkillAsset = { id: crypto.randomUUID(), name: `avatar${extension}`, kind: "image", extension };
+    const destination = this.assetFile(id, asset, false);
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, bytes, { flag: "wx" });
+    return asset;
+  }
+
+  private contributorView(contributor: SkillContributor | undefined, root: string): SkillContributorView | undefined {
+    if (!contributor?.nick) return undefined;
+    let avatarUrl: string | undefined;
+    if (contributor.avatar) try { avatarUrl = skillAvatarDataUrl(readSkillAvatar(root, contributor.avatar)); } catch { /* Missing avatars keep their nickname and use the default icon. */ }
+    return { nick: contributor.nick, avatarUrl, profileUrl: contributor.profileUrl };
+  }
+
+  private authoredContributorView(doc: AuthoredSkill): SkillContributorView | undefined {
+    if (!doc.contributor?.nick) return undefined;
+    const avatar = doc.contributor.avatar;
+    return this.contributorView({ nick: doc.contributor.nick, profileUrl: doc.contributor.profileUrl, avatar: avatar ? `assets/${avatar.id}${avatar.extension}` : undefined }, this.authorRoot(doc.id));
+  }
+
+  private installedContributorView(packagePath: string): SkillContributorView | undefined {
+    try { return this.contributorView(readSkillLibraryMetadata(packagePath)?.contributor, packagePath); }
+    catch { return undefined; }
+  }
+
+  private packageContributor(doc: AuthoredSkill): SkillContributor | undefined {
+    const contributor = doc.contributor;
+    if (!contributor || !contributor.nick && !contributor.avatar && !contributor.profileUrl) return undefined;
+    const avatar = contributor.avatar;
+    const result = SkillContributorSchema.parse({ nick: contributor.nick, profileUrl: contributor.profileUrl, avatar: avatar ? `references/${avatar.id}${avatar.extension}` : undefined });
+    if (avatar) readSkillAvatar(this.authorRoot(doc.id), `assets/${avatar.id}${avatar.extension}`);
+    return result;
+  }
+
+  private defaultContributor(id: string): AuthoredSkillContributor | undefined {
+    const root = path.join(this.paths.catalog, "skill-contributor");
+    try {
+      const saved = SkillContributorSchema.parse(JSON.parse(fs.readFileSync(path.join(root, "profile.json"), "utf8")));
+      const contributor: AuthoredSkillContributor = { nick: saved.nick, profileUrl: saved.profileUrl };
+      if (saved.avatar) try { contributor.avatar = this.storeAvatar(id, readSkillAvatar(root, saved.avatar), path.extname(saved.avatar).toLowerCase()); } catch { /* The nickname can still be reused. */ }
+      return contributor;
+    } catch { return undefined; }
+  }
+
+  private rememberContributor(doc: AuthoredSkill): void {
+    // Legacy copies keep the original author's attribution without changing our defaults.
+    if (!doc.contributor || doc.copiedFrom) return;
+    const root = path.join(this.paths.catalog, "skill-contributor");
+    const contributor = this.packageContributor(doc);
+    if (!contributor) { fs.rmSync(path.join(root, "profile.json"), { force: true }); return; }
+    let avatar: string | undefined;
+    if (doc.contributor.avatar) {
+      const asset = doc.contributor.avatar;
+      const bytes = readSkillAvatar(this.authorRoot(doc.id), `assets/${asset.id}${asset.extension}`);
+      avatar = `${crypto.createHash("sha256").update(bytes).digest("hex")}${asset.extension}`;
+      fs.mkdirSync(root, { recursive: true });
+      fs.writeFileSync(path.join(root, avatar), bytes);
+    }
+    writeJsonAtomic(path.join(root, "profile.json"), { nick: contributor.nick, avatar, profileUrl: contributor.profileUrl });
   }
 
   readImage(id: string, asset: SkillAsset): string {
@@ -270,6 +324,7 @@ export class SkillLibraryService {
       const metadata = readSkillLibraryMetadata(installed.packagePath);
       if (metadata?.document?.revision !== document.revision) throw new Error(m.errors.conflict);
       writeJsonAtomic(path.join(this.authorRoot(document.id), "skill.json"), document);
+      this.rememberContributor(document);
       writeJsonAtomic(path.join(this.privateRoot, "operations", `${this.id(pending.operationId)}.json`), { id: document.id, request: pending.request, digest: installed.digest });
       fs.rmSync(this.draftFile(document.id), { force: true });
     }

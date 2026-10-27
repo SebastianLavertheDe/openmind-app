@@ -20,6 +20,29 @@ afterEach(() => {
 });
 
 describe("SessionStore", () => {
+  it("persists the creation origin across restart, continuation and branching", async () => {
+    const root = createRoot();
+    const state = createRoot();
+    const store = new SessionStore(root, state);
+    const origin = { page: "brief", filePath: "openmind/daily-summary/A.md" } as const;
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "Brief A", permissionProfile: "edit", scope: workspaceScope, origin });
+    await addCompletedTurn(store, session, "review A", "done");
+    expect(store.updateSession(session.id, { origin: { page: "ai" }, title: "renamed" }).origin).toEqual(origin);
+    const reloaded = new SessionStore(root, state);
+    reloaded.initialize();
+    expect(reloaded.getSession(session.id).origin).toEqual(origin);
+    const branch = await reloaded.forkSession(session.id);
+    expect(branch.origin).toEqual(origin);
+    // Existing metadata without an origin remains loadable; never guess its file.
+    const file = path.join(store.root, "sessions", session.id, "session.json");
+    const legacy = JSON.parse(fs.readFileSync(file, "utf8"));
+    delete legacy.origin;
+    fs.writeFileSync(file, JSON.stringify(legacy));
+    const legacyStore = new SessionStore(root, state);
+    legacyStore.initialize();
+    expect(legacyStore.getSession(session.id).origin).toBeNull();
+  });
+
   it("stateRoot 存在时把会话状态写入 app-private root,不污染 workspace", () => {
     const workspace = createRoot();
     const stateRoot = createRoot();

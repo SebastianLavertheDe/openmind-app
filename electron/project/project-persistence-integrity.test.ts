@@ -23,6 +23,32 @@ function fixture(options: Partial<ConstructorParameters<typeof ProjectService>[1
 }
 
 describe("Project persisted identity validation", () => {
+  it("keeps the project and remaining files readable after files are deleted outside the app", async () => {
+    const { root, imports, service } = fixture();
+    service.createProject({ name: "Missing" });
+    const sourceA = path.join(imports, "A.md");
+    const sourceB = path.join(imports, "B.md");
+    fs.writeFileSync(sourceA, "# A");
+    fs.writeFileSync(sourceB, "# B");
+    const [a, b] = await service.addProjectFiles("Missing", [sourceA, sourceB]);
+    const outputA = service.createProjectOutput({ projectName: "Missing", title: "A", content: "A" }).output;
+    const outputB = service.createProjectOutput({ projectName: "Missing", title: "B", content: "B" }).output;
+    const projectRoot = service.resolveProjectRoot("Missing");
+    const indexPath = path.join(projectRoot, "materials", ".openmind-materials.json");
+    const before = fs.readFileSync(indexPath, "utf8");
+    fs.unlinkSync(path.join(projectRoot, a.relativePath));
+    fs.unlinkSync(path.join(projectRoot, outputA.relativePath));
+    const restarted = new ProjectService(root, { stateRoot: path.join(root, "..", "state") });
+    expect(restarted.listProjects()[0]).toMatchObject({ materialCount: 1, outputCount: 1 });
+    expect(restarted.getProject("Missing").project).toMatchObject({ materialCount: 1, outputCount: 1 });
+    expect(restarted.listProjectMaterials("Missing").map(item => item.relativePath)).toEqual([b.relativePath]);
+    expect(restarted.listProjectOutputs("Missing").map(item => item.relativePath)).toEqual([outputB.relativePath]);
+    expect(restarted.readProjectMaterial("Missing", b.relativePath).content).toContain("B");
+    expect(restarted.readProjectOutput("Missing", outputB.relativePath).content).toBe("B");
+    expect(() => restarted.readProjectMaterial("Missing", a.relativePath)).toThrow(/不存在/);
+    expect(fs.readFileSync(indexPath, "utf8")).toBe(before);
+  });
+
   it("rejects Task metadata whose projectName or taskId disagrees with its directory", () => {
     const { root, service } = fixture();
     service.createProject({ name: "Identity" });

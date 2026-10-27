@@ -8,7 +8,7 @@
   "engines": {
     "node": ">=22.12.0"
   },
-  "main": ".build/electron/electron/main.js",
+  "main": ".build/electron/electron/entry.js",
   "scripts": {
     "clean": "node scripts/clean-build.js",
     "build:renderer": "vite build",
@@ -61,6 +61,7 @@
     "test": "npm run build && npm run test:unit && npm run test:integration && npm run test:e2e",
     "test:unit": "vitest run",
     "test:integration": "node scripts/integration-smoke.js",
+    "test:image-composition": "node scripts/image-composition-smoke.cjs",
     "test:e2e": "node scripts/electron-e2e.js",
     "cli:install:smoke": "node scripts/cli-install-smoke.js",
     "test:coverage": "vitest run --coverage",

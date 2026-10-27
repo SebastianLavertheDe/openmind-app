@@ -1,3 +1,4 @@
+import { useOpenSession } from "../../app/session-navigation";
 import { PopoverSurface } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
 import { useDismissableLayer } from "../../design-system/use-dismissable-layer";
@@ -108,6 +109,7 @@ export function AiWorkbench({
   return (
     <>
       <AiFilePreviewPane
+        key={activeSession?.id || "draft"}
         surface={surface}
         restoredPreviewPath={restoredPreviewPath}
         onPreviewPathChange={onPreviewPathChange}
@@ -232,9 +234,9 @@ export function AiSessionNavigation() {
 }
 
 function SessionItem({ session }: { session: AiSession }) {
+  const openSession = useOpenSession();
   useLocale();
   const { snapshot, activeSession } = useAiSnapshot();
-  const actions = useAiActions();
   const active = activeSession?.id === session.id;
   const waitingApproval = session.status === "waiting-approval" || snapshot.pendingApprovals.some((approval) => approval.sessionId === session.id);
   const dot = waitingApproval ? "waiting-approval" : session.status === "running" ? "running" : session.status === "failed" ? "failed" : "";
@@ -244,11 +246,11 @@ function SessionItem({ session }: { session: AiSession }) {
       role="option"
       aria-selected={active}
       tabIndex={0}
-      onClick={() => void actions.setActiveSession(session.id)}
+      onClick={() => void openSession(session.id)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          void actions.setActiveSession(session.id);
+          void openSession(session.id);
         }
       }}
     >

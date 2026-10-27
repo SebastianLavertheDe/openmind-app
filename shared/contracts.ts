@@ -1,3 +1,4 @@
+import { AiSessionOriginSchema } from "./ai-session-origin";
 import { SkillSelectionInputSchema } from "./skill-library";
 import { messages } from "./messages";
 import { z } from "zod";
@@ -274,6 +275,7 @@ export const AiSessionScopeSchema = z.discriminatedUnion("type", [
 export type AiSessionScope = z.infer<typeof AiSessionScopeSchema>;
 
 export const AiSessionSchema = z.object({
+  origin: AiSessionOriginSchema.nullable().default(null),
   schemaVersion: z.number().default(SCHEMA_VERSION),
   id: z.string(),
   projectId: z.string(),
@@ -305,7 +307,8 @@ export const AiSessionSchema = z.object({
 });
 type ParsedAiSession = z.infer<typeof AiSessionSchema>;
 /** Defaulted non-identity fields stay optional for existing in-memory callers. */
-export type AiSession = Omit<ParsedAiSession, "interactionMode" | "serviceProviderId" | "serviceProviderRevision" | "skillSnapshot"> & {
+export type AiSession = Omit<ParsedAiSession, "origin" | "interactionMode" | "serviceProviderId" | "serviceProviderRevision" | "skillSnapshot"> & {
+  origin?: import("./ai-session-origin").AiSessionOrigin | null;
   interactionMode?: InteractionMode;
   serviceProviderId?: string | null;
   serviceProviderRevision?: string | null;
@@ -579,6 +582,8 @@ export const CliInstallProgressSchema = z.object({
 export type CliInstallProgress = z.infer<typeof CliInstallProgressSchema>;
 
 export const StartRunInputSchema = z.object({
+  origin: AiSessionOriginSchema.nullable().optional(),
+  retryOfRunId: z.string().min(1).max(160).optional(),
   selectedSkill: SkillSelectionInputSchema.nullable().optional(),
   sessionId: z.string().optional(),
   providerId: z.string(),
@@ -1296,9 +1301,9 @@ export interface DesktopApi {
   getSkillEditor?(id?: string): Promise<import("./skill-library").AuthoredSkill>;
   saveSkillDraft?(document: import("./skill-library").AuthoredSkill): Promise<import("./skill-library").AuthoredSkill>;
   publishSkill?(input: { document: import("./skill-library").AuthoredSkill; operationId: string }): Promise<import("./skill-library").SkillLibraryEntry>;
-  copyLibrarySkill?(selection: import("./skill-library").SkillSelectionInput): Promise<import("./skill-library").AuthoredSkill>;
   deleteAuthoredSkill?(id: string): Promise<boolean>;
   importSkillAssets?(id: string, imageOnly: boolean): Promise<import("./skill-library").SkillAsset[]>;
+  importSkillAvatar?(id: string): Promise<import("./skill-library").SkillAsset | null>;
   readSkillAssetImage?(id: string, asset: import("./skill-library").SkillAsset): Promise<string>;
   suggestSkillField?(input: { field: "name" | "subtitle" | "inputHint" | "description"; document: import("./skill-library").AuthoredSkill; providerId: string }): Promise<string>;
 

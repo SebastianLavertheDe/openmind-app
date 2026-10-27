@@ -471,7 +471,7 @@ describe("AiSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
 
     await waitFor(() => expect(createTask).toHaveBeenCalledWith({ projectName: "2", title: "帮我统计资料", providerId: "codex-native" }));
-    await waitFor(() => expect(startTaskRun).toHaveBeenCalledWith({ projectName: "2", taskId: "task-9", providerId: "codex-native", permissionProfile: "auto", prompt: "帮我统计资料\n第二行" }));
+    await waitFor(() => expect(startTaskRun).toHaveBeenCalledWith({ projectName: "2", taskId: "task-9", providerId: "codex-native", permissionProfile: "auto", prompt: "帮我统计资料\n第二行", origin: { page: "ai" } }));
     expect(startRun).not.toHaveBeenCalled();
   });
 });

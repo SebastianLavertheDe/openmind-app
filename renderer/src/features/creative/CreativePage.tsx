@@ -1,3 +1,5 @@
+import { useBeforeSessionNavigation } from "../../app/session-navigation";
+import { useSessionOrigin } from "../../app/session-origin-context";
 import { useFeedback } from "../../feedback-context";
 import { Button } from "../../design-system/components";
 import { IconButton } from "../../design-system/IconButton";
@@ -25,12 +27,16 @@ export function CreativeWorkspacePage({
   initialDate,
   initialStage,
   initialProjectDir,
+  initialFilePath,
+  initialTopicTitle,
   embeddedFilePreviewPath = null,
   onCloseEmbeddedFilePreview
 }: {
   initialDate?: string;
   initialStage?: Stage;
   initialProjectDir?: string;
+  initialFilePath?: string | null;
+  initialTopicTitle?: string;
   embeddedFilePreviewPath?: string | null;
   onCloseEmbeddedFilePreview?(): void;
 }) {
@@ -57,6 +63,8 @@ export function CreativeWorkspacePage({
   const [error, setError] = useState("");
   const [editorMode, setEditorMode] = useState<"edit" | "preview">("preview");
   const { selectedTopicFilePath, selectedTopicFile, topicFileDraft, topicFileMode, topicFileDirty, topicFileSaving, setTopicFileDraft, setTopicFileMode, resetTopicFile, openTopicFile, openTopicFileExternal, saveTopicFile } = useTopicFileEditor();
+  useSessionOrigin({ page: "creative", projectDir: selectedProject?.dir || null, filePath: selectedTopicFilePath || (selectedProject ? activeFile : null) || null,
+    previewPath: embeddedFilePreviewPath, date: (selectedTopic as TopicWithDate | null)?.sourceDate || date, stage, topicTitle: selectedTopic?.title });
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [workflowPolicy, setWorkflowPolicy] = useState({
     autoSaveDraft: true,
@@ -147,7 +155,7 @@ export function CreativeWorkspacePage({
     return counts;
   }, [topics, activeProjects, locale]);
 
-  const openProject = useCallback(async (project: CreativeProjectSummary) => {
+  const openProject = useCallback(async (project: CreativeProjectSummary, restoredFile?: string | null) => {
     if (!await resetTopicFile()) return;
     onCloseEmbeddedFilePreview?.();
     const intent = ++projectOpenIntentRef.current;
@@ -164,7 +172,7 @@ export function CreativeWorkspacePage({
       const next = await window.openmind.getCreativeProject(project.dir);
       if (intent !== projectOpenIntentRef.current) return;
       setDetail(next);
-      const firstFile = preferredFile(Object.keys(next.files || {}), targetStage);
+      const firstFile = restoredFile !== undefined ? (restoredFile && Object.prototype.hasOwnProperty.call(next.files || {}, restoredFile) ? restoredFile : "") : preferredFile(Object.keys(next.files || {}), targetStage);
       setActiveFile(firstFile);
       setDraft(next.files?.[firstFile] || "");
     } catch (cause) {
@@ -190,8 +198,23 @@ export function CreativeWorkspacePage({
     if (!requested) return;
     initialProjectOpenRef.current = initialProjectDir;
     setStage(requested.stage as Stage);
-    void openProject(requested);
-  }, [initialProjectDir, projects, openProject]);
+    void openProject(requested, initialFilePath);
+  }, [initialProjectDir, initialFilePath, projects, openProject]);
+
+  const initialFileRestored = useRef(false);
+  useEffect(() => {
+    if (loading || initialProjectDir || initialFileRestored.current) return;
+    initialFileRestored.current = true;
+    if (initialFilePath) {
+      void openTopicFile(initialFilePath).then(opened => {
+        if (opened && compactWorkspace) setCompactListOpen(false);
+        if (!opened) void resetTopicFile();
+      });
+    } else if (initialTopicTitle) {
+      const topic = topics.find(item => item.title === initialTopicTitle && normalizeDate(item.sourceDate) === normalizeDate(initialDate || date));
+      if (topic) { setSelectedTopic(topic); if (compactWorkspace) setCompactListOpen(false); }
+    }
+  }, [loading, initialProjectDir, initialFilePath, initialTopicTitle, initialDate, date, topics, openTopicFile, resetTopicFile, compactWorkspace]);
 
   const persistDraft = useCallback((createVersion: boolean): Promise<boolean> => {
     const selection = creativeSelectionRef.current;
@@ -247,6 +270,8 @@ export function CreativeWorkspacePage({
     const timer = window.setTimeout(() => { void persistDraft(false); }, workflowPolicy.autoSaveIntervalMs);
     return () => window.clearTimeout(timer);
   }, [draft, dirty, activeFile, detail?.dir, stage, persistDraft, workflowPolicy.autoSaveDraft, workflowPolicy.autoSaveIntervalMs]);
+
+  useBeforeSessionNavigation(useCallback(async () => await resetTopicFile() && await persistDraft(false), [resetTopicFile, persistDraft]));
 
   const chooseFile = async (file: string) => {
     if (file === activeFile) return;

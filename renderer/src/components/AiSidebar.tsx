@@ -100,7 +100,8 @@ export function AiSidebar({ navCollapsed = false }: { navCollapsed?: boolean }) 
       input.providerId,
       input.prompt,
       input.contexts,
-      input.permissionProfile
+      input.permissionProfile,
+      undefined, input.imageGeneration, input.selectedSkill, input.origin
     );
     setDraft("");
     actions.clearContexts();

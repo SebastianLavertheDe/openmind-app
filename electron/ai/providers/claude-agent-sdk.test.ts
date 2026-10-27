@@ -226,6 +226,18 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
     expect(sdkMock.startup).toHaveBeenCalledTimes(1);
   });
 
+  it("replaces a warm host when the frozen execution model changes", async () => {
+    const adapter = new ClaudeAgentSdkAdapter();
+    await adapter.prewarm(makePrewarmContext({ providerModel: "model-A" }));
+    const firstWarm = await sdkMock.startup.mock.results[0].value;
+    await adapter.prewarm(makePrewarmContext({ providerModel: "model-B" }));
+    await Promise.resolve();
+    expect(firstWarm.close).toHaveBeenCalledTimes(1);
+    expect(sdkMock.startup).toHaveBeenCalledTimes(2);
+    expect(sdkMock.startup.mock.calls[1][0].options.model).toBe("model-B");
+    adapter.disposeWarmSlots();
+  });
+
   it("replaces a warm host when its enabled Skill catalog changes", async () => {
     const adapter = new ClaudeAgentSdkAdapter();
     await adapter.prewarm(makePrewarmContext({

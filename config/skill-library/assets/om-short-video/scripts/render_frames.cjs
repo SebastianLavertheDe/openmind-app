@@ -2,15 +2,19 @@
 const { app, BrowserWindow } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const scriptIndex = process.argv.findIndex(value => path.basename(value) === "render_frames.cjs");
-const input = path.resolve(process.argv[scriptIndex + 1]);
-const output = path.resolve(process.argv[scriptIndex + 2]);
-fs.mkdirSync(path.join(output, "electron-profile"), { recursive: true });
-app.setPath("userData", path.join(output, "electron-profile"));
-app.setPath("sessionData", path.join(output, "electron-profile"));
-app.commandLine.appendSwitch("disable-gpu");
 const escape = value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
-app.whenReady().then(async () => {
+async function renderFrames() {
+  const flagIndex = process.argv.indexOf("--openmind-render-video-frames");
+  const scriptIndex = process.argv.findIndex(value => path.basename(value) === "render_frames.cjs");
+  const argumentIndex = flagIndex >= 0 ? flagIndex : scriptIndex;
+  if (argumentIndex < 0 || process.argv.length !== argumentIndex + 3) throw new Error("Expected storyboard JSON and output directory for video frames.");
+  const input = path.resolve(process.argv[argumentIndex + 1]);
+  const output = path.resolve(process.argv[argumentIndex + 2]);
+  fs.mkdirSync(path.join(output, "electron-profile"), { recursive: true });
+  app.setPath("userData", path.join(output, "electron-profile"));
+  app.setPath("sessionData", path.join(output, "electron-profile"));
+  app.commandLine.appendSwitch("disable-gpu");
+  await app.whenReady();
   const data = JSON.parse(fs.readFileSync(input, "utf8"));
   const win = new BrowserWindow({ width: data.width || 1280, height: data.height || 720, useContentSize: true, show: false, webPreferences: { sandbox: true, nodeIntegration: false, contextIsolation: true, backgroundThrottling: false, partition: `video-${Date.now()}` } });
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -30,4 +34,5 @@ app.whenReady().then(async () => {
     fs.writeFileSync(path.join(output, `frame-${index}.png`), frame.toPNG());
   }
   win.destroy(); app.quit();
-}).catch(error => { process.stderr.write(`${error.stack || error}\n`); app.exit(1); });
+}
+renderFrames().catch(error => { process.stderr.write(`${error.stack || error}\n`); app.exit(1); });

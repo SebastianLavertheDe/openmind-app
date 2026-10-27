@@ -571,6 +571,21 @@ describe("AiProvider streaming store via event pump", () => {
 });
 
 describe("AiProvider document rewrite runs", () => {
+  it.each([false, true])("sends the original Run reference through the correct retry entry point (Project=%s)", async projectScoped => {
+    const scope = projectScoped
+      ? { type: "project-task" as const, projectId: "project-id", projectName: "Research", taskId: "task-id" }
+      : { type: "workspace" as const };
+    const session = { ...activeSnapshot.sessions[0], scope, status: "idle" as const };
+    const run = { ...activeSnapshot.runs[0], scope, status: "completed" as const, executionModel: "original-model" };
+    const start = vi.fn<DesktopApi["aiStartRun"]>().mockResolvedValue({ session, run });
+    const startProject = vi.fn<DesktopApi["projectStartTaskRun"]>().mockResolvedValue({ session, run } as never);
+    window.openmind = { ...window.openmind, aiStartRun: start, projectStartTaskRun: startProject };
+    const { result } = renderHook(() => useAi(), { wrapper: ({ children }) => <AiProvider initial={{ ...activeSnapshot, sessions: [session], runs: [run] }}>{children}</AiProvider> });
+    await act(async () => { await result.current.rerun(run.id); });
+    expect(projectScoped ? startProject : start).toHaveBeenCalledWith(expect.objectContaining({ sessionId: session.id, retryOfRunId: run.id, prompt: run.prompt }));
+    expect(projectScoped ? start : startProject).not.toHaveBeenCalled();
+  });
+
   it("starts an independent run and preserves the user's conversation draft and attachments", async () => {
     const session = { ...activeSnapshot.sessions[0], id: "rewrite-session" };
     const run = { ...activeSnapshot.runs[0], id: "rewrite-run", sessionId: session.id };

@@ -390,7 +390,8 @@ export const projectsApi = {
     permissionProfile: PermissionProfile = "auto",
     sessionId?: string,
     imageGeneration?: import("@shared/image-generation").ImageSelection | null,
-    selectedSkill?: import("@shared/skill-library").SkillSelectionInput | null
+    selectedSkill?: import("@shared/skill-library").SkillSelectionInput | null,
+    origin?: import("@shared/ai-session-origin").AiSessionOrigin
   ): Promise<ProjectTaskRunResult> {
     const result = record(await invoke("projectStartTaskRun", {
       projectName,
@@ -398,6 +399,7 @@ export const projectsApi = {
       providerId,
       permissionProfile,
       prompt,
+      ...(origin && !sessionId ? { origin } : {}),
       ...(selectedSkill !== undefined ? { selectedSkill } : {}),
       ...(imageGeneration !== undefined ? { imageGeneration } : {}),
       ...(sessionId ? { sessionId } : {}),

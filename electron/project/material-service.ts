@@ -711,10 +711,12 @@ export class ProjectMaterialService {
       this.initializeProject(projectName);
       const canonicalProjectName = this.paths.resolveProject(projectName).name;
       const records = MaterialIndexSchema.parse(JSON.parse(fs.readFileSync(this.indexPath(canonicalProjectName), "utf8")));
-      this.validateRecords(canonicalProjectName, records, options.allowedProjectNames ?? [canonicalProjectName]);
+      // An externally deleted file must not hide its Project or other files.
+      // Validate every record before omitting missing files from this read.
+      const existingRecords = this.validateRecords(canonicalProjectName, records, options.allowedProjectNames ?? [canonicalProjectName], true);
       const markers = this.scanActiveConversionMarkers(canonicalProjectName);
       let changed = false;
-      const reconciled = records.map((record) => {
+      const reconciled = existingRecords.map((record) => {
         if ((record.status !== "importing" && record.status !== "converting")
           || this.activeConversions.has(conversionKey(canonicalProjectName, record.relativePath))
           || markers.hasUnknown
@@ -769,8 +771,10 @@ export class ProjectMaterialService {
   private validateRecords(
     projectName: string,
     records: readonly ProjectMaterial[],
-    allowedProjectNames: readonly string[]
-  ): void {
+    allowedProjectNames: readonly string[],
+    allowMissingFiles = false
+  ): ProjectMaterial[] {
+    const existingRecords: ProjectMaterial[] = [];
     const allowedNames = new Set(allowedProjectNames);
     const relativePaths = new Set<string>();
     const originalPaths = new Set<string>();
@@ -789,9 +793,9 @@ export class ProjectMaterialService {
       relativePaths.add(pathKey);
       const absolute = this.paths.resolveInsideProject(projectName, record.relativePath, {
         allowedTopLevels: MATERIALS_TOP_LEVEL,
-        allowMissingLeaf: record.status !== "ready"
+        allowMissingLeaf: allowMissingFiles || record.status !== "ready"
       });
-      if (record.status === "ready") assertOrdinaryFile(absolute, `项目资料文件不存在或无效：${record.relativePath}`);
+      if (record.status !== "ready" || assertOrdinaryFile(absolute, `项目资料文件不存在或无效：${record.relativePath}`, allowMissingFiles)) existingRecords.push(record);
 
       if (!record.originalRelativePath) continue;
       const downloadedYoutube = record.source.type === "url" && record.kind === "video"
@@ -802,10 +806,12 @@ export class ProjectMaterialService {
       if (originalPaths.has(originalKey)) throw new Error(`项目资料索引包含重复原件路径：${record.originalRelativePath}`);
       originalPaths.add(originalKey);
       const original = this.paths.resolveInsideProject(projectName, record.originalRelativePath, {
-        allowedTopLevels: MATERIALS_TOP_LEVEL
+        allowedTopLevels: MATERIALS_TOP_LEVEL,
+        allowMissingLeaf: allowMissingFiles
       });
-      assertOrdinaryFile(original, `项目资料原件不存在或无效：${record.originalRelativePath}`);
+      assertOrdinaryFile(original, `项目资料原件不存在或无效：${record.originalRelativePath}`, allowMissingFiles);
     }
+    return existingRecords;
   }
 
   private beginActiveConversion(
@@ -1004,9 +1010,15 @@ function assertDirectProjectFile(relativePath: string, directory: string, label:
   }
 }
 
-function assertOrdinaryFile(absolutePath: string, message: string): void {
-  const stat = fs.lstatSync(absolutePath);
-  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(message);
+function assertOrdinaryFile(absolutePath: string, message: string, allowMissing = false): boolean {
+  try {
+    const stat = fs.lstatSync(absolutePath);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(message);
+    return true;
+  } catch (error) {
+    if (allowMissing && (error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
 }
 
 function isProcessAlive(pid: number): boolean {

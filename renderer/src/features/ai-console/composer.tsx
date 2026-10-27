@@ -1,3 +1,4 @@
+import { useCurrentSessionOrigin } from "../../app/session-origin-context";
 import type { SkillSelectionInput } from "@shared/skill-library";
 import { ComposerSkillPicker } from "./ComposerSkillPicker";
 import { PopoverSurface } from "../../design-system/components";
@@ -136,6 +137,7 @@ async function ingestPastedImage(
 }
 
 export type ChatDraftSubmitInput = {
+  origin?: import("@shared/ai-session-origin").AiSessionOrigin;
   selectedSkill?: SkillSelectionInput | null;
   imageGeneration?: ImageSelection | null;
   prompt: string;
@@ -158,6 +160,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const referenceContexts = useMemo(() => pendingContexts.filter(context => context.kind !== "image"), [pendingContexts]);
   const ui = useAiUi();
   const actions = useAiActions();
+  const getSessionOrigin = useCurrentSessionOrigin();
   const availableProviders = snapshot.providers.filter((provider) => provider.available);
   const projectName = snapshot.projectRoot.split(/[\\/]/).filter(Boolean).at(-1) || snapshot.projectRoot;
   const [providerId, setProviderId] = useState(availableProviders[0]?.id || "");
@@ -192,6 +195,10 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   const suggestionMenuRef = useRef<HTMLDivElement>(null);
   const [suggestionAnchor, setSuggestionAnchor] = useState<ComposerCaretAnchor>({ left: 0, top: 0, height: 20, width: 0 });
   const searchRequest = useRef(0);
+  const skillSelectionRequest = useRef(0);
+  const latestDraft = useRef({ draft, draftKey, selectedSkill });
+  latestDraft.current = { draft, draftKey, selectedSkill };
+  useEffect(() => () => { skillSelectionRequest.current++; }, [draftKey]);
   const menuSnapRef = useRef(false);
   const menuStashRef = useRef<ReactNode>(null);
   const visibleActiveRun = sessionActiveRun;
@@ -285,6 +292,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
 
   const submit = async () => {
     if (!draft.trim() || ui.isSending || customSending) return;
+    skillSelectionRequest.current++;
     const skillInvocation = parseSkillSlashInvocation(draft, skills);
     const validationError = skillInvocation ? null : slashCommandValidationError(draft, pendingContexts);
     if (validationError) {
@@ -297,6 +305,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
       if (onDraftSubmit) {
         setCustomSending(true);
         await onDraftSubmit({
+          origin: getSessionOrigin(),
           selectedSkill: selectedSkill?.key && selectedSkill.digest ? { key: selectedSkill.key, digest: selectedSkill.digest } : undefined,
           prompt: draft,
           providerId,
@@ -363,12 +372,22 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
     menuSnapRef.current = true;
     if (window.openmind.listSkillLibrary) {
       const currentTrigger = trigger;
+      const request = ++skillSelectionRequest.current;
+      const isCurrent = () => request === skillSelectionRequest.current
+        && latestDraft.current.draftKey === draftKey
+        && latestDraft.current.selectedSkill === selectedSkill
+        && latestDraft.current.draft.slice(0, currentTrigger.end) === draft.slice(0, currentTrigger.end)
+        && !/\S/u.test(latestDraft.current.draft.charAt(currentTrigger.end));
       void window.openmind.listSkillLibrary().then(entries => {
+        if (!isCurrent()) return;
         const entry = entries.find(item => item.skillId === skill.id && item.installed && item.enabled);
         if (!entry) { setLocalError(m.skillLibrary.errors.stale); return; }
+        const currentDraft = latestDraft.current.draft;
+        const caret = textareaRef.current?.selectionStart ?? currentDraft.length;
+        const next = replaceComposerTrigger(currentDraft, currentTrigger, "");
         setSelectedSkill(entry);
-        applyDraftAtCaret(replaceComposerTrigger(draft, currentTrigger, ""));
-      }).catch(cause => setLocalError(String(cause)));
+        applyDraftAtCaret({ ...next, caret: caret <= currentTrigger.start ? caret : Math.max(currentTrigger.start, caret - (currentTrigger.end - currentTrigger.start)) });
+      }).catch(cause => { if (isCurrent()) setLocalError(String(cause)); });
     } else applyDraftAtCaret(replaceComposerTrigger(draft, trigger, `/${skill.id} `));
   };
 
@@ -532,7 +551,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
             )
           ) : null}
           <div className="composer-editor-actions">
-            <ComposerSkillPicker selected={selectedSkill} onSelect={setSelectedSkill} onManage={ui.openSkillSettings} />
+            <ComposerSkillPicker selected={selectedSkill} onSelect={entry => { skillSelectionRequest.current++; setSelectedSkill(entry); }} onManage={ui.openSkillSettings} />
             <IconButton type="button" className="composer-add-context" onClick={() => void actions.addFiles()} label={m.ai.composer.addAttachment}>
               <Plus size={20} />
             </IconButton>

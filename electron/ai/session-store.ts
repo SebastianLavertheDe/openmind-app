@@ -1,3 +1,4 @@
+import { originForSessionScope, type AiSessionOrigin } from "../../shared/ai-session-origin";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -170,6 +171,7 @@ export class SessionStore {
   }
 
   createSession(input: {
+    origin?: AiSessionOrigin | null;
     provider: ProviderKind;
     providerId: string;
     serviceProviderId?: string | null;
@@ -193,6 +195,7 @@ export class SessionStore {
       projectId: isProjectTaskScope(scope) ? scope.projectId : this.projectId,
       projectRoot: sessionProjectRoot,
       scope,
+      origin: originForSessionScope(input.origin, scope),
       title: input.title.slice(0, 120),
       provider: input.provider,
       providerId: input.providerId,
@@ -257,7 +260,8 @@ export class SessionStore {
       forkedFromId: source.id,
       skillSnapshot: source.skillSnapshot ?? [],
       projectRoot: source.projectRoot,
-      scope: source.scope
+      scope: source.scope,
+      origin: source.origin
     });
     target = this.updateSession(target.id, { imageGeneration: source.imageGeneration, executionModel: source.executionModel });
     const lines: AiRolloutLine[] = [];
@@ -324,6 +328,7 @@ export class SessionStore {
       projectId: current.projectId,
       projectRoot: current.projectRoot,
       scope: current.scope,
+      origin: current.origin ?? null,
       cwd: current.cwd,
       provider: current.provider,
       providerId: current.providerId,

@@ -5,9 +5,9 @@ export const IPC = {
   SKILL_LIBRARY_EDITOR: "skill-library:getSkillEditor",
   SKILL_LIBRARY_DRAFT: "skill-library:saveSkillDraft",
   SKILL_LIBRARY_PUBLISH: "skill-library:publishSkill",
-  SKILL_LIBRARY_COPY: "skill-library:copyLibrarySkill",
   SKILL_LIBRARY_DELETE: "skill-library:deleteAuthoredSkill",
   SKILL_LIBRARY_ASSETS: "skill-library:importSkillAssets",
+  SKILL_LIBRARY_AVATAR: "skill-library:importSkillAvatar",
   SKILL_LIBRARY_IMAGE: "skill-library:readSkillAssetImage",
   SKILL_LIBRARY_SUGGEST: "skill-library:suggestSkillField",
 

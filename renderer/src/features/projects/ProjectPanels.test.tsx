@@ -4,7 +4,8 @@ import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiRun, AiSession, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
-import { AiProvider } from "../../ai-context";
+import { AiProvider, useAiActions } from "../../ai-context";
+import type { SkillLibraryEntry } from "@shared/skill-library";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { ProjectFilesPanel } from "./ProjectFilesPanel";
 import { ProjectMaterialsPanel } from "./ProjectMaterialsPanel";
@@ -297,6 +298,7 @@ describe("Project task recovery", () => {
       providerId: "codex-native"
     }));
     expect(projectStartTaskRun).toHaveBeenCalledWith({
+      origin: { page: "ai" },
       projectName: project.name,
       taskId: createdTask.taskId,
       providerId: "codex-native",
@@ -406,6 +408,38 @@ describe("Project task recovery", () => {
     expect(screen.getByRole("button", { name: /保留任务.*失败/ })).toBeTruthy();
     expect((screen.getByRole("textbox", { name: "任务内容" }) as HTMLTextAreaElement).value).toBe("生成报告");
     expect(onChanged).toHaveBeenCalled();
+  });
+
+  it("retains the selected Skill and attachments on every retry of a failed new task", async () => {
+    const task = { taskId: "task-1", projectName: project.name, title: "Retry task", sessionId: null, providerId: "codex-native", status: "failed", createdAt: project.createdAt, updatedAt: project.updatedAt };
+    const skill: SkillLibraryEntry = { id: "fixture", title: "Required rules", subtitle: "", description: "", inputHint: "", category: "writing", origin: "authored", installed: true, enabled: true, usable: true, reason: null, key: "user/fixture", digest: "a".repeat(64), version: "1.0.0", skillId: "fixture", authoringId: null, revision: 1, draft: false, imageCount: 0, source: "user", executionModel: null };
+    const context = { id: "material-1", kind: "file" as const, path: "materials/evidence.md", label: "Evidence" };
+    let created = false;
+    const startRun = vi.fn(async (_input: unknown) => { throw new Error("Admission failed"); });
+    installApi({ listProjectTasks: vi.fn(async () => created ? [task] : []), createProjectTask: vi.fn(async () => { created = true; return task; }), projectStartTaskRun: startRun, listSkillLibrary: vi.fn(async () => [skill]) });
+    let actions!: ReturnType<typeof useAiActions>;
+    function DraftActions() { actions = useAiActions(); return null; }
+    const view = renderWithAi(<><DraftActions /><ProjectTasksPanel project={project} createRequested seed={{ prompt: "Review these materials" }} onCreateHandled={vi.fn()} onChanged={vi.fn()} /></>);
+    await screen.findByLabelText(m.ai.composer.messageInput);
+    act(() => {
+      actions.addContext(context, `project:${project.id}:new`);
+      actions.selectSkill(skill, `project:${project.id}:new`);
+    });
+    fireEvent.click(screen.getByRole("button", { name: m.ai.composer.send }));
+    await screen.findByText("Admission failed");
+    expect(startRun.mock.calls[0][0]).toMatchObject({ selectedSkill: { key: skill.key, digest: skill.digest }, contexts: [context] });
+    for (let attempt = 2; attempt <= 3; attempt++) {
+      fireEvent.click(screen.getByRole("button", { name: m.projectUi.startTask }));
+      await waitFor(() => expect(startRun).toHaveBeenCalledTimes(attempt));
+      expect(startRun.mock.calls[attempt - 1][0]).toEqual(startRun.mock.calls[0][0]);
+    }
+    expect(window.openmind.createProjectTask).toHaveBeenCalledTimes(1);
+    view.unmount();
+    renderWithAi(<ProjectTasksPanel project={project} initialTaskId={task.taskId} createRequested={false} onCreateHandled={vi.fn()} onChanged={vi.fn()} />);
+    await waitFor(() => expect((screen.getByRole("textbox", { name: "任务内容" }) as HTMLTextAreaElement).value).toBe("Review these materials"));
+    fireEvent.click(screen.getByRole("button", { name: m.projectUi.startTask }));
+    await waitFor(() => expect(startRun).toHaveBeenCalledTimes(4));
+    expect(startRun.mock.calls[3][0]).toEqual(startRun.mock.calls[0][0]);
   });
 
   it("refreshes the task list when any run in the current Project becomes terminal", async () => {

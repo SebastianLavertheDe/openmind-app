@@ -246,8 +246,9 @@ export class ProjectOutputService {
     this.initializeProject(projectName);
     const canonicalProjectName = this.paths.resolveProject(projectName).name;
     const records = OutputIndexSchema.parse(JSON.parse(fs.readFileSync(this.indexPath(canonicalProjectName), "utf8")));
-    this.validateRecords(canonicalProjectName, records, options.allowedProjectNames ?? [canonicalProjectName]);
-    return records;
+    // Keep the index intact on reads; missing files cannot prevent reopening
+    // their Project. Identity, containment and symlink checks still apply.
+    return this.validateRecords(canonicalProjectName, records, options.allowedProjectNames ?? [canonicalProjectName], true);
   }
 
   private writeIndex(projectName: string, records: readonly ProjectOutput[]): void {
@@ -267,8 +268,10 @@ export class ProjectOutputService {
   private validateRecords(
     projectName: string,
     records: readonly ProjectOutput[],
-    allowedProjectNames: readonly string[]
-  ): void {
+    allowedProjectNames: readonly string[],
+    allowMissingFiles = false
+  ): ProjectOutput[] {
+    const existingRecords: ProjectOutput[] = [];
     const allowedNames = new Set(allowedProjectNames);
     const relativePaths = new Set<string>();
     for (const record of records) {
@@ -284,10 +287,16 @@ export class ProjectOutputService {
       const identity = portable.normalize("NFKC").toLocaleLowerCase("en-US");
       if (relativePaths.has(identity)) throw new Error(`项目产物索引包含重复路径：${record.relativePath}`);
       relativePaths.add(identity);
-      const absolute = this.paths.resolveInsideProject(projectName, record.relativePath, { allowedTopLevels: OUTPUTS_TOP_LEVEL });
-      const stat = fs.lstatSync(absolute);
-      if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`项目产物文件不存在或无效：${record.relativePath}`);
+      const absolute = this.paths.resolveInsideProject(projectName, record.relativePath, { allowedTopLevels: OUTPUTS_TOP_LEVEL, allowMissingLeaf: allowMissingFiles });
+      try {
+        const stat = fs.lstatSync(absolute);
+        if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`项目产物文件不存在或无效：${record.relativePath}`);
+        existingRecords.push(record);
+      } catch (error) {
+        if (!allowMissingFiles || (error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
     }
+    return existingRecords;
   }
 }
 

@@ -54,6 +54,7 @@ export default defineConfig({
         // importing them into jsdom would not test the actual main/preload
         // boundary and would distort the renderer-focused coverage report.
         "**/electron/main.ts",
+        "**/electron/entry.ts",
         "**/electron/preload.ts",
         "**/renderer/src/main.tsx",
         // 测试与脚本自身

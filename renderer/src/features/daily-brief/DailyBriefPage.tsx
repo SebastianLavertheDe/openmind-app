@@ -1,3 +1,6 @@
+import { isMissingFileError } from "../file-preview/missing-file";
+import { useBeforeSessionNavigation } from "../../app/session-navigation";
+import { useSessionOrigin } from "../../app/session-origin-context";
 import { useFeedback } from "../../feedback-context";
 import { IconButton, Button } from "../../design-system/components";
 import { SegmentedControl } from "../../design-system/controls";
@@ -14,10 +17,12 @@ import { PreviewRenderer, useFilePreviewController, workspaceFileSource } from "
 
 export function DailyBriefPage({
   initialDate,
+  initialFilePath,
   embeddedFilePreviewPath = null,
   onCloseEmbeddedFilePreview
 }: {
   initialDate?: string;
+  initialFilePath?: string | null;
   embeddedFilePreviewPath?: string | null;
   onCloseEmbeddedFilePreview?(): void;
 }) {
@@ -33,6 +38,8 @@ export function DailyBriefPage({
   const { actions: actionPresentation } = useResponsiveLayout();
   const [files, setFiles] = useState<ContentEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState("");
+  const restoredSelection = useRef(false);
+  useSessionOrigin({ page: "brief", filePath: selectedPath || null, previewPath: embeddedFilePreviewPath });
   const [pendingPath, setPendingPath] = useState("");
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -51,6 +58,12 @@ export function DailyBriefPage({
       feedback.notify(message, "error");
     }
   });
+  useEffect(() => {
+    if (initialFilePath !== undefined && isMissingFileError(preview.error)) {
+      setSelectedPath("");
+      void preview.close();
+    }
+  }, [initialFilePath, preview.error, preview.close]);
   const record = preview.resource?.kind === "document" ? preview.resource.record : null;
   const closeEmbeddedFilePreview = useCallback(() => onCloseEmbeddedFilePreview?.(), [onCloseEmbeddedFilePreview]);
 
@@ -60,6 +73,8 @@ export function DailyBriefPage({
     confirmText: m.brief.library.switchConfirm,
     danger: true
   }), [feedback]);
+
+  useBeforeSessionNavigation(useCallback(() => !preview.dirty || confirmBriefSwitch(), [preview.dirty, confirmBriefSwitch]));
 
   const showBriefList = useCallback(async () => {
     const returnTarget = listRef.current?.querySelector<HTMLButtonElement>('[data-brief-selected="true"]');
@@ -103,7 +118,9 @@ export function DailyBriefPage({
       if (selectionIntent !== openIntentRef.current) return;
       const current = currentView.current;
       const compact = String(initialDate || "").replace(/\D/g, "").slice(0, 8);
-      const preferred = next.find((file) => file.path === current.selectedPath) || next.find((file) => compact && (file.name || file.path).startsWith(compact)) || next[0];
+      const restoring = initialFilePath !== undefined && !restoredSelection.current;
+      const preferred = restoring ? next.find(file => file.path === initialFilePath) : next.find((file) => file.path === current.selectedPath) || next.find((file) => compact && (file.name || file.path).startsWith(compact)) || next[0];
+      restoredSelection.current = true;
       const keepDirtyCurrent = preserveDirtyCurrent && current.preview.dirty && preferred?.path === current.selectedPath;
       if (preferred) {
         if (!keepDirtyCurrent) await current.openFile(preferred.path);
@@ -113,7 +130,7 @@ export function DailyBriefPage({
     } finally {
       if (request === loadSequence.current) setLoading(false);
     }
-  }, [confirmBriefSwitch, initialDate]);
+  }, [confirmBriefSwitch, initialDate, initialFilePath]);
 
   useEffect(() => {
     void load();

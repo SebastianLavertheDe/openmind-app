@@ -1,0 +1,308 @@
+{
+  "source": "https://github.com/yang0/handraw-style",
+  "revision": "f7c39649fe70a667069fdbe5eb60df0a1bca4f24",
+  "license": "LICENSE.handraw-style",
+  "scope": "Curated text-only adaptations; IDs outside this file are not included. Layouts and English traits are adapted for OpenMind; palettes are OpenMind presets.",
+  "styles": [
+    {
+      "id": "FA-002",
+      "name": {
+        "zh-CN": "极简概念线描",
+        "en": "Minimal conceptual ink"
+      },
+      "traits": {
+        "zh-CN": "极简线描、连续线、概念隐喻、人与空间一体化、智性幽默。",
+        "en": "Continuous ink lines, minimal detail, generous white space and a clear conceptual metaphor."
+      }
+    },
+    {
+      "id": "FA-001",
+      "name": {
+        "zh-CN": "幽默涂鸦",
+        "en": "Expressive humor doodle"
+      },
+      "traits": {
+        "zh-CN": "松散黑线、怪萌人物、少量点色、白底、日常吐槽与尴尬幽默；人物轮廓优先于细节堆砌，脸型、头身比例与手脚形状要形成清楚而独立的视觉语言；表情偏冷脸、尴尬或突然夸张，姿态要有明确喜剧节奏，避免统一的可爱微笑。",
+        "en": "Loose black outlines, distinctive silhouettes, restrained spot color and expressive comic timing."
+      }
+    },
+    {
+      "id": "FA-006",
+      "name": {
+        "zh-CN": "黑白排线",
+        "en": "Crosshatched ink"
+      },
+      "traits": {
+        "zh-CN": "黑白钢笔、密集排线、维多利亚气息、古怪冷峻黑色幽默。",
+        "en": "Fine black ink, dense crosshatching, antique texture and dramatic light-dark structure."
+      }
+    },
+    {
+      "id": "FC-029",
+      "name": {
+        "zh-CN": "清爽扁平插画",
+        "en": "Airy flat illustration"
+      },
+      "traits": {
+        "zh-CN": "轮廓清晰的大面积平涂色块塑造形体；造型适度概括与圆润几何化，保留关键识别特征；每个区域最多两级平面明暗与清晰硬边阴影，通过色块明度、冷暖和面积对比表现空间层次；色彩明亮清爽、柔和通透，纯净平滑的画面质感；极简主义、简洁现代，具有轻盈的现代商业插画与编辑插画感",
+        "en": "Simple geometric silhouettes, clean flat color regions, crisp shadows and restrained depth."
+      }
+    },
+    {
+      "id": "FB-029",
+      "name": {
+        "zh-CN": "温暖蜡笔",
+        "en": "Warm crayon"
+      },
+      "traits": {
+        "zh-CN": "儿童蜡笔手绘绘本风、粗蜡笔涂抹质感与明显手绘肌理、低幼绘本插画、童真可爱、造型简化与平视视角、画面干净简约、温暖柔和马卡龙配色、明亮轻快、线条自然稚拙、整体温暖治愈。",
+        "en": "Visible coarse crayon texture, simplified childlike shapes, a calm front view and warm light colors."
+      }
+    },
+    {
+      "id": "FH-028",
+      "name": {
+        "zh-CN": "通透水彩",
+        "en": "Transparent watercolor"
+      },
+      "traits": {
+        "zh-CN": "大量白纸、轻水彩、低覆盖率、柔和湿边。",
+        "en": "Lots of unpainted paper, light transparent washes, soft wet edges and low pigment coverage."
+      }
+    },
+    {
+      "id": "FH-015",
+      "name": {
+        "zh-CN": "彩铅日记",
+        "en": "Colored-pencil diary"
+      },
+      "traits": {
+        "zh-CN": "铅笔轮廓、轻柔彩铅、纸纹、生活记录。",
+        "en": "Soft pencil contours, delicate colored-pencil shading, paper grain and everyday details."
+      }
+    },
+    {
+      "id": "FH-013",
+      "name": {
+        "zh-CN": "双色孔版印刷",
+        "en": "Two-color risograph"
+      },
+      "traits": {
+        "zh-CN": "双色套印、轻微错版、粗颗粒、纸张质感。",
+        "en": "Two limited ink colors, coarse grain, slight registration offset and tactile paper."
+      }
+    },
+    {
+      "id": "FE-005",
+      "name": {
+        "zh-CN": "旅行水彩",
+        "en": "Travel watercolor"
+      },
+      "traits": {
+        "zh-CN": "柔和水彩、季节与旅行、自然、治愈留白；人物轮廓优先于细节堆砌，脸型、头身比例与手脚形状要形成清楚而独立的视觉语言；上色保留透明叠染、柔软边缘和纸纹，允许轻微颜色不均与留白。",
+        "en": "Seasonal natural subjects, translucent watercolor, softened edges and generous quiet space."
+      }
+    },
+    {
+      "id": "FF-012",
+      "name": {
+        "zh-CN": "手作黏土",
+        "en": "Handmade clay"
+      },
+      "traits": {
+        "zh-CN": "手作触感软萌3D黏土定格动画风、圆润柔和造型与趣味夸张身体比例、微颗粒手作黏土肌理、生动鲜明的个性化角色、介于定格动画玩偶与现代儿童插画绘本之间的温暖美学。",
+        "en": "Rounded three-dimensional forms, subtle handmade clay grain and distinct expressive proportions."
+      }
+    }
+  ],
+  "palettes": [
+    {
+      "id": "blue-paper",
+      "name": "蓝与纸白 / Blue paper",
+      "background": "#f7f5ef",
+      "ink": "#17324d",
+      "accent": "#3979b9"
+    },
+    {
+      "id": "sage",
+      "name": "鼠尾草绿 / Sage",
+      "background": "#f5f4ec",
+      "ink": "#263d33",
+      "accent": "#72917a"
+    },
+    {
+      "id": "ochre",
+      "name": "暖赭石 / Warm ochre",
+      "background": "#fff6e8",
+      "ink": "#493426",
+      "accent": "#b96b38"
+    },
+    {
+      "id": "riso",
+      "name": "蓝红套印 / Blue and coral",
+      "background": "#f5edda",
+      "ink": "#233d58",
+      "accent": "#c9685b"
+    },
+    {
+      "id": "mono",
+      "name": "黑白 / Monochrome",
+      "background": "#ffffff",
+      "ink": "#202020",
+      "accent": "#686868"
+    },
+    {
+      "id": "playful",
+      "name": "明快童趣 / Playful",
+      "background": "#fff9eb",
+      "ink": "#363249",
+      "accent": "#e19834"
+    }
+  ],
+  "layouts": [
+    {
+      "id": "SC-001",
+      "name": {
+        "zh-CN": "上文下图",
+        "en": "Text above image"
+      },
+      "guidance": "Place a short headline and supporting copy above one complete main illustration; maintain a clear top-to-bottom reading order.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/SC-001.md"
+    },
+    {
+      "id": "SC-007",
+      "name": {
+        "zh-CN": "引言文字卡",
+        "en": "Quote card"
+      },
+      "guidance": "Make a supplied quotation the focal text, emphasize one keyword and keep illustrations secondary. Never fabricate a quote or attribution.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/SC-007.md"
+    },
+    {
+      "id": "SC-010",
+      "name": {
+        "zh-CN": "标题列表卡",
+        "en": "Title and list card"
+      },
+      "guidance": "Separate the headline zone from a neatly spaced list; give each point a small related visual and consistent alignment.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/SC-010.md"
+    },
+    {
+      "id": "SC-016",
+      "name": {
+        "zh-CN": "大字小图",
+        "en": "Large type with small accents"
+      },
+      "guidance": "Use a concise oversized headline as the composition, with only a few small illustrations and ample empty space.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/SC-016.md"
+    },
+    {
+      "id": "SC-021",
+      "name": {
+        "zh-CN": "照片手绘双拼",
+        "en": "Photo and illustration diptych"
+      },
+      "guidance": "Pair the actual source photo with its illustrated counterpart in equal panels. Preserve aspect ratios and framing. Use the deterministic compositor for the original panel.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/SC-021.md"
+    },
+    {
+      "id": "IG-004",
+      "name": {
+        "zh-CN": "双列对比",
+        "en": "Two-column comparison"
+      },
+      "guidance": "Align two alternatives across shared comparison rows, with one concise statement or icon in each cell.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/IG-004.md"
+    },
+    {
+      "id": "IG-008",
+      "name": {
+        "zh-CN": "步骤流程",
+        "en": "Process steps"
+      },
+      "guidance": "Arrange distinct steps along a clear directional path. Each step gets a small visual and a short label; connecting arrows show order.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/IG-008.md"
+    },
+    {
+      "id": "IG-009",
+      "name": {
+        "zh-CN": "时间轴",
+        "en": "Timeline"
+      },
+      "guidance": "Place ordered dated milestones along one axis. Keep intervals or labels honest and visually distinguish major milestones.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/IG-009.md"
+    },
+    {
+      "id": "IG-012",
+      "name": {
+        "zh-CN": "分层结构",
+        "en": "Layered structure"
+      },
+      "guidance": "Use separated horizontal layers to show hierarchy or a system stack. Make level names and containment relationships explicit.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/IG-012.md"
+    },
+    {
+      "id": "IG-014",
+      "name": {
+        "zh-CN": "四象限",
+        "en": "Four quadrants"
+      },
+      "guidance": "Label two meaningful axes and place content in four readable quadrants. Do not invent quantitative positions unsupported by the source.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/IG-014.md"
+    },
+    {
+      "id": "IG-017",
+      "name": {
+        "zh-CN": "思维导图",
+        "en": "Mind map"
+      },
+      "guidance": "Put one core topic at the center, use clearly separated branches for major concepts, and attach concise supporting ideas.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/IG-017.md"
+    },
+    {
+      "id": "IG-032",
+      "name": {
+        "zh-CN": "手绘知识图解",
+        "en": "Hand-drawn knowledge diagram"
+      },
+      "guidance": "Use editorial hand-drawn visual metaphors, short annotations and structured grouping to explain a real concept on a clean background.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/IG-032.md"
+    },
+    {
+      "id": "SB-002",
+      "name": {
+        "zh-CN": "四格起承转合",
+        "en": "Four-panel story"
+      },
+      "guidance": "Use four equal panels with setup, development, change and payoff. Keep characters consistent and read left to right, then top to bottom.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/SB-002.md"
+    },
+    {
+      "id": "EC-001",
+      "name": {
+        "zh-CN": "商品主图",
+        "en": "Product hero"
+      },
+      "guidance": "Make the real product large and recognizable, on a simple background with only supported minimal copy.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/EC-001.md"
+    },
+    {
+      "id": "EC-005",
+      "name": {
+        "zh-CN": "卖点标注",
+        "en": "Feature callouts"
+      },
+      "guidance": "Keep the real product central and photorealistic. Place three to five short, fact-based buying reasons around it with unambiguous callouts.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/EC-005.md"
+    },
+    {
+      "id": "EC-009",
+      "name": {
+        "zh-CN": "生活方式场景",
+        "en": "Lifestyle product scene"
+      },
+      "guidance": "Show the real product in an appropriate use environment, preserving its actual shape and branding and avoiding invented capabilities.",
+      "sourcePath": "skills/handdraw-style-prompter/references/layouts/EC-009.md"
+    }
+  ]
+}

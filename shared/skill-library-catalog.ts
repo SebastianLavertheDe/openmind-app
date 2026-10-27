@@ -2,6 +2,7 @@ import { z } from "zod";
 import { DEFAULT_LOCALE, getLocale, type Locale } from "./messages";
 import { SkillSceneSchema } from "./skill-library";
 import { SkillIdSchema } from "./skill-manifest-schema";
+import { SkillContributorSchema } from "./skill-contributor";
 
 export const SKILL_LIBRARY_CATALOG_FILE = "catalog.json";
 export const SKILL_LIBRARY_PUBLISHER = "openmind-library";
@@ -10,6 +11,9 @@ export const SKILL_LIBRARY_SOURCE = "openmind:skill-library";
 const InstructionSchema = z.string().trim().min(1).max(20_000);
 const AssetPathSchema = z.string().min(1).max(512).refine(value =>
   !value.includes("\\") && !value.includes(":") && value.split("/").every(part => part && part !== "." && part !== ".."), "Use a relative asset path without traversal");
+// Strings remain relative to assets/<skill-id>; mapped files can share one
+// explicitly declared source under assets/ without coupling installed packages.
+const AssetSchema = z.union([AssetPathSchema, z.object({ source: AssetPathSchema, target: AssetPathSchema }).strict()]);
 
 const SkillLibraryCopySchema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -22,8 +26,9 @@ export const SkillLibraryPresetSchema = z.object({
   id: SkillIdSchema,
   version: z.string().regex(/^\d+\.\d+\.\d+$/).default("1.0.0"),
   category: SkillSceneSchema,
+  contributor: SkillContributorSchema.optional(),
   instructions: z.array(InstructionSchema).min(1).max(50),
-  files: z.array(AssetPathSchema).max(50).default([]),
+  files: z.array(AssetSchema).max(50).default([]),
   requirement: z.enum(["image", "ffmpeg", "python"]).optional(),
   display: z.object({
     "zh-CN": SkillLibraryCopySchema.optional(),

@@ -1,3 +1,5 @@
+import { useSessionOrigin } from "./app/session-origin-context";
+import { SessionLeaveContext, SessionNavigationContext, sessionDestination, type SessionLeaveGuard } from "./app/session-navigation";
 import { FeedbackProvider, useFeedback } from "./feedback-context";
 import { OPEN_IMAGE_PROVIDER_SETTINGS } from "./provider-configuration-events";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
@@ -94,15 +96,25 @@ function Workspace({
   const [searchOpen, setSearchOpen] = useState(false);
   const [workspaceFilePath, setWorkspaceFilePath] = useState<string | null>(null);
   const [workspaceFileProjectName, setWorkspaceFileProjectName] = useState<string | undefined>();
-  const [aiFilePreviewPath, setAiFilePreviewPath] = useState<string | null>(null);
+  const [aiFilePreviews, setAiFilePreviews] = useState<Record<string, string | null>>({});
   const [navCollapsed, setNavCollapsed] = useState(() => storageJson(NAV_COLLAPSED_KEY, false));
   // Slice subscriptions instead of the full useAi() controller: the workspace
   // shell only needs snapshot data plus UI/actions, so a streaming event
   // flush (events slice) must not re-render the entire route content tree.
   const { snapshot, activeSession } = useAiSnapshot();
+  const previewKey = activeSession?.id || "draft";
+  const aiFilePreviewPath = aiFilePreviews[previewKey] !== undefined ? aiFilePreviews[previewKey] : activeSession?.origin?.page === "ai" ? activeSession.origin.filePath || null : null;
+  const setAiFilePreviewPath = useCallback((path: string | null) => setAiFilePreviews(current => ({ ...current, [previewKey]: path })), [previewKey]);
+  useSessionOrigin(route.page === "ai" ? { page: "ai", filePath: aiFilePreviewPath } : null);
   const ui = useAiUi();
   const feedback = useFeedback();
   const actions = useAiActions();
+  const sessionOpenRequest = useRef(0);
+  const [sessionLeaveGuards] = useState(() => new Set<SessionLeaveGuard>());
+  const registerSessionLeaveGuard = useCallback((guard: SessionLeaveGuard) => {
+    sessionLeaveGuards.add(guard);
+    return () => { sessionLeaveGuards.delete(guard); };
+  }, [sessionLeaveGuards]);
   const showAiCompanion = route.page === "creative" || route.page === "brief" || route.page === "projects";
   const previousRoutePage = useRef<AppRoute["page"] | null>(null);
   const searchTriggerRef = useRef<HTMLElement | null>(null);
@@ -112,6 +124,7 @@ function Workspace({
     return next;
   }, [setBootstrap]);
   const navigate: Navigate = useCallback((page, state: AppRouteState = {}) => {
+    sessionOpenRequest.current += 1;
     if (!defaultSkillsEnabled && isDefaultSkillsPage(page)) {
       page = "ai";
       state = {};
@@ -153,10 +166,11 @@ function Workspace({
       ...(scope?.type === "project-task" ? { projectName: scope.projectName, projectSection: "tasks" as const, projectItem: scope.taskId } : ui.projectComposeTarget ? { projectName: ui.projectComposeTarget.projectName, projectSection: "tasks" as const } : {}) });
   }, [ui.skillSettingsRequest]);
   const openNewTask = useCallback(() => {
+    sessionOpenRequest.current += 1;
     // A new task owns a fresh conversation canvas. Clear both preview surfaces
     // and force a new AI route instance so an in-flight file load cannot keep
     // rendering beside the blank draft.
-    setAiFilePreviewPath(null);
+    setAiFilePreviews(current => ({ ...current, draft: null }));
     setWorkspaceFilePath(null);
     void actions.setActiveSession(null);
     setSettingsOpen(false);
@@ -242,7 +256,34 @@ function Workspace({
   useEffect(() => {
     if (settingsOpen) void window.openmind.aiRefreshProviders?.().catch(() => undefined);
   }, [settingsOpen]);
-  useEffect(() => setWorkspaceFilePath(null), [route.page, route.nonce, settingsOpen]);
+  useEffect(() => setWorkspaceFilePath(settingsOpen ? null : route.state.previewPath || null), [route.page, route.nonce, settingsOpen]);
+  const openSession = useCallback(async (id: string) => {
+    const request = ++sessionOpenRequest.current;
+    try {
+      for (const guard of [...sessionLeaveGuards]) {
+        if (!await guard() || request !== sessionOpenRequest.current) return;
+      }
+      let session = snapshot.sessions.find(item => item.id === id);
+      if (!session) {
+        session = (await window.openmind.aiRefresh()).sessions.find(item => item.id === id);
+        await actions.refresh();
+      }
+      if (!session || request !== sessionOpenRequest.current) return;
+      const destination = sessionDestination(session);
+      if (!defaultSkillsEnabled && isDefaultSkillsPage(destination.page)) { destination.page = "ai"; destination.state = { restoreSessionId: id }; }
+      setSettingsOpen(false);
+      setWorkspaceFilePath(null);
+      if (session.origin?.page === "ai") {
+        const filePath = session.origin.filePath || null;
+        setAiFilePreviews(current => ({ ...current, [id]: filePath }));
+      }
+      setRoute(current => ({ ...destination, nonce: current.nonce + 1 }));
+      if (destination.page !== "ai") ui.setPanelMode("default");
+      await actions.setActiveSession(id);
+    } catch (cause) {
+      if (request === sessionOpenRequest.current) feedback.notify(m.ai.error.loadSessionFailed(cause instanceof Error ? cause.message : String(cause)), "error");
+    }
+  }, [actions, defaultSkillsEnabled, feedback.notify, sessionLeaveGuards, setRoute, snapshot.sessions, ui.setPanelMode]);
   // 导航收起是 AppShell/AiSidebar 关心的状态，路由内容与其无关。缓存这些
   // 元素让 React 在 navCollapsed 变化时整树跳过重渲染（性能：收起导航不应
   // 重新渲染 184 行文件列表 + 预览阅读器 + AI 工作台）。
@@ -250,6 +291,7 @@ function Workspace({
     bootstrap,
     navigate,
     providers: snapshot.providers,
+    openSession,
     aiFilePreviewPath,
     onAiFilePreviewPathChange: setAiFilePreviewPath,
     embeddedFilePreviewPath,
@@ -257,32 +299,21 @@ function Workspace({
     confirmAction: feedback.confirm,
     onRepo: refreshBootstrap,
     onExitSettings: exitSettings
-  }), [bootstrap, navigate, snapshot.providers, aiFilePreviewPath, setAiFilePreviewPath, embeddedFilePreviewPath, closeWorkspaceFile, feedback.confirm, refreshBootstrap, exitSettings, locale]);
+  }), [bootstrap, navigate, snapshot.providers, openSession, aiFilePreviewPath, setAiFilePreviewPath, embeddedFilePreviewPath, closeWorkspaceFile, feedback.confirm, refreshBootstrap, exitSettings, locale]);
   const aiSidebarElement = useMemo(
     () => showAiCompanion ? <AiSidebar navCollapsed={navCollapsed} /> : null,
     [showAiCompanion, navCollapsed, locale]
   );
   const recentTasksElement = useMemo(() => <SidebarRecent
     activeSessionId={
-      route.page === "ai" && activeSession?.scope.type === "workspace"
+      activeSession && (route.state.restoreSessionId === activeSession.id || (route.page === "ai" && activeSession.scope.type === "workspace"))
         ? activeSession.id
         : route.page === "projects" && activeSession?.scope.type === "project-task"
           ? activeSession.id
           : null
     }
-    onOpen={(session) => {
-      if (session.scope.type === "project-task") {
-        navigate("projects", {
-          projectName: session.scope.projectName,
-          projectSection: "tasks",
-          projectItem: session.scope.taskId
-        });
-        return;
-      }
-      void actions.setActiveSession(session.id);
-      navigate("ai");
-    }}
-  />, [route.page, activeSession?.id, activeSession?.scope.type, actions.setActiveSession, navigate, locale]);
+    onOpen={(session) => { void openSession(session.id); }}
+  />, [route.page, route.state.restoreSessionId, activeSession?.id, activeSession?.scope.type, openSession, locale]);
   const routeContent = useMemo(() => (
     <>
       <Suspense fallback={<div className="route-loading" role="status" aria-live="polite"><div className="route-loading-skeleton" /></div>}>
@@ -314,7 +345,7 @@ function Workspace({
     </>
   ), [closeWorkspaceFile, renderedStandaloneFilePreviewPath, route, routeRenderProps, settingsOpen, settingsRouteState, standalonePreviewCovered, standalonePreviewPresence.leaving, standalonePreviewPresence.visible, usesEmbeddedFilePreview, locale]);
   return (
-    <FilePreviewProvider open={openWorkspaceFile}>
+    <SessionNavigationContext.Provider value={openSession}><SessionLeaveContext.Provider value={registerSessionLeaveGuard}><FilePreviewProvider open={openWorkspaceFile}>
       <AppShell
       page={settingsOpen ? "settings" : route.page}
       defaultSkillsEnabled={defaultSkillsEnabled}
@@ -335,6 +366,6 @@ function Workspace({
       <GlobalSearch open={searchOpen} triggerRef={searchTriggerRef} onClose={closeSearch} navigate={navigate} onOpenContent={openWorkspaceFile} />
       <FeedbackHost />
       </AppShell>
-    </FilePreviewProvider>
+    </FilePreviewProvider></SessionLeaveContext.Provider></SessionNavigationContext.Provider>
   );
 }

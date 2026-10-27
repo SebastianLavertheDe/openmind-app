@@ -1,3 +1,4 @@
+import { useCurrentSessionOrigin } from "../../app/session-origin-context";
 import { useFeedback } from "../../feedback-context";
 import { FormField } from "../../design-system/components";
 import { MenuItem, Button } from "../../design-system/components";
@@ -8,6 +9,7 @@ import { createPortal } from "react-dom";
 import { LoaderCircle, MoreHorizontal, Pencil, Plus, Search, Sparkles, Trash2 } from "lucide-react";
 import { getLocale, messages } from "@shared/messages";
 import { AiDraftScope, useAiActions, useAiSnapshot, useSetAiDraft } from "../../ai-context";
+import { storageJson, writeStorage } from "../../ai-utils";
 import { DropdownMenu, EmptyState, ErrorState, SearchInput, Input, Textarea, Select } from "../../design-system/components";
 import { AiWorkbench } from "../ai-console";
 import type { ChatDraftSubmitInput } from "../ai-console/composer";
@@ -43,6 +45,7 @@ export function ProjectTasksPanel({
   detailHost?: HTMLElement | null;
 }) {
   const locale = useLocale();
+  const getSessionOrigin = useCurrentSessionOrigin();
   const ai = useAiSnapshot();
   const feedback = useFeedback();
   const actions = useAiActions();
@@ -64,6 +67,13 @@ export function ProjectTasksPanel({
   const [taskActionBusy, setTaskActionBusy] = useState(false);
   const refreshedTerminalRunsRef = useRef(new Set<string>());
   const handledCreateRequestRef = useRef(false);
+  const pendingTaskStorageKey = `openmind.project.task-start-drafts:${JSON.stringify([ai.snapshot.projectRoot, project.id])}`;
+  const pendingTaskInputs = useMemo(() => new Map(Object.entries(storageJson<Record<string, ChatDraftSubmitInput>>(pendingTaskStorageKey, {}))), [pendingTaskStorageKey]);
+  const savePendingTaskInput = (taskId: string, input: ChatDraftSubmitInput | null) => {
+    if (input) pendingTaskInputs.set(taskId, input);
+    else pendingTaskInputs.delete(taskId);
+    writeStorage(pendingTaskStorageKey, Object.fromEntries(pendingTaskInputs));
+  };
 
   const availableProviders = ai.snapshot.providers.filter((provider) => provider.available);
   const setActiveSession = actions.setActiveSession;
@@ -116,6 +126,10 @@ export function ProjectTasksPanel({
   useEffect(() => {
     if (selected && !selected.sessionId && selected.providerId) setProviderId(selected.providerId);
   }, [selected?.providerId, selected?.sessionId]);
+  useEffect(() => {
+    const pending = selected && !selected.sessionId ? pendingTaskInputs.get(selected.taskId) : null;
+    if (pending) setPrompt(pending.prompt);
+  }, [pendingTaskInputs, selected?.taskId, selected?.sessionId]);
   useEffect(() => {
     if (!createRequested) {
       handledCreateRequestRef.current = false;
@@ -190,6 +204,7 @@ export function ProjectTasksPanel({
     if (!confirmed) return;
     try {
       await projectsApi.removeTask(project.name, task.taskId);
+      savePendingTaskInput(task.taskId, null);
       setTasks((current) => current.filter((item) => item.taskId !== task.taskId));
       if (selectedId === task.taskId) {
         setCreating(false);
@@ -216,7 +231,14 @@ export function ProjectTasksPanel({
         setCreating(false);
         onChanged();
       }
-      const result = await projectsApi.startTaskRun(project.name, task.taskId, providerId, prompt.trim(), [], "auto");
+      const pending = pendingTaskInputs.get(task.taskId);
+      if (pending) savePendingTaskInput(task.taskId, { ...pending, prompt: prompt.trim() });
+      const result = await projectsApi.startTaskRun(
+        project.name, task.taskId, providerId, prompt.trim(),
+        pending?.contexts || [], pending?.permissionProfile || "auto", undefined,
+        pending?.imageGeneration, pending?.selectedSkill, pending?.origin || getSessionOrigin()
+      );
+      savePendingTaskInput(task.taskId, null);
       await actions.refresh();
       await actions.setActiveSession(result.session.id);
       setTasks((current) => [result.task, ...current.filter((item) => item.taskId !== result.task.taskId)]);
@@ -250,6 +272,7 @@ export function ProjectTasksPanel({
         input.providerId
       );
       setTasks((current) => [task!, ...current.filter((item) => item.taskId !== task!.taskId)]);
+      savePendingTaskInput(task.taskId, input);
       onChanged();
 
       const result = await projectsApi.startTaskRun(
@@ -261,11 +284,13 @@ export function ProjectTasksPanel({
         input.permissionProfile,
         undefined,
         input.imageGeneration,
-        input.selectedSkill
+        input.selectedSkill,
+        input.origin || getSessionOrigin()
       );
       // Clear the Project draft before activating its newly-created Session;
       // otherwise the first prompt would remain in the new-conversation draft.
       actions.clearDraft(`project:${project.id}:new`);
+      savePendingTaskInput(task.taskId, null);
       await actions.refresh();
       await actions.setActiveSession(result.session.id);
       setTasks((current) => [result.task, ...current.filter((item) => item.taskId !== result.task.taskId)]);
@@ -304,7 +329,8 @@ export function ProjectTasksPanel({
         input.permissionProfile,
         selected.sessionId,
         input.imageGeneration,
-        input.selectedSkill
+        input.selectedSkill,
+        input.origin || getSessionOrigin()
       );
       actions.clearDraft();
       await actions.refresh();

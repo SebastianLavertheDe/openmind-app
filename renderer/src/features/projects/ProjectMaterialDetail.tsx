@@ -1,3 +1,4 @@
+import { isMissingFileError } from "../file-preview/missing-file";
 import { useFeedback } from "../../feedback-context";
 import { FileDropzone } from "../../design-system/components";
 import { Button } from "../../design-system/components";
@@ -25,10 +26,11 @@ export type ProjectMaterialDetailProps = {
   onChanged(): void | Promise<void>;
   onSelectionChange?(relativePath?: string): void;
   renderDetail?: boolean;
+  onMissing?(): void;
 };
 
 /** Owns only the selected resource and import/retry lifecycle; never lists files. */
-export function ProjectMaterialDetail({ project, materialPath, material, createRequested, onCreateHandled, onChanged, onSelectionChange, renderDetail = true }: ProjectMaterialDetailProps) {
+export function ProjectMaterialDetail({ project, materialPath, material, createRequested, onCreateHandled, onChanged, onSelectionChange, renderDetail = true, onMissing }: ProjectMaterialDetailProps) {
   useLocale();
   const feedback = useFeedback();
 
@@ -224,6 +226,7 @@ export function ProjectMaterialDetail({ project, materialPath, material, createR
       </div>
     </ProjectDialog>
   );
+  useEffect(() => { if (isMissingFileError(preview.error)) onMissing?.(); }, [preview.error, onMissing]);
   const error = preview.error;
   const detail = preview.loading ? <div className="project-detail-loading"><LoaderCircle className="spin" size={18} />{messages.projectUi.readingMaterials}</div> : error ? <ErrorState message={error} retry={() => selectedPath ? void openMaterial(selectedPath) : void onChanged()} /> : selected ? (
     <MaterialDetail key={selected.relativePath}
