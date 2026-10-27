@@ -54,6 +54,7 @@
   font: var(--fs-md)/1.65 var(--font-sans);
 }
 .ui-textarea[data-variant="code"] { height: 100%; min-height: var(--input-code-min-height); max-height: none; padding: var(--space-6); font: var(--fs-md)/1.6 var(--font-mono); tab-size: 2; }
+.ui-textarea[data-variant="composer"][data-size="sm"] { min-height: 64px; padding: var(--space-3) var(--space-4); font-size: var(--fs-base); }
 .ui-textarea[data-variant="composer"]:focus, .ui-textarea[data-variant="code"]:focus { box-shadow: none; }
 
 .ui-input[readonly],

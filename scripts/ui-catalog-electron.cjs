@@ -87,6 +87,7 @@ app.whenReady().then(async () => {
       }
     }
     if (scenario.id.startsWith("skill-library-")) await waitForSelector(".skill-library-card");
+    if (scenario.id === "new-task-home") await waitForSelector(".new-task-skill-card");
     if (scenario.id === "skill-composer-menu") { await click('.composer-skill-picker [aria-haspopup="dialog"]'); await waitForSelector(".composer-skill-options"); }
     if (scenario.id === "action-menu") await click('.ui-dropdown-trigger');
     if (scenario.id === "composer-queue-detail") await click('.queue-tray-item:last-child [aria-haspopup="dialog"]');
@@ -97,6 +98,27 @@ app.whenReady().then(async () => {
     const contract = await inspect(scenario.id);
     assert.ok(contract.overflow <= 1, `${name}: horizontal overflow ${contract.overflow}px`);
     assert.ok(contract.controlCount > 0, `${name}: no production UI controls rendered`);
+    if (scenario.id === "new-task-home") {
+      const home = await win.webContents.executeJavaScript(`(() => {
+        const grid = document.querySelector('.new-task-skill-grid');
+        const composer = document.querySelector('.new-task-composer').getBoundingClientRect();
+        const surface = document.querySelector('.composer-flow').getBoundingClientRect();
+        const library = document.querySelector('.new-task-library').getBoundingClientRect();
+        const cards = [...grid.querySelectorAll('.new-task-skill-card')];
+        return { cards: cards.length, columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+          composerWidth: surface.width, libraryWidth: library.width,
+          fillsFrame: Math.abs(surface.width - composer.width) < 1,
+          centered: Math.abs(surface.x + surface.width / 2 - library.x - library.width / 2) < 1,
+          contained: surface.left >= 0 && surface.right <= innerWidth,
+          compactInput: document.querySelector('textarea').dataset.size === 'sm',
+          allWrapped: cards.every(card => card.scrollWidth <= card.clientWidth + 1) };
+      })()`);
+      assert.equal(home.cards, 12, `${name}: curated recommendation count`);
+      assert.equal(home.columns, width <= 720 ? 2 : 4, `${name}: responsive recommendation columns`);
+      if (width >= 1280) assert.equal(home.composerWidth, 650, `${name}: welcome composer width`);
+      for (const key of ['fillsFrame', 'centered', 'contained', 'compactInput', 'allWrapped']) assert.equal(home[key], true, `${name}: ${key}`);
+      report.geometry.push({ name, home });
+    }
     if (scenario.id.startsWith("composer-queue-")) {
       const queue = await win.webContents.executeJavaScript(`(() => {
         const list = document.querySelector('.queue-tray');

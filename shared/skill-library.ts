@@ -8,6 +8,7 @@ const SkillRuntimeRequirementSchema = z.enum(["image", "python", "ffmpeg"]);
 export type SkillScene = z.infer<typeof SkillSceneSchema>;
 export type SkillLibraryMode = "explore" | "mine";
 export type SkillLibrarySection = "all" | SkillScene | "github-installed" | "local-imported";
+export const SkillLibraryEntryIdSchema = z.string().min(1).max(257);
 export const SkillSelectionInputSchema = z.object({ key: z.string().min(1).max(257), digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export type SkillSelectionInput = z.infer<typeof SkillSelectionInputSchema>;
 export const SkillAssetSchema = z.object({ id: z.string().uuid(), name: z.string().max(240), kind: z.enum(["image", "document"]), extension: z.string().regex(/^\.[a-z0-9]{1,8}$/) });

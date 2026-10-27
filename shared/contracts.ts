@@ -36,7 +36,7 @@ export {
 import type { ProvidersYamlInput, ProvidersYamlView } from "./providers-yaml";
 import type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord, WorkflowResumeRequest } from "./execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
-import type { RssDocument, RssDetection, RssSourceInput, RssSourcePatch, RssRunInput } from "./rss-contracts";
+import type { RssDocument, RssDocumentView, RssDetection, RssSourceInput, RssSourcePatch, RssRunInput } from "./rss-contracts";
 import type { DailyBriefPreferences } from "./daily-brief-preferences";
 import { RuntimeTargetSchema } from "./runtime-targets";
 
@@ -1230,7 +1230,7 @@ export interface DesktopApi {
   getXFollowingCurls(): Promise<string[]>;
   saveXFollowingCurls(contents: string[]): Promise<void>;
   listSources(): Promise<SourceDefinition[]>;
-  getRssSources(): Promise<RssDocument>;
+  getRssSources(): Promise<RssDocumentView>;
   detectRssSource(input: { inputUrl: string; selectedFeedUrl?: string }): Promise<RssDetection>;
   createRssSource(input: RssSourceInput): Promise<RssDocument>;
   editRssSource(input: RssSourcePatch): Promise<RssDocument>;
@@ -1309,6 +1309,7 @@ export interface DesktopApi {
   inspectInstalledSkill(key: string, digest?: string): Promise<SkillPackageInspectionView | null>;
   listInstalledSkills(): Promise<InstalledSkillView[]>;
   listSkillLibrary?(): Promise<import("./skill-library").SkillLibraryEntry[]>;
+  readSkillLibraryPrompt?(id: string): Promise<string>;
   installLibraryPreset?(id: string): Promise<import("./skill-library").SkillLibraryEntry>;
   getSkillEditor?(id?: string): Promise<import("./skill-library").AuthoredSkill>;
   saveSkillDraft?(document: import("./skill-library").AuthoredSkill): Promise<import("./skill-library").AuthoredSkill>;

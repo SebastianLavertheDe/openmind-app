@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiRun, AiSnapshot, DesktopApi } from "@shared/contracts";
+import { messages } from "@shared/messages";
 import { AiProvider, useAi } from "../ai-context";
 import { ResponsiveLayoutProvider } from "../app/responsive-layout";
 import { AiSidebar } from "./AiSidebar";
@@ -464,7 +465,7 @@ describe("AiSidebar", () => {
     // 新对话草稿态：占位文案从「继续 …」切回新建文案后再输入
     const textarea = await waitFor(() => {
       const el = screen.getByRole("combobox", { name: "AI 消息" }) as HTMLTextAreaElement;
-      if (!el.placeholder.startsWith("描述要整理")) throw new Error("still in continue-session state");
+      if (el.placeholder !== messages.ai.composer.placeholderNew) throw new Error("still in continue-session state");
       return el;
     });
     fireEvent.change(textarea, { target: { value: "帮我统计资料\n第二行" } });

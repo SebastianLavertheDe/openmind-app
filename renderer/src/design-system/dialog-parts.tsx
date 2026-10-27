@@ -17,7 +17,7 @@ export function DialogHeader({ title, description, titleId, descriptionId, onClo
   return <header className="ui-dialog-header">
     <div className="ui-dialog-heading"><h2 id={titleId}>{title}</h2>{description ? <p id={descriptionId}>{description}</p> : null}</div>
     {actions}
-    {onClose ? <IconButton label={closeLabel} disabled={closeDisabled} onClick={onClose}><X aria-hidden="true" /></IconButton> : null}
+    {onClose ? <IconButton label={closeLabel} tooltip={false} disabled={closeDisabled} onClick={onClose}><X aria-hidden="true" /></IconButton> : null}
   </header>;
 }
 
@@ -34,6 +34,6 @@ export function SearchDialogHeader({ onClose, loadingLabel, ...props }: SearchIn
   return <header className="ui-dialog-search-header">
     <SearchInput {...props} variant="quiet" />
     {loadingLabel ? <span className="ui-dialog-search-status" role="status">{loadingLabel}</span> : null}
-    <IconButton label={messages.common.close} onClick={onClose}><X aria-hidden="true" /></IconButton>
+    <IconButton label={messages.common.close} tooltip={false} onClick={onClose}><X aria-hidden="true" /></IconButton>
   </header>;
 }

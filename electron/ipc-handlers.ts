@@ -1,4 +1,4 @@
-import { AuthoredSkillSchema, SkillAssetSchema, SkillPublishInputSchema } from "../shared/skill-library";
+import { AuthoredSkillSchema, SkillAssetSchema, SkillLibraryEntryIdSchema, SkillPublishInputSchema } from "../shared/skill-library";
 import { SkillLibraryService } from "./skills/skill-library-service";
 import { resolveSkillLibraryBundleRoot } from "./skills/skill-library-catalog";
 import { buildAppPaths, resolveSkillStoreRoot } from "./paths/app-paths-service";
@@ -231,7 +231,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
   };
 
   return [
-    { channel: C.getRssSources, handler: () => rss().repository.read() },
+    { channel: C.getRssSources, handler: () => rss().repository.view() },
     { channel: C.detectRssSource, handler: input => projectAdmission.run(() => { const value = z.object({ inputUrl: RssUrlSchema, selectedFeedUrl: RssUrlSchema.optional() }).parse(input); return rss().detect(value.inputUrl, value.selectedFeedUrl); }) },
     { channel: C.createRssSource, handler: input => projectAdmission.run(() => rss().add(RssSourceInputSchema.parse(input))) },
     { channel: C.editRssSource, handler: input => projectAdmission.run(() => rss().update(RssSourcePatchSchema.parse(input))) },
@@ -242,6 +242,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.saveDailyBriefPreferences, handler: input => rss().repository.savePreferences(SaveDailyBriefPreferencesSchema.parse(input)) },
     { channel: C.generateDailyBrief, handler: input => projectAdmission.run(async () => { const value = z.object({ date: z.string().regex(/^\d{8}$/), topics: z.boolean().optional() }).parse(input); const id = value.topics ? "daily-topic-selector" : "daily-article-summarizer"; const record = installBuiltinDefault(skillPackages(), id); skillPackages().setEnabled(record.key, record.digest, true); return ai().call("brief-run", value); }) },
     { channel: C.listSkillLibrary, handler: () => library().list() },
+    { channel: C.readSkillLibraryPrompt, handler: id => library().prompt(SkillLibraryEntryIdSchema.parse(id)) },
     { channel: C.getSkillEditor, handler: id => library().editor(id == null ? undefined : z.string().uuid().parse(id)) },
     { channel: C.saveSkillDraft, handler: raw => library().saveDraft(AuthoredSkillSchema.parse(raw)) },
     { channel: C.readSkillAssetImage, handler: (id, asset) => library().readImage(z.string().uuid().parse(id), SkillAssetSchema.parse(asset)) },

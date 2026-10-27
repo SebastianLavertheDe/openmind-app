@@ -1,4 +1,6 @@
 import { SkillLibraryPage } from "../src/features/skills/SkillLibraryPage";
+import { AiProvider, useAiDraft, useAiUi } from "../src/ai-context";
+import { Chat } from "../src/features/ai-console/Chat";
 import { SkillEditor } from "../src/features/skills/SkillEditor";
 import { ComposerSkillPicker } from "../src/features/ai-console/ComposerSkillPicker";
 import { FeedbackProvider } from "../src/feedback-context";
@@ -12,7 +14,7 @@ import { flushSync } from "react-dom";
 import { ArrowUp, BookOpen, Copy, Plus, ShieldCheck, Square, Trash2 } from "lucide-react";
 import {
   Button, IconButton, ImageAttachment, ImageThumbnail, BUTTON_VARIANTS, ICON_BUTTON_SHAPES, IMAGE_THUMBNAIL_VARIANTS, CONTROL_SIZES, CONTROL_TONES, INPUT_VARIANTS, TEXTAREA_VARIANTS, SEARCH_VARIANTS,
-  Input, Textarea, SearchInput, FormField, InputGroup, FormDialog, ConfirmDialog, Dialog, DialogBody, SearchDialogHeader,
+  Input, Textarea, SearchInput, FormField, InputGroup, FormDialog, ConfirmDialog, Dialog, DialogHeader, DialogBody, SearchDialogHeader,
   TAB_VARIANTS, SEGMENTED_VARIANTS, Select, Tabs, SegmentedControl, ToggleSwitch, DropdownMenu, MenuItem, FileDropzone, AnimatedDisclosure
 } from "../src/design-system/components";
 import { ProjectEditDialog } from "../src/features/projects/ProjectAppearance";
@@ -26,7 +28,7 @@ import "../src/styles/index.css";
 import "../src/styles/dev/ui-catalog.css";
 import "@fontsource/jetbrains-mono/latin-400.css";
 
-setLocale("en");
+setLocale(new URLSearchParams(location.search).get("lang") === "zh-CN" ? "zh-CN" : "en");
 const query = new URLSearchParams(location.search);
 const current = query.get("case") || "actions";
 document.documentElement.dataset.theme = query.get("theme") || "light";
@@ -211,6 +213,39 @@ function QueuedMessagesExample() {
 }
 
 const contributorAvatar = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Crect width='128' height='128' rx='64' fill='%2392b4a7'/%3E%3Ccircle cx='64' cy='46' r='22' fill='%23f6eee3'/%3E%3Cpath d='M22 128v-20a42 42 0 0 1 84 0v20' fill='%23f6eee3'/%3E%3C/svg%3E";
+function NewTaskExample() {
+  const catalog = SkillLibraryCatalogSchema.parse(skillLibraryCatalog);
+  const snapshot = useRef<AiSnapshot>({ projectRoot: "/preview/workspace", providers: modelFixtureAgents, sessions: [], runs: [], pendingApprovals: [] }).current;
+  const installed = useRef(new Set([catalog.skills[0].id]));
+  const entries = () => catalog.skills.map(preset => {
+    const copy = resolveSkillLibraryCopy(preset);
+    const ready = installed.current.has(preset.id);
+    return { id: preset.id, skillId: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset" as const, discoverable: preset.discoverable, installed: ready, enabled: ready, usable: true, reason: null, key: ready ? `openmind-library/${preset.id}` : null, digest: ready ? "a".repeat(64) : null, version: "1.0.0", authoringId: null, revision: 0, draft: false, imageCount: 0, source: messages.skillLibrary.origin.preset, executionModel: null };
+  });
+  window.openmind = {
+    aiRefresh: async () => snapshot, aiRefreshSkills: async () => [], aiGetEvents: async () => [], onAiEvent: () => () => {},
+    listSkillLibrary: async () => entries(), readSkillLibraryPrompt: async (id: string) => [...catalog.skills.find(item => item.id === id)!.instructions, ...catalog.executionRules].join("\n\n"),
+    installLibraryPreset: async (id: string) => { installed.current.add(id); return entries().find(item => item.id === id)!; },
+    setInstalledSkillEnabled: async () => ({}),
+    getImageConfiguration: async () => ({ defaultSelection: null, providers: [] }),
+    selectFiles: async () => [], selectOpenmindFiles: async () => [], searchOpenmindFiles: async () => ({ items: [], indexedCount: 0, truncated: false }),
+    openPath: async () => true
+  } as unknown as DesktopApi;
+  return <FeedbackProvider><AiProvider initial={snapshot}><div className="ai-workbench ui-catalog-new-task-stage"><section className="conversation-pane ui-catalog-new-task-pane"><div aria-hidden /><Chat /></section></div><NewTaskBrowsePreview /></AiProvider></FeedbackProvider>;
+}
+
+function NewTaskBrowsePreview() {
+  const ui = useAiUi();
+  const { setSelectedSkill } = useAiDraft();
+  const [dismissed, setDismissed] = useState(0);
+  const close = () => setDismissed(ui.skillSettingsRequest);
+  return <Dialog open={ui.skillSettingsRequest > dismissed} onClose={close} size="wide" aria-label={messages.skillLibrary.title}>
+    <DialogHeader title={messages.skillLibrary.title} titleId="preview-library-title" onClose={close} />
+    <DialogBody><SkillLibraryPage storageScope="new-task-preview" initialMode={ui.skillSettingsMode} providers={modelFixtureAgents} renderManagement={() => null} renderImport={() => null}
+      onUseSkill={entry => { setSelectedSkill(entry); close(); ui.focusComposer(); }} /></DialogBody>
+  </Dialog>;
+}
+
 function SkillLibraryExample() {
   const presets: SkillLibraryEntry[] = SkillLibraryCatalogSchema.parse(skillLibraryCatalog).skills.map((preset, index) => {
     const copy = resolveSkillLibraryCopy(preset);
@@ -261,7 +296,7 @@ function Catalog() {
     <header className="ui-catalog-header"><h1>OpenMind UI</h1><p>Production components · supported variants and interaction states</p>
       <nav aria-label="Component examples">{scenarios.filter(item => !("navigation" in item) || item.navigation !== false).map(item => <a key={item.id} href={`?case=${item.id}&theme=${document.documentElement.dataset.theme}`}>{item.title}</a>)}</nav>
     </header>
-    {current.startsWith("skill-") ? <SkillLibraryExample /> : current === "actions" ? <Actions /> : current === "fields" ? <Fields /> : current === "form-dialog" ? <FormExample />
+    {current === "new-task-home" ? <NewTaskExample /> : current.startsWith("skill-") ? <SkillLibraryExample /> : current === "actions" ? <Actions /> : current === "fields" ? <Fields /> : current === "form-dialog" ? <FormExample />
       : current === "confirm-dialog" ? <ConfirmDialog open title="Remove this project?" description="The project will be moved to the archive." tone="danger" confirmLabel="Remove project" cancelLabel="Cancel" onClose={() => {}} onConfirm={() => {}} />
       : current === "long-confirmation" ? <ConfirmDialog open title={"Long confirmation title ".repeat(60)} description={Array.from({ length: 100 }, (_, index) => `Confirmation detail ${index + 1}`).join("\n")} tone="danger" confirmLabel="Confirm" cancelLabel="Cancel" onClose={() => {}} onConfirm={() => {}} />
       : current === "search-dialog" ? <SearchExample /> : current === "select-menu" || current === "action-menu" ? <MenuExample select={current === "select-menu"} />

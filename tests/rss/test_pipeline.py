@@ -11,6 +11,7 @@ import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
+from types import SimpleNamespace
 
 PACKAGES = Path(__file__).resolve().parents[2] / 'config' / 'skill-library' / 'packages'
 sys.path.insert(0, str(PACKAGES / 'rss-article-saver'))
@@ -30,6 +31,11 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == '/page': data = '<html><link rel="alternate" type="application/rss+xml" href="rss" title="Design"></html>'
         elif self.path == '/multi': data = '<html><link rel="alternate" type="application/rss+xml" href="/rss" title="Design"><link rel="alternate" type="application/atom+xml" href="/atom" title="Science"></html>'
         elif self.path == '/bad': data = '<rss><channel>'
+        elif self.path == '/empty-rss': data = '<rss><channel><title>Empty</title></channel></rss>'
+        elif self.path == '/empty-atom': data = '<feed xmlns="http://www.w3.org/2005/Atom"><title>Empty</title></feed>'
+        elif self.path == '/invalid-items': data = '<rss><channel><item><title>No link</title></item><item><link>/article</link></item><item><title>Bad link</title><link>javascript:alert(1)</link></item></channel></rss>'
+        elif self.path == '/empty-page': data = '<html><link rel="alternate" type="application/rss+xml" href="/empty-rss"></html>'
+        elif self.path == '/multi-empty': data = '<html><link rel="alternate" type="application/rss+xml" href="/empty-rss"><link rel="alternate" type="application/rss+xml" href="/rss"></html>'
         elif self.path == '/article': data = '<article><h1>Design study</h1><p>This study presents concrete research results for accessible product interfaces and a detailed comparison of interaction methods.</p></article>'
         else: data = '<html><h1>Unrelated page</h1></html>'
         self.wfile.write(data.encode())
@@ -59,7 +65,6 @@ class PipelineTests(unittest.TestCase):
         result = rss.detect(self.url + '/multi', self.catalog); self.assertEqual(len(result['candidates']), 2); self.assertIsNone(result['resolvedFeedUrl'])
         selected = rss.detect(self.url + '/multi', self.catalog, self.url + '/atom'); self.assertTrue(selected['resolvedFeedUrl'].endswith('/atom'))
     def test_adapter_and_error_categories(self):
-        result = rss.detect(self.url + '/unknown', {'adapters': [{'id': 'fixture', 'url': self.url + '/unknown'}]}); self.assertEqual(result['adapterId'], 'fixture')
         for route, code in [('/unknown', 'unsupported-page'), ('/bad', 'invalid-feed'), ('/denied', 'access-denied')]:
             with self.assertRaises(rss.FeedError) as caught: rss.detect(self.url + route, self.catalog)
             self.assertEqual(caught.exception.code, code)
@@ -67,6 +72,39 @@ class PipelineTests(unittest.TestCase):
             opener.return_value.open.side_effect = socket.timeout()
             with self.assertRaises(rss.FeedError) as caught: rss.fetch(self.url)
             self.assertEqual(caught.exception.code, 'timeout')
+    def test_detection_rejects_empty_feeds_and_entries_without_valid_titles_and_links(self):
+        for route in ['/empty-rss', '/empty-atom', '/invalid-items', '/empty-page']:
+            with self.subTest(route=route), self.assertRaises(rss.FeedError) as caught:
+                rss.detect(self.url + route, self.catalog)
+            self.assertEqual(caught.exception.code, 'empty-feed')
+        candidates = rss.detect(self.url + '/multi-empty', self.catalog)
+        self.assertIsNone(candidates['resolvedFeedUrl'])
+        with self.assertRaises(rss.FeedError) as caught:
+            rss.detect(self.url + '/multi-empty', self.catalog, self.url + '/empty-rss')
+        self.assertEqual(caught.exception.code, 'empty-feed')
+        self.assertEqual(rss.detect(self.url + '/multi-empty', self.catalog, self.url + '/rss')['resolvedFeedUrl'], self.url + '/rss')
+    def test_detection_runs_the_adapter_and_validates_its_generated_articles_without_writing_files(self):
+        catalog = {'adapters': [{'id': 'fixture', 'url': self.url + '/unknown', 'module': 'fixture_adapter', 'className': 'Generator'}]}
+        for rows, expected in [([], 'empty-page'), ([{'title': 'Invalid link', 'url': 'javascript:alert(1)'}], 'empty-page'), ([{'title': '', 'url': self.url + '/article'}], 'empty-page'), ([{'title': 'Article', 'url': self.url + '/article'}], None)]:
+            with self.subTest(rows=rows):
+                async def fetch_posts(): return rows
+                generator = SimpleNamespace(fetch_posts=fetch_posts)
+                with patch.object(rss.importlib, 'import_module', return_value=SimpleNamespace(Generator=lambda: generator)) as module, patch.object(rss, 'fetch', wraps=rss.fetch) as fetch:
+                    if expected:
+                        with self.assertRaises(rss.FeedError) as caught: rss.detect(self.url + '/unknown', catalog)
+                        self.assertEqual(caught.exception.code, expected)
+                    else:
+                        self.assertEqual(rss.detect(self.url + '/unknown', catalog)['adapterId'], 'fixture')
+                    module.assert_called_once_with('fixture_adapter')
+                    fetch.assert_called_once_with(self.url + '/unknown')
+                self.assertFalse((self.data / 'feeds').exists())
+                self.assertFalse((self.root / 'article').exists())
+    def test_detection_surfaces_adapter_failures(self):
+        catalog = {'adapters': [{'id': 'fixture', 'url': self.url + '/unknown', 'module': 'fixture_adapter', 'className': 'Generator'}]}
+        def fetch_posts(): raise RuntimeError('Site layout changed')
+        with patch.object(rss.importlib, 'import_module', return_value=SimpleNamespace(Generator=lambda: SimpleNamespace(fetch_posts=fetch_posts))):
+            with self.assertRaises(rss.FeedError) as caught: rss.detect(self.url + '/unknown', catalog)
+            self.assertEqual(caught.exception.code, 'adapter-failed')
     def test_sync_collect_xml_guid_timezone_and_dedup(self):
         self.assertEqual(self.pipeline.run('sync', '20261027')['status'], 'succeeded')
         self.assertFalse((self.root / 'article').exists())

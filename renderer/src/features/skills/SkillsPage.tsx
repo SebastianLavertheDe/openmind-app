@@ -884,7 +884,7 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
     }
   };
 
-  if (isRss) return <SourcesPage embedded />;
+  if (isRss) return <SourcesPage presentation="embedded" />;
 
   if (summary.id === "x-following-fetcher") return <SkillXCurlPanel
     summary={summary}

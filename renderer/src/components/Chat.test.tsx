@@ -123,6 +123,11 @@ function ControllerRenderProbe({ onRender }: { onRender(): void }) {
   return null;
 }
 
+function SkillSettingsRequestProbe() {
+  const ai = useAi();
+  return <output data-testid="skill-settings-request">{ai.skillSettingsRequest}:{ai.skillSettingsMode}</output>;
+}
+
 function StreamingProbe({ runId }: { runId: string }) {
   const { streaming } = useAiStreaming(runId);
   return <output data-testid="streaming-probe">{streaming}</output>;
@@ -169,6 +174,71 @@ afterEach(() => {
 });
 
 describe("Chat composer", () => {
+  it("filters welcome skills, previews their Prompt and installs only when explicitly chosen, preserving the draft", async () => {
+    const user = userEvent.setup();
+    const entry: SkillLibraryEntry = {
+      id: "om-article-writer", skillId: "om-article-writer", title: "长文写作", subtitle: "写一篇文章", description: "创作完整文章",
+      inputHint: "文章的主题和读者是谁？", category: "writing", origin: "preset", installed: false, enabled: false,
+      usable: true, reason: null, key: null, digest: null, version: null, authoringId: null, revision: 0, draft: false, imageCount: 0, source: "应用预设", executionModel: null
+    };
+    const imported = { ...entry, id: "imported", title: "Imported private helper", origin: "git" as const, installed: true };
+    const research = { ...entry, id: "om-research-brief", skillId: "om-research-brief", title: "研究资料", category: "research" as const };
+    window.openmind.listSkillLibrary = vi.fn(async () => [entry, imported, research]);
+    window.openmind.readSkillLibraryPrompt = vi.fn(async () => "Read the material and write a complete article.");
+    window.openmind.installLibraryPreset = vi.fn(async () => ({ ...entry, installed: true, enabled: true, key: "openmind-library/om-article-writer", digest: "a".repeat(64) }));
+    render(<AiProvider initial={snapshot}><Chat /></AiProvider>);
+    const input = screen.getByLabelText("AI 消息") as HTMLTextAreaElement;
+    await user.type(input, "请保留我写的任务");
+    await screen.findByRole("button", { name: "长文写作" });
+    expect(screen.queryByRole("button", { name: "Imported private helper" })).toBeNull();
+    await user.click(screen.getByRole("tab", { name: "写作" }));
+    expect(screen.queryByRole("button", { name: "研究资料" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "长文写作" }));
+    await screen.findByText("Read the material and write a complete article.");
+    expect(window.openmind.installLibraryPreset).not.toHaveBeenCalled();
+    await user.click(within(screen.getByRole("region", { name: "长文写作" })).getByRole("button", { name: "安装并使用" }));
+    await waitFor(() => expect(input.placeholder).toBe(entry.inputHint));
+    expect(window.openmind.installLibraryPreset).toHaveBeenCalledWith(entry.id);
+    expect(input.value).toBe("请保留我写的任务");
+    expect(startRun).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: m.skillLibrary.clearSelection })).toBeTruthy();
+  });
+
+  it("applies a recommended skill straight from the card action without opening the detail view", async () => {
+    const user = userEvent.setup();
+    const entry: SkillLibraryEntry = {
+      id: "om-article-writer", skillId: "om-article-writer", title: "长文写作", subtitle: "写一篇文章", description: "创作完整文章",
+      inputHint: "文章的主题和读者是谁？", category: "writing", origin: "preset", installed: false, enabled: false,
+      usable: true, reason: null, key: null, digest: null, version: null, authoringId: null, revision: 0, draft: false, imageCount: 0, source: "应用预设", executionModel: null
+    };
+    window.openmind.listSkillLibrary = vi.fn(async () => [entry]);
+    window.openmind.installLibraryPreset = vi.fn(async () => ({ ...entry, installed: true, enabled: true, key: "openmind-library/om-article-writer", digest: "a".repeat(64) }));
+    render(<AiProvider initial={snapshot}><Chat /></AiProvider>);
+    const input = screen.getByLabelText("AI 消息") as HTMLTextAreaElement;
+    await screen.findByRole("button", { name: "长文写作" });
+    await user.click(screen.getByRole("button", { name: `长文写作 · ${m.skillLibrary.use}` }));
+    await waitFor(() => expect(input.placeholder).toBe(entry.inputHint));
+    expect(window.openmind.installLibraryPreset).toHaveBeenCalledWith(entry.id);
+    expect(input.value).toBe("");
+    expect(screen.queryByRole("region", { name: "长文写作" })).toBeNull();
+    expect(startRun).not.toHaveBeenCalled();
+  });
+
+  it("recovers welcome recommendations after a loading failure", async () => {
+    const user = userEvent.setup();
+    let unavailable = true;
+    window.openmind.listSkillLibrary = vi.fn(async () => { if (unavailable) throw new Error("temporarily unavailable"); return []; });
+    render(<AiProvider initial={snapshot}><Chat /><SkillSettingsRequestProbe /></AiProvider>);
+    await screen.findByText(m.skillLibrary.loadFailed);
+    unavailable = false;
+    await user.click(screen.getByRole("button", { name: m.skillLibrary.retry }));
+    await screen.findByText(m.skillLibrary.empty);
+    expect(screen.getByLabelText("AI 消息")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: m.skillLibrary.browseAll }));
+    expect(screen.getByTestId("skill-settings-request").textContent).toBe("1:explore");
+  });
+
+
   it.each(["append", "replace", "switch"])("does not overwrite newer input when slash selection is delayed (%s)", async edit => {
     const entry: SkillLibraryEntry = {
       id: "rss-article-saver", skillId: "rss-article-saver", title: "RSS 文章抓取", subtitle: "", description: "",
@@ -229,12 +299,12 @@ describe("Chat composer", () => {
     expect(input.placeholder).toBe(m.ai.composer.placeholderNew);
   });
 
-  it("grounds the empty state in the content workspace without task cards or shortcut hints", () => {
+  it("opens new tasks with the welcome heading and keeps the workspace and composer actions", () => {
     render(<AiProvider initial={snapshot}><Chat /></AiProvider>);
 
     expect(screen.getAllByText(m.ai.chat.currentProject).length).toBeGreaterThan(0);
     expect(screen.getAllByText("project").length).toBeGreaterThan(0);
-    expect(screen.getByText("从资料到创作，让 AI 帮你推进")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: m.ai.chat.newTaskTitle })).toBeTruthy();
     for (const prompt of m.ai.chat.emptyPrompts) {
       expect(screen.queryByRole("button", { name: `${prompt.title} ${prompt.body}` })).toBeNull();
     }

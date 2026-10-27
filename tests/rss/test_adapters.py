@@ -27,6 +27,16 @@ def response(text='', data=None):
     return value
 
 class AdapterTests(unittest.TestCase):
+    def test_anthropic_detection_requires_the_real_parser_to_find_articles(self):
+        url = 'https://www.anthropic.com/engineering'
+        for listing, expected in [('<html><h1>Engineering</h1></html>', 'empty-page'), (f'<article><a href="/engineering/design"><h2>{TITLE}</h2></a><time datetime="{DATE}"></time></article>', None)]:
+            with self.subTest(expected=expected), patch.object(rss, 'fetch', return_value=(listing.encode(), url)), patch('requests.Session.get', return_value=response(listing)):
+                if expected:
+                    with self.assertRaises(rss.FeedError) as caught: rss.detect(url, CATALOG)
+                    self.assertEqual(caught.exception.code, expected)
+                else:
+                    self.assertEqual(rss.detect(url, CATALOG)['adapterId'], 'anthropic_engineering_rss')
+
     def test_every_website_adapter_produces_stable_standard_rss(self):
         fixtures = {
             'cursor_rss': f'<article><a href="/blog/design"><p>{TITLE}</p></a><p>Research findings</p><time datetime="{DATE}"></time></article>',

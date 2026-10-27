@@ -1,6 +1,6 @@
 import { Children, cloneElement, forwardRef, isValidElement, useImperativeHandle, useRef, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { Search, X } from "lucide-react";
-import type { InputVariant, TextareaVariant, SearchVariant } from "./control-contract";
+import type { InputVariant, TextareaVariant, TextareaSize, SearchVariant } from "./control-contract";
 
 type InputSize = "sm" | "md";
 type InputType = "text" | "search" | "email" | "password" | "tel" | "url" | "number" | "date" | "datetime-local" | "time" | "month" | "week";
@@ -20,12 +20,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   variant?: TextareaVariant;
+  size?: TextareaSize;
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea({
-  variant = "default", className = "", ...props
+  variant = "default", size = "md", className = "", ...props
 }, ref) {
-  return <textarea {...props} ref={ref} data-ui-control="textarea" className={`ui-textarea ${className}`.trim()} data-variant={variant} />;
+  return <textarea {...props} ref={ref} data-ui-control="textarea" className={`ui-textarea ${className}`.trim()} data-variant={variant} data-size={size} />;
 });
 
 /** A shared form surface for an inline input and a unit or other non-interactive addon. */

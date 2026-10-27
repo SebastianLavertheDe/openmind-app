@@ -1,0 +1,51 @@
+.chat.new-task-home {
+  display: block;
+  overflow-y: auto;
+  min-width: 0;
+  padding: clamp(64px, 18.8dvh, 204px) clamp(20px, 4vw, 64px) 64px;
+  background: var(--panel);
+  scrollbar-gutter: stable;
+}
+.new-task-hero { display: flex; flex-direction: column; align-items: center; gap: 30px; }
+.new-task-hero h1 { margin: 0; color: var(--text); font: 400 28px/1.25 var(--font-sans); letter-spacing: -.025em; text-align: center; }
+.new-task-composer { width: min(650px, 100%); min-width: 0; }
+.new-task-composer .composer--welcome { padding: 0; border: 0; }
+.composer--welcome .composer-flow { width: 100%; padding: 0; border-color: var(--border-subtle); box-shadow: 0 1px 4px rgb(25 25 24 / 4%); }
+.composer--welcome .composer-editor { min-height: 108px; }
+.composer--welcome .composer-editor-actions { padding: 0 14px 10px; }
+.new-task-library { width: min(920px, 100%); margin: 72px auto 0; }
+.new-task-library-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: 18px; }
+.new-task-categories { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.new-task-categories .ui-tabs { flex-wrap: nowrap; width: max-content; }
+.new-task-library-header > .ui-button { flex: 0 0 auto; }
+.new-task-skill-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px 20px; }
+.new-task-skill-card { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 0; min-width: 0; padding: 0; border: 0; border-radius: 18px; background: transparent; color: var(--text); text-align: left; }
+.new-task-skill-media { position: relative; }
+.new-task-skill-cover { display: block; width: 100%; height: auto; aspect-ratio: 27 / 16; border-radius: 18px; object-fit: cover; transition: filter var(--dur-fast) var(--ease-standard); }
+.new-task-skill-card:hover .new-task-skill-cover { filter: brightness(.97); }
+.new-task-skill-use { position: absolute; right: 10px; bottom: 10px; z-index: 2; opacity: 0; transform: translateY(4px); transition: opacity var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)), transform var(--dur-fast, 140ms) var(--ease-standard, cubic-bezier(.2, 0, 0, 1)); display: inline-flex; }
+.new-task-skill-card:hover .new-task-skill-use, .new-task-skill-card:focus-within .new-task-skill-use { opacity: 1; transform: none; }
+.new-task-skill-open { position: absolute; inset: 0; z-index: 1; padding: 0; border: 0; border-radius: 18px; background: transparent; cursor: pointer; }
+.new-task-skill-open:focus-visible { outline: 2px solid var(--input-focus-border); outline-offset: 5px; }
+.new-task-skill-title { margin-top: 8px; overflow: hidden; font: 400 13px/1.45 var(--font-sans); text-overflow: ellipsis; white-space: nowrap; }
+.new-task-skill-category { display: flex; align-items: center; gap: 4px; color: var(--muted-2); font: 400 var(--fs-xs)/1.5 var(--font-sans); }
+.new-task-library-status { padding: 32px 0; color: var(--muted); text-align: center; }
+.chat.new-task-home--detail { padding-top: 32px; }
+@media (max-width: 1080px) {
+  .new-task-skill-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .chat.new-task-home { padding: 64px 20px 40px; }
+  .new-task-hero h1 { font-size: 25px; }
+  .new-task-library { margin-top: 48px; }
+  .new-task-library-header { gap: 12px; }
+  .new-task-skill-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 14px; }
+  .new-task-skill-cover { border-radius: 14px; }
+}
+@media (max-width: 400px) {
+  .new-task-library-header { align-items: flex-start; }
+  .new-task-skill-title { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .new-task-skill-use { transition: none; }
+}

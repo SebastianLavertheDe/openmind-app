@@ -41,7 +41,7 @@ check("SBOM, license and provenance evidence is generated", Boolean(
 
 checkLineBudget("CreativePage is below the complex-page budget", "renderer/src/features/creative/CreativePage.tsx", 500);
 check("CreativePage has independent panels and history/release modules", exists("renderer/src/features/creative/panels.tsx") && exists("renderer/src/features/creative/history-release.tsx"));
-check("legacy SourcesPage is removed and source management uses the settings route", !exists("renderer/src/features/sources/SourcesPage.tsx") && includes("renderer/src/app/route-registry.tsx", 'page: "sources"') && includes("renderer/src/app/route-registry.tsx", "<SettingsPage"));
+check("source management uses settings without a primary navigation entry", includes("renderer/src/app/route-registry.tsx", 'page: "sources", needsRepo: false, render:') && includes("renderer/src/features/settings/SettingsPage.tsx", '<SourcesPage key={prefs.openmindRoot} presentation="settings"'));
 check("source discovery and persistence stay outside the page", exists("electron/product/source-registry.ts") && exists("electron/skills/skill-source-service.ts") && exists("shared/skill-frontmatter.ts"));
 checkLineBudget("ProductService remains a bounded domain facade", "electron/product/product-service.ts", 420);
 check("Product domain keeps active content indexing and source services split", [

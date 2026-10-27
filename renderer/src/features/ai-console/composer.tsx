@@ -149,7 +149,7 @@ export type ChatDraftSubmitInput = {
 
 export type ChatDraftSubmitHandler = (input: ChatDraftSubmitInput) => Promise<void>;
 
-export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmitHandler } = {}) {
+export function ChatComposer({ onDraftSubmit, presentation = "conversation" }: { onDraftSubmit?: ChatDraftSubmitHandler; presentation?: "conversation" | "welcome" } = {}) {
   const locale = useLocale();
   // Slices instead of the full controller: the composer must not re-render on
   // every streamed event flush, only on the snapshot/UI/actions values it renders.
@@ -468,7 +468,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
   }, [showMenu, suggestionAnchor, suggestionPopover.updatePosition]);
 
   return (
-    <footer className="composer" ref={composerRef}>
+    <footer className={`composer${presentation === "welcome" ? " composer--welcome" : ""}`} ref={composerRef}>
       <QueuedMessages key={activeSession?.id || "new-session"} runs={queuedRuns} cancellingRunIds={ui.cancellingRunIds}
         onCancel={id => { void actions.cancel(id).catch(() => { /* The controller displays cancellation errors. */ }); }} />
       <div className="composer-flow">
@@ -481,7 +481,8 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
         ) : null}
         <div className="composer-editor">
           <ContextTrayPresence contexts={imageContexts} />
-          <Textarea variant="composer"
+          <Textarea variant="composer" size={presentation === "welcome" ? "sm" : "md"}
+            rows={presentation === "welcome" ? 1 : undefined}
             onPaste={handlePaste}
             ref={textareaRef}
             aria-label={m.ai.composer.messageInput}
@@ -608,7 +609,7 @@ export function ChatComposer({ onDraftSubmit }: { onDraftSubmit?: ChatDraftSubmi
                 type="button"
                 variant="primary"
                 shape="circle"
-                size="lg"
+                size={presentation === "welcome" ? "md" : "lg"}
                 responsiveTarget
                 className="composer-send"
                 disabled={visibleActiveRun

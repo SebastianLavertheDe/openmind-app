@@ -14,7 +14,7 @@ fs.mkdirSync(output, { recursive: true });
 esbuild.buildSync({
   entryPoints: [path.join(root, "renderer/dev/ui-catalog.tsx")], outfile: path.join(output, "catalog.js"),
   bundle: true, platform: "browser", format: "iife", target: "chrome140", jsx: "automatic",
-  minify: true, loader: { ".ttf": "file", ".woff": "file", ".woff2": "file" },
+  minify: true, loader: { ".ttf": "file", ".woff": "file", ".woff2": "file", ".jpg": "file" },
   define: { "process.env.NODE_ENV": '"production"' }
 });
 fs.writeFileSync(path.join(output, "index.html"), '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>OpenMind UI catalog</title><link rel="stylesheet" href="./catalog.css"></head><body><div id="root"></div><script src="./catalog.js"></script></body></html>');

@@ -152,10 +152,12 @@ def detect(url, catalog, selected=None):
     original = http_url(url)
     data, resolved = fetch(original)
     try:
-        parse_feed(data, resolved)
-        return {"kind": "feed", "inputUrl": original, "resolvedFeedUrl": resolved, "adapterId": "feed", "candidates": []}
+        _, entries = parse_feed(data, resolved)
     except FeedError as exc:
         if exc.code == "invalid-feed" and re.search(br"<(?:rss|feed)(?:\s|>)", data[:1024]): raise
+    else:
+        if not entries: raise FeedError("empty-feed", "No articles with a title and valid link were found in this feed.", True)
+        return {"kind": "feed", "inputUrl": original, "resolvedFeedUrl": resolved, "adapterId": "feed", "candidates": []}
     parser = FeedLinks(resolved)
     parser.feed(data.decode("utf-8", errors="replace"))
     if parser.links:
@@ -163,14 +165,22 @@ def detect(url, catalog, selected=None):
             raise FeedError("invalid-selection", "The selected feed is not advertised by this page.")
         chosen = selected or (parser.links[0]["url"] if len(parser.links) == 1 else None)
         if chosen:
-            raw, target = fetch(chosen); parse_feed(raw, target)
+            raw, target = fetch(chosen)
+            _, entries = parse_feed(raw, target)
+            if not entries: raise FeedError("empty-feed", "No articles with a title and valid link were found in this feed.", True)
         else:
             target = None
         return {"kind": "website", "inputUrl": original, "resolvedFeedUrl": target, "adapterId": "feed", "candidates": parser.links}
     for adapter in catalog["adapters"]:
         expected, actual = urlsplit(adapter["url"]), urlsplit(resolved)
         if expected.netloc.lower().removeprefix("www.") == actual.netloc.lower().removeprefix("www.") and (actual.path.rstrip("/") in {expected.path.rstrip("/"), ""} or any(row.get("adapterId") == adapter["id"] and urlsplit(row["inputUrl"]).path.rstrip("/") == actual.path.rstrip("/") for row in catalog.get("sources", []))):
-            return {"kind": "website", "inputUrl": original, "resolvedFeedUrl": None, "adapterId": adapter["id"], "candidates": []}
+            result = {"kind": "website", "inputUrl": original, "resolvedFeedUrl": None, "adapterId": adapter["id"], "candidates": []}
+            # Exercise the same converter as Update RSS, without writing a feed
+            # or collecting articles. An adapter match alone is not success.
+            normalized, _ = convert({**result, "name": adapter["id"]}, catalog)
+            _, entries = parse_feed(normalized, original)
+            if not entries: raise FeedError("empty-page", "No articles with a title and valid link were found on this page.", True)
+            return result
     raise FeedError("unsupported-page", "No RSS feed or supported article-list adapter was found on this page.")
 
 

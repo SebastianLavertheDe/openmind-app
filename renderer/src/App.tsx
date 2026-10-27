@@ -129,10 +129,11 @@ function Workspace({
       page = "ai";
       state = {};
     }
-    if (page === "settings" || page === "skills") {
+    if (page === "settings" || page === "skills" || page === "sources") {
       setSettingsRouteState({
         ...state,
-        ...(page === "skills" ? { settingsSection: "skills" as const } : {})
+        ...(page === "skills" ? { settingsSection: "skills" as const } : {}),
+        ...(page === "sources" ? { settingsSection: "sources" as const } : {})
       });
       setSettingsOpen(true);
       return;
@@ -162,7 +163,7 @@ function Workspace({
   useEffect(() => {
     if (!ui.skillSettingsRequest) return;
     const scope = activeSession?.scope;
-    navigate("settings", { settingsSection: "skills", skillLibraryMode: "mine", skillReturnSessionId: activeSession?.id ?? (ui.projectComposeTarget ? `project:${ui.projectComposeTarget.projectId}:new` : null),
+    navigate("settings", { settingsSection: "skills", skillLibraryMode: ui.skillSettingsMode, skillReturnSessionId: activeSession?.id ?? (ui.projectComposeTarget ? `project:${ui.projectComposeTarget.projectId}:new` : null),
       ...(scope?.type === "project-task" ? { projectName: scope.projectName, projectSection: "tasks" as const, projectItem: scope.taskId } : ui.projectComposeTarget ? { projectName: ui.projectComposeTarget.projectName, projectSection: "tasks" as const } : {}) });
   }, [ui.skillSettingsRequest]);
   const openNewTask = useCallback(() => {

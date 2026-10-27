@@ -179,7 +179,7 @@ describe("SkillsPage", () => {
     const document = { schemaVersion: 1 as const, initialized: true as const, revision: 1, sources: [row], deletedPresetIds: [], migrationWarnings: [] };
     const editRssSource = vi.fn(async () => document);
     const importRssOpml = vi.fn(async () => document);
-    renderPage({ listInstalledSkills: async () => [rssInstalled], inspectInstalledSkill: async () => rssInspection, listSources: async () => [source], getRssSources: async () => document, editRssSource, importRssOpml });
+    renderPage({ listInstalledSkills: async () => [rssInstalled], inspectInstalledSkill: async () => rssInspection, listSources: async () => [source], getRssSources: async () => ({ ...document, sources: [{ ...row, localFeed: { path: "/fixtures/content/.agent/skill-data/rss-article-saver/feeds/rss-1.xml", status: "missing" as const } }] }), editRssSource, importRssOpml });
     expect(await screen.findByRole("heading", { name: "RSS 文章采集" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "订阅源 1" }));
     expect(await screen.findByText("https://sspai.com/feed")).toBeTruthy();

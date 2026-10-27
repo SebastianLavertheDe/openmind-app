@@ -34,6 +34,10 @@ rectangular Select triggers use a 36px minimum, and pill choices retain their
 content-based height. Compact actions use `sm`; large actions use `lg`.
 Form inputs are `default`, embedded plain text is `inline`,
 message composers use `composer`, and Markdown source editors use `code`.
+The new-task welcome uses `Textarea variant="composer" size="sm"` in a centered
+650px frame; shared textarea paint stays in `components/inputs.css`. Its footer
+must not inherit conversation side gutters inside that frame. The catalog renders
+this case in the workbench and conversation pane to validate the production layout.
 Choose a variant for its meaning, rather than introducing a page-specific skin.
 Toolbar and navigation actions use `responsiveTarget` to keep a 44px minimum
 target in windows up to 720px wide. Coarse pointers use that minimum for every
@@ -41,6 +45,8 @@ shared action. The shared button stylesheet owns both adaptations.
 IconButton supports `shape="rect"` (default) and `shape="circle"`; combine the
 circle shape with `variant="primary"` for prominent actions such as Send.
 Icon actions use the shared Tooltip rather than a native `title`.
+DialogHeader and SearchDialogHeader close actions keep their accessible names
+without a Tooltip, including when opening a dialog moves focus to the close button.
 Draft images use ImageAttachment, which composes the 120px square
 `ImageThumbnail variant="attachment"` with a removable overlay. Removal is
 revealed on hover or keyboard focus and remains visible for touch input.
@@ -114,6 +120,10 @@ behavior remains the default. The catalog includes a multiple-browser example.
 Tabs always retain `ui-tabs`; `className` adds layout classes. Use typed variants
 `default` (segmented surface), `pill` (compact navigation), `underline` (detail
 sections), `bordered` (counted choices), and `editor` (document modes).
+Pill Tabs share one sliding selected background. The control measures the active
+tab before enabling transitions, follows label/row/container resizing, and uses
+the shared motion tokens. Reduced motion settles immediately. Feature styles
+must not replace the indicator or animate each tab's selected background.
 SegmentedControl supports `default` and `compact`. ToggleSwitch has one shared
 appearance. Their paint, typography, dimensions, focus and selected/disabled
 states all belong to `components/selection.css`; page classes only manage layout.

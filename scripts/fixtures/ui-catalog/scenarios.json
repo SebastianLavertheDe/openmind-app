@@ -99,6 +99,13 @@
     "navigation": false
   },
   {
+    "id": "new-task-home",
+    "title": "New task welcome",
+    "height": 1076,
+    "navigation": false,
+    "pixelPlatforms": []
+  },
+  {
     "id": "skill-library-explore",
     "title": "Skills: Explore",
     "height": 2100,

@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
-import { RssSourceSchema, type RssDocument } from "@shared/rss-contracts";
+import { RssSourceSchema, type RssDetection, type RssDocument, type RssDocumentView, type RssSourceView } from "@shared/rss-contracts";
 import { messages as m } from "@shared/messages";
 import { SourcesPage } from "./SourcesPage";
 import { DailyPreferences } from "./DailyPreferences";
@@ -11,11 +11,11 @@ const feedback = vi.hoisted(() => ({ confirm: vi.fn(async (_options: unknown) =>
 vi.mock("../../feedback-context", () => ({ useFeedback: () => feedback }));
 vi.mock("../automation", () => ({ AutomationPage: () => <div>Task editor</div> }));
 let document: RssDocument;
-function fixture() {
+function fixture(feedStatus: RssSourceView["localFeed"]["status"] = "missing") {
   document = { schemaVersion: 1, initialized: true, revision: 1, deletedPresetIds: [], migrationWarnings: [], sources: [RssSourceSchema.parse({ id: "design", name: "Design", inputUrl: "https://design.test/", resolvedFeedUrl: "https://design.test/rss.xml", kind: "website", enabled: true, revision: 1 }), RssSourceSchema.parse({ id: "science", name: "Science", inputUrl: "https://science.test/feed", kind: "feed", enabled: false, revision: 1 })] };
   const api = {
-    getRssSources: vi.fn(async () => structuredClone(document)),
-    detectRssSource: vi.fn(async ({ inputUrl }: { inputUrl: string }) => ({ inputUrl, kind: "feed", adapterId: "feed", resolvedFeedUrl: inputUrl, candidates: [] })),
+    getRssSources: vi.fn(async (): Promise<RssDocumentView> => ({ ...structuredClone(document), sources: document.sources.map(row => ({ ...structuredClone(row), localFeed: { path: `/fixtures/content/.agent/skill-data/rss-article-saver/feeds/${row.id}.xml`, status: feedStatus } })) })),
+    detectRssSource: vi.fn(async ({ inputUrl }: { inputUrl: string; selectedFeedUrl?: string }): Promise<RssDetection> => ({ inputUrl, kind: "feed", adapterId: "feed", resolvedFeedUrl: inputUrl, candidates: [] })),
     createRssSource: vi.fn(async () => document),
     editRssSource: vi.fn(async (input: { id: string; enabled?: boolean }) => { document.sources = document.sources.map(row => row.id === input.id ? { ...row, ...input, revision: row.revision + 1 } : row); return document; }),
     removeRssSource: vi.fn(async ({ id }: { id: string }) => { document.sources = document.sources.filter(row => row.id !== id); return document; }),
@@ -32,6 +32,20 @@ beforeEach(() => { feedback.confirm.mockResolvedValue(true); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("RSS sources and daily preferences", () => {
+  it.each(["ready", "missing", "outdated"] as const)("shows the actual converted RSS location read-only in the source editor (%s)", async status => {
+    const api = fixture(status); render(<SourcesPage />); await screen.findByText("Design");
+    fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
+    const feed = screen.getByLabelText(m.rss.convertedFeed) as HTMLTextAreaElement;
+    expect(feed.readOnly).toBe(true);
+    expect(feed.value).toBe("/fixtures/content/.agent/skill-data/rss-article-saver/feeds/design.xml");
+    expect((screen.getByLabelText(m.rss.url) as HTMLInputElement).value).toBe("https://design.test/");
+    expect(screen.getByText(status === "ready" ? m.rss.feedReady : status === "outdated" ? m.rss.feedOutdated : m.rss.feedMissing)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(m.rss.url), { target: { value: "https://changed.test/" } });
+    expect(screen.getByText(m.rss.feedOutdated)).toBeTruthy();
+    expect(api.detectRssSource).not.toHaveBeenCalled();
+    expect(api.editRssSource).not.toHaveBeenCalled();
+  });
+
   it("shows original website URLs and disabled feeds, filters and toggles their saved state", async () => {
     const api = fixture(); render(<SourcesPage />);
     expect(await screen.findByText("https://design.test/")).toBeTruthy();
@@ -56,6 +70,49 @@ describe("RSS sources and daily preferences", () => {
     await screen.findByText(m.rss.detected);
     fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
     await waitFor(() => expect(api.createRssSource).toHaveBeenCalledWith({ name: "New source", inputUrl: "https://new.test/feed", enabled: true }));
+  });
+  it("shows article parsing on Detect instead of a saving spinner and clears a stale success after failure", async () => {
+    const api = fixture(); render(<SourcesPage />);
+    fireEvent.click(screen.getByRole("button", { name: m.rss.add }));
+    fireEvent.change(screen.getByLabelText(m.rss.name), { target: { value: "Research" } });
+    fireEvent.change(screen.getByLabelText(m.rss.url), { target: { value: "https://new.test/" } });
+    fireEvent.click(screen.getByRole("button", { name: m.rss.detect }));
+    await screen.findByText(m.rss.detected);
+    let fail!: (reason: Error) => void;
+    api.detectRssSource.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+    fireEvent.click(screen.getByRole("button", { name: m.rss.detect }));
+    expect(screen.getByRole("button", { name: m.rss.detecting }).getAttribute("aria-busy")).toBe("true");
+    const save = screen.getByRole("button", { name: m.rss.save }) as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    expect(save.getAttribute("aria-busy")).toBeNull();
+    expect((screen.getByLabelText(m.rss.url) as HTMLInputElement).disabled).toBe(true);
+    expect(screen.queryByText(m.rss.detected)).toBeNull();
+    fail(new Error("[empty-page] No articles were found"));
+    await screen.findByText("[empty-page] No articles were found");
+    expect(save.disabled).toBe(true);
+    expect(screen.queryByText(m.rss.detected)).toBeNull();
+    expect(api.createRssSource).not.toHaveBeenCalled();
+  });
+  it("requires the selected channel to parse articles before enabling Save", async () => {
+    const api = fixture();
+    const candidates = [{ title: "Design feed", url: "https://new.test/design.xml" }, { title: "Science feed", url: "https://new.test/science.xml" }];
+    api.detectRssSource.mockResolvedValueOnce({ inputUrl: "https://new.test/", kind: "website", adapterId: "feed", resolvedFeedUrl: null, candidates });
+    render(<SourcesPage />);
+    fireEvent.click(screen.getByRole("button", { name: m.rss.add }));
+    fireEvent.change(screen.getByLabelText(m.rss.name), { target: { value: "Research" } });
+    fireEvent.change(screen.getByLabelText(m.rss.url), { target: { value: "https://new.test/" } });
+    fireEvent.click(screen.getByRole("button", { name: m.rss.detect }));
+    await screen.findByText(m.rss.candidateHint);
+    expect(screen.queryByText(m.rss.detected)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: m.rss.candidate }));
+    fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: "Design feed" }));
+    expect((screen.getByRole("button", { name: m.rss.save }) as HTMLButtonElement).disabled).toBe(true);
+    api.detectRssSource.mockResolvedValueOnce({ inputUrl: "https://new.test/", kind: "website", adapterId: "feed", resolvedFeedUrl: candidates[0].url, candidates });
+    fireEvent.click(screen.getByRole("button", { name: m.rss.detect }));
+    await screen.findByText(m.rss.detected);
+    expect(api.detectRssSource).toHaveBeenLastCalledWith({ inputUrl: "https://new.test/", selectedFeedUrl: candidates[0].url });
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
+    await waitFor(() => expect(api.createRssSource).toHaveBeenCalledWith({ name: "Research", inputUrl: "https://new.test/", selectedFeedUrl: candidates[0].url, enabled: true }));
   });
   it("keeps saved articles when deleting a source and respects cancellation", async () => {
     const api = fixture(); render(<SourcesPage />); await screen.findByText("Design");

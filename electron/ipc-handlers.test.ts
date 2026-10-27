@@ -52,10 +52,10 @@ describe("ipc registry", () => {
     // The registry intentionally excludes removed manual Skill run, update and
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
-    // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(158);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(158);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(158);
+    // including CLI version checks, upgrades and read-only Skill previews.
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(159);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(159);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(159);
   });
 
   it("does not expose or register the removed Skill copy operation", () => {

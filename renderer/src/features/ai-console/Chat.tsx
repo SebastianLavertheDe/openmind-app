@@ -15,6 +15,7 @@ import { selectRecentTurnEvents } from "../../ai-utils";
 import { ApprovalDecisionEvent } from "./approval";
 import { ApprovalBanner } from "./approval-banner";
 import { ChatComposer, type ChatDraftSubmitHandler } from "./composer";
+import { NewTaskHome } from "./NewTaskHome";
 import { ChangeReviewCard, ChangeTraceCard } from "./diff";
 import { FileDeliverables } from "./FileDeliverables";
 import { ErrorEvent, ProcessSystemEvent, SubtaskTrace, SystemEvent } from "./events";
@@ -349,6 +350,10 @@ export const Chat = memo(function Chat({ compact = false, onDraftSubmit }: { com
     const timer = window.setTimeout(() => setShowSessionSkeleton(true), 100);
     return () => window.clearTimeout(timer);
   }, [sessionId, sessionLoading]);
+
+  if (!compact && !activeSession && !sessionLoading && !visible.length && !sessionActiveRun) {
+    return <ChatImageGallery><NewTaskHome composer={<ChatComposer presentation="welcome" onDraftSubmit={onDraftSubmit} />} /></ChatImageGallery>;
+  }
 
   return (
     <ChatImageGallery key={activeSession?.id || "new"} projectName={activeSession?.scope?.type === "project-task" ? activeSession.scope.projectName : undefined}>

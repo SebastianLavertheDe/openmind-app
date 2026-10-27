@@ -1,10 +1,10 @@
 import type { SkillLibraryMode } from "@shared/skill-library";
 import { useFeedback } from "../../feedback-context";
-import { Button } from "../../design-system/components";
+import { Button, EmptyState } from "../../design-system/components";
 import { useClipboard } from "../../design-system/use-clipboard";
 import { SearchInput } from "../../design-system/components";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Plug, Route, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Archive, Bot, Cpu, Globe, Package, Plug, Route, Rss, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { BrowserSkillStatus, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { workspaceSessions } from "@shared/ai-session-scope";
@@ -13,13 +13,14 @@ import { openmindRootPreviewBody, openmindRootPreviewError } from "../../openmin
 import { applyTheme } from "../../theme";
 import { applyLocale, useLocale } from "../../i18n";
 import { SkillsPage } from "../skills";
+import { SourcesPage } from "../sources";
 import { WechatSettingsSection } from "../wechat/WechatSettingsSection";
 import { announceProviderConfiguration } from "../../provider-configuration-events";
 import { ArchivedSessionsSettingsSection, AppearanceSettingsSection, AiProvidersSettingsSection, BrowserSettingsSection, YoutubeImportSettingsSection, PathSettingsSection, PermissionSettingsSection, ProviderSettingsSection, SharedPythonRuntimeSection, SkillSettingsSection, WorkflowSettingsSection } from "./settings-sections";
 
 const m = messages;
 
-type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "connectors" | "sessions";
+type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "connectors" | "sources" | "sessions";
 type SettingsGroupId = "personal" | "ai" | "creation" | "data";
 
 type SettingsSectionDefinition = {
@@ -40,12 +41,13 @@ function settingsSections(): readonly SettingsSectionDefinition[] { return [
   { id: "permissions", group: "ai", icon: ShieldCheck, ...m.settings.navigation.sections.permissions },
   { id: "workflow", group: "creation", icon: Route, ...m.settings.navigation.sections.workflow },
   { id: "connectors", group: "creation", icon: Plug, ...m.settings.navigation.sections.connectors },
+  { id: "sources", group: "data", icon: Rss, title: m.rss.title, description: m.rss.description },
   { id: "sessions", group: "data", icon: Archive, ...m.settings.navigation.sections.sessions }
 ]; }
 
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
-export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory, initialSkillLibraryMode, skillReturnSessionId }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(sessionId?: string): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image"; initialSkillLibraryMode?: SkillLibraryMode; skillReturnSessionId?: string | null }) {
+export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, onOpenRssRuns, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory, initialSkillLibraryMode, skillReturnSessionId }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(sessionId?: string): void; onOpenRssRuns?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image"; initialSkillLibraryMode?: SkillLibraryMode; skillReturnSessionId?: string | null }) {
   const locale = useLocale();
   const ai = useAiSnapshot();
   const feedback = useFeedback();
@@ -330,7 +332,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               <h1 id="settings-detail-title" tabIndex={-1}>{activeDefinition.title}</h1>
               <p>{activeDefinition.description}</p>
             </div>
-            {!["skills", "mcp", "runtime", "connectors"].includes(activeSection) && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
+            {!["skills", "mcp", "runtime", "connectors", "sources"].includes(activeSection) && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
           </header>
 
           {loading ? (
@@ -361,6 +363,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
               {activeSection === "connectors" ? <WechatSettingsSection /> : null}
+              {activeSection === "sources" ? prefs.openmindRoot ? <SourcesPage key={prefs.openmindRoot} presentation="settings" onRuns={onOpenRssRuns} /> : <EmptyState title={m.rss.rootRequired} action={<Button onClick={() => void selectOpenmindRoot()}>{m.rss.selectRoot}</Button>} /> : null}
               {activeSection === "sessions" ? <ArchivedSessionsSettingsSection sessions={archivedSessions} busyId={sessionBusyId} onOpen={(sessionId) => void openArchivedSession(sessionId)} onRestore={(sessionId) => void restoreArchivedSession(sessionId)} /> : null}
             </div>
           )}

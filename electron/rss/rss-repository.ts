@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
-import { RssDocumentSchema, RssSourceSchema, rssUrlIdentity, type RssCatalog, type RssDocument, type RssSource, type RssDetection, type RssSourceInput, type RssSourcePatch } from "../../shared/rss-contracts";
+import { RssDocumentSchema, RssSourceSchema, rssUrlIdentity, type RssCatalog, type RssDocument, type RssDocumentView, type RssSource, type RssDetection, type RssSourceInput, type RssSourcePatch } from "../../shared/rss-contracts";
 import { DailyBriefPreferencesSchema, SaveDailyBriefPreferencesSchema, type DailyBriefPreferences } from "../../shared/daily-brief-preferences";
 import { writeJsonAtomic } from "../lib/fs-utils";
 import { rssPrivateDirectory, withRssLock } from "./file-lock";
@@ -40,6 +40,14 @@ export class RssRepository {
     return this.load();
   }
   private load(): RssDocument { return RssDocumentSchema.parse(JSON.parse(fs.readFileSync(this.file, "utf8"))); }
+  view(): RssDocumentView {
+    const document = this.read();
+    return { ...document, sources: document.sources.map(source => {
+      const file = rssPrivateDirectory(this.root, ".agent", "skill-data", "rss-article-saver", "feeds", `${source.id}.xml`);
+      const status = !fs.existsSync(file) ? "missing" : source.feedRevision === source.revision ? "ready" : "outdated";
+      return { ...source, localFeed: { path: file, status } };
+    }) };
+  }
   mutate(work: (document: RssDocument) => void): RssDocument {
     this.read();
     return withRssLock(this.directory, "registry", () => { const doc = this.load(); work(doc); doc.revision++; writeJsonAtomic(this.file, RssDocumentSchema.parse(doc)); return doc; });

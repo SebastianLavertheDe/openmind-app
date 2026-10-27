@@ -20,6 +20,7 @@ export const aiMessages = {
   },
   chat: {
     loadingHistory: "Loading…", loadMoreEvents: (n: number) => `Load ${count(n, "earlier event")}`, loadOlderTurns: "Load earlier turns", transcriptLabel: "Conversation messages", jumpToBottom: "Jump to bottom", currentProject: "Current workspace",
+    newTaskTitle: "What can I help you with?",
     emptyTitle: "Turn your sources into content with AI", emptyBody: "Describe your goal. AI reads the current workspace to organize sources, create content, and run workflows within your permissions.",
     emptyHint: "Ctrl/⌘ + K to search tasks · Ctrl/⌘ + Enter to send", processing: "Processing", processed: "Processed", finalMissing: "Final reply missing",
     finalMissingDetail: "The provider finished without returning a final reply. This run was not marked as successful.",
@@ -38,7 +39,7 @@ export const aiMessages = {
     removeQueuedMessage: (n: number) => `Remove queued message ${n}`,
     viewQueuedMessage: (n: number) => `View queued message ${n}`,
     closeError: "Dismiss error", queuedSummary: (n: number) => `${count(n, "message")} queued`, cancelQueued: "Cancel queued messages", messageInput: "AI message", placeholderContinue: (title: string) => `Continue ${title}`,
-    placeholderNew: "Describe content to organize, create, or automate…", addAttachment: "Add attachment", stop: "Stop", stopping: "Stopping", enqueue: "Add to queue", send: "Send", charCount: (n: number) => count(n, "character"), sendShortcut: "⌘↵ Send",
+    placeholderNew: "Describe a task or ask anything", addAttachment: "Add attachment", stop: "Stop", stopping: "Stopping", enqueue: "Add to queue", send: "Send", charCount: (n: number) => count(n, "character"), sendShortcut: "⌘↵ Send",
     provider: "Provider", openWorkspace: "Open current project", projectTargetHint: (name: string) => `New conversations are automatically created as tasks in “${name}”`, moreActions: "More actions",
     imageTooLarge: (size: string) => `This image is too large (${size} MB). The limit is 2 MB.`, imageReadFailed: "Could not read the image.", imagePreview: "Image preview", closePreview: "Close preview", previousImage: "Previous image", nextImage: "Next image"
   },

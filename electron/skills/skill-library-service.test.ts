@@ -54,6 +54,19 @@ function legacySkill(f: ReturnType<typeof fixture>, patch: Partial<AuthoredSkill
 }
 
 describe("Skill library and authoring", () => {
+  it("previews catalog and installed prompts without installing or writing drafts", () => {
+    const f = fixture();
+    expect(f.service.prompt("om-research-brief")).toContain("Read the supplied evidence.");
+    expect(f.packages.listInstalledViews()).toHaveLength(0);
+    expect(fs.existsSync(path.join(f.content, ".agent", "authored-skills"))).toBe(false);
+    expect(() => f.service.prompt("../SKILL.md")).toThrow();
+    const entry = f.service.installPreset("om-research-brief");
+    const prompt = f.service.prompt(entry.id);
+    expect(prompt).toContain("Read the supplied evidence.");
+    expect(prompt).not.toMatch(/^---/);
+    expect(f.packages.getInstalled(entry.key!, entry.digest!)).toBeTruthy();
+  });
+
   it("keeps the installed rules until explicit use applies a changed bundle", () => {
     const f = fixture();
     const original = f.service.installPreset("om-research-brief");
@@ -485,7 +498,9 @@ describe("Skill library and authoring", () => {
   it("refuses an escaping asset directory and preserves outside files", () => {
     const f = fixture(); const doc = f.document(); const outside = path.join(f.directory, "outside"); fs.mkdirSync(outside);
     const source = path.join(f.directory, "reference.txt"); fs.writeFileSync(source, "fixture");
-    const author = path.join(f.content, ".agent", "authored-skills", doc.id); fs.mkdirSync(author, { recursive: true }); fs.symlinkSync(outside, path.join(author, "assets"), "dir");
+    const author = path.join(f.content, ".agent", "authored-skills", doc.id); fs.mkdirSync(author, { recursive: true });
+    // Directory junctions exercise the same escape on Windows without requiring symlink privileges.
+    fs.symlinkSync(outside, path.join(author, "assets"), process.platform === "win32" ? "junction" : "dir");
     expect(() => f.service.importAssets(doc.id, [source], false)).toThrow();
     expect(fs.readdirSync(outside)).toEqual([]);
   });

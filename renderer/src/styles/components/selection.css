@@ -190,13 +190,35 @@
 }
 
 .ui-tabs[data-variant="pill"] {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
 }
 
+.ui-tabs[data-variant="pill"][data-indicator]::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: var(--tab-indicator-width);
+  height: var(--tab-indicator-height);
+  transform: translate(var(--tab-indicator-x), var(--tab-indicator-y));
+  border-radius: 999px;
+  background: var(--panel-muted);
+  pointer-events: none;
+}
+
+.ui-tabs[data-variant="pill"][data-indicator][data-motion-ready]::before {
+  transition: transform var(--dur-normal) var(--ease-standard), width var(--dur-normal) var(--ease-standard), height var(--dur-normal) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard);
+}
+
 .ui-tabs[data-variant="pill"] > .ui-tab {
+  position: relative;
+  z-index: 1;
   min-width: 0;
   display: inline-flex;
   align-items: center;
@@ -223,6 +245,7 @@
 .ui-tabs[data-variant="pill"] > .ui-tab:hover { background: var(--control-hover); color: var(--text); }
 
 .ui-tabs[data-variant="pill"] > .ui-tab.active { background: var(--panel-muted); color: var(--text); }
+.ui-tabs[data-variant="pill"][data-indicator] > .ui-tab.active { background: transparent; }
 
 .ui-tabs[data-variant="pill"] > .ui-tab.active b { color: var(--muted-2); }
 
@@ -284,7 +307,7 @@
 
 .ui-segmented .ui-segmented-option,
 .ui-tabs[data-variant="default"] .ui-tab {
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, opacity 140ms ease, transform 140ms ease;
+  transition: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 
 .ui-segmented {
@@ -379,6 +402,7 @@
   box-shadow: none;
 }
 @media (prefers-reduced-motion: reduce) {
+  .ui-tabs[data-variant="pill"][data-indicator][data-motion-ready]::before { transition: none; }
   .ui-tabs .ui-tab, .ui-tabs .ui-tab::after, .ui-segmented::before, .ui-segmented .ui-segmented-option, .ui-toggle-switch, .ui-toggle-switch span { transition: none; }
 }
 

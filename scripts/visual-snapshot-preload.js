@@ -646,7 +646,7 @@ let visualRss = { schemaVersion: 1, initialized: true, revision: 1, deletedPrese
 ].map(row => ({ revision: 1, adapterId: "feed", resolvedFeedUrl: row.inputUrl, presetId: null, group: "", tags: [], lastAttemptAt: null, lastSuccessAt: null, lastError: null, itemCount: 0, feedRevision: 0, ...row })) };
 let visualPreferences = { schemaVersion: 1, revision: 1, text: "关注产品设计和交互研究，排除融资快讯。用中文简洁总结，最多推荐 5 条。", updatedAt: null };
 Object.assign(api, {
-  getRssSources: async () => visualRss,
+  getRssSources: async () => ({ ...visualRss, sources: visualRss.sources.map(row => ({ ...row, localFeed: { path: `${openmindRoot}/.agent/skill-data/rss-article-saver/feeds/${row.id}.xml`, status: row.id === "design" ? "ready" : "missing" } })) }),
   detectRssSource: async ({ inputUrl }) => { if (inputUrl.includes('invalid')) throw new Error('[invalid-feed] 无法解析该 RSS 内容'); return { inputUrl, kind: "feed", resolvedFeedUrl: inputUrl, adapterId: "feed", candidates: [] }; },
   createRssSource: async input => { visualRss.sources.push({ ...visualRss.sources[0], id: `added-${visualRss.sources.length}`, ...input }); return visualRss; },
   editRssSource: async input => { visualRss.sources = visualRss.sources.map(row => row.id === input.id ? { ...row, ...input, revision: row.revision + 1 } : row); return visualRss; },

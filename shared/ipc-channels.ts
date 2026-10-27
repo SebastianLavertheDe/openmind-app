@@ -11,6 +11,7 @@ export const IPC = {
   BRIEF_PREFERENCES_SAVE: "brief:preferences-save",
   BRIEF_GENERATE: "brief:generate",
   SKILL_LIBRARY_LIST: "skill-library:listSkillLibrary",
+  SKILL_LIBRARY_PROMPT: "skill-library:readSkillLibraryPrompt",
   SKILL_LIBRARY_INSTALL: "skill-library:installLibraryPreset",
   SKILL_LIBRARY_EDITOR: "skill-library:getSkillEditor",
   SKILL_LIBRARY_DRAFT: "skill-library:saveSkillDraft",

@@ -944,3 +944,5 @@
 .skill-editor-gallery-add { width: 160px; max-width: 100%; }
 
 .skill-editor-assistance-actions { display: flex; align-items: center; gap: 4px; }
+.skill-details-view { display: flex; flex-direction: column; gap: var(--space-5); width: 100%; min-width: 0; }
+.skill-form-header { flex-wrap: wrap; }

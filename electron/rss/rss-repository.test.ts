@@ -15,6 +15,26 @@ function opml(outlines: string) { return `<opml version="2.0"><body>${outlines}<
 afterEach(() => roots.splice(0).forEach(root => fs.rmSync(root, { recursive: true, force: true })));
 
 describe("RSS persistent registry", () => {
+  it("exposes the local RSS location and current file status without persisting display metadata", () => {
+    const { root, repository } = fixture();
+    const initial = repository.view().sources[0];
+    const feed = path.join(fs.realpathSync(root), ".agent", "skill-data", "rss-article-saver", "feeds", `${initial.id}.xml`);
+    expect(initial.localFeed).toEqual({ path: feed, status: "missing" });
+    file(root, path.relative(root, feed), "<rss/>");
+    expect(repository.view().sources[0].localFeed.status).toBe("outdated");
+    repository.mutate(doc => { doc.sources[0].feedRevision = doc.sources[0].revision; });
+    expect(repository.view().sources[0].localFeed.status).toBe("ready");
+    expect(JSON.parse(fs.readFileSync(repository.file, "utf8")).sources[0].localFeed).toBeUndefined();
+    fs.unlinkSync(feed);
+    expect(repository.view().sources[0].localFeed.status).toBe("missing");
+  });
+  it("rejects RSS locations redirected outside the selected content root", () => {
+    const { root, repository } = fixture(); repository.read();
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), "rss-feed-outside-")); roots.push(outside);
+    fs.symlinkSync(outside, path.join(repository.directory, "feeds"), process.platform === "win32" ? "junction" : "dir");
+    expect(() => repository.view()).toThrow(/escapes/);
+    expect(fs.readdirSync(outside)).toEqual([]);
+  });
   it("starts with visible disabled presets and preserves deletion, empty lists and content across restarts", () => {
     const { root, repository } = fixture(); const initial = repository.read();
     expect(initial.sources[0].enabled).toBe(false);
@@ -60,7 +80,7 @@ describe("RSS persistent registry", () => {
     expect(repository.preferences()).toEqual(saved);
     expect(() => repository.savePreferences({ revision: 0, text: "stale" })).toThrow(/changed/);
     const external = fs.mkdtempSync(path.join(os.tmpdir(), "rss-outside-")); roots.push(external);
-    fs.rmSync(path.join(root, ".agent/preferences"), { recursive: true }); fs.symlinkSync(external, path.join(root, ".agent/preferences"), "dir");
+    fs.rmSync(path.join(root, ".agent/preferences"), { recursive: true }); fs.symlinkSync(external, path.join(root, ".agent/preferences"), process.platform === "win32" ? "junction" : "dir");
     expect(() => repository.preferences()).toThrow(/escapes/);
   });
   it("shares exclusive lock ownership and reclaims dead owners", () => {

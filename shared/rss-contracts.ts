@@ -23,6 +23,9 @@ export const RssDetectionSchema = z.object({ kind: z.enum(["website", "feed"]), 
 export const RssRunInputSchema = z.object({ mode: z.enum(["sync", "collect", "pipeline"]).default("pipeline"), sourceId: RssSourceSchema.shape.id.optional(), date: z.string().regex(/^\d{8}$/).optional() });
 export type RssSource = z.infer<typeof RssSourceSchema>;
 export type RssDocument = z.infer<typeof RssDocumentSchema>;
+/** Main-process filesystem facts for display; never persisted in sources.json. */
+export type RssSourceView = RssSource & { localFeed: { path: string; status: "ready" | "missing" | "outdated" } };
+export type RssDocumentView = Omit<RssDocument, "sources"> & { sources: RssSourceView[] };
 export type RssSourceInput = z.infer<typeof RssSourceInputSchema>;
 export type RssSourcePatch = z.infer<typeof RssSourcePatchSchema>;
 export type RssDetection = z.infer<typeof RssDetectionSchema>;

@@ -88,6 +88,27 @@ export class SkillLibraryService {
     return result;
   }
 
+  /** Preview catalog identities without installing or executing a package. */
+  prompt(id: string): string {
+    const entry = this.list().find(item => item.id === id);
+    if (!entry) throw new Error(m.errors.missing);
+    if (entry.authoringId && entry.draft) {
+      return this.editor(entry.authoringId).instructions.map(block => block.text).join("\n\n");
+    }
+    if (entry.key && entry.digest) {
+      const record = this.packages.getInstalled(entry.key, entry.digest);
+      if (!record || !this.packages.inspectInstalledCopy(record).valid) throw new Error(m.errors.stale);
+      const file = path.join(record.packagePath, "SKILL.md");
+      if (!fs.existsSync(file)) return "";
+      if (!fs.realpathSync(file).startsWith(`${fs.realpathSync(record.packagePath)}${path.sep}`)) throw new Error(m.errors.stale);
+      return fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "").replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "").trim();
+    }
+    const catalog = readSkillLibraryCatalog(this.bundleRoot);
+    const preset = catalog.skills.find(item => item.id === entry.id);
+    if (!preset) throw new Error(m.errors.missing);
+    return [...preset.instructions, ...catalog.executionRules].join("\n\n");
+  }
+
   installPreset(id: string): SkillLibraryEntry {
     const preset = readSkillLibraryCatalog(this.bundleRoot).skills.find(item => item.id === id);
     if (!preset) throw new Error(m.errors.missing);

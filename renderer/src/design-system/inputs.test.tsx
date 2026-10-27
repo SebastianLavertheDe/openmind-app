@@ -46,11 +46,11 @@ describe("shared text controls", () => {
     expect(address.getAttribute("aria-describedby")).toBe("address-error");
   });
 
-  it("forwards textarea refs, selection and keyboard handlers used by editors", async () => {
+  it.each(["md", "sm"] as const)("forwards textarea refs, selection and keyboard handlers used by editors (%s)", async size => {
     const user = userEvent.setup();
     const ref = createRef<HTMLTextAreaElement>();
     const onKeyDown = vi.fn();
-    render(<Textarea ref={ref} variant="inline" aria-label="Draft" defaultValue="First\nSecond" rows={3} spellCheck={false} onKeyDown={onKeyDown} />);
+    render(<Textarea ref={ref} variant={size === "sm" ? "composer" : "inline"} size={size} aria-label="Draft" defaultValue="First\nSecond" rows={3} spellCheck={false} onKeyDown={onKeyDown} />);
     const textarea = screen.getByRole("textbox", { name: "Draft" });
     ref.current?.focus();
     ref.current?.setSelectionRange(0, 5);

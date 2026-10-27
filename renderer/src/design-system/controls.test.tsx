@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DropdownMenu, SegmentedControl, Tabs } from "./controls";
@@ -7,6 +7,7 @@ import { VirtualList } from "./VirtualList";
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("design system controls", () => {
@@ -47,6 +48,45 @@ describe("design system controls", () => {
     );
     fireEvent.keyDown(screen.getByRole("tablist", { name: "视图" }), { key: "ArrowRight" });
     expect(onChange).toHaveBeenCalledWith("detail");
+  });
+
+  it("moves one pill indicator between unequal tabs and follows wrapping and resizing", () => {
+    let paint: FrameRequestCallback | undefined;
+    let resize: ResizeObserverCallback | undefined;
+    let wrapped = false;
+    vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => { paint = callback; return 1; }));
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const disconnect = vi.fn();
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: ResizeObserverCallback) { resize = callback; }
+      observe() {}
+      disconnect = disconnect;
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetLeft", "get").mockImplementation(function (this: HTMLElement) { return this.dataset.value === "wide" ? wrapped ? 0 : 72 : 0; });
+    vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function (this: HTMLElement) { return this.dataset.value === "wide" && wrapped ? 32 : 0; });
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) { return this.dataset.value === "wide" ? 128 : 70; });
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(30);
+    const tabs = [{ value: "one", label: "One" }, { value: "wide", label: "Wider label" }];
+    const { rerender, unmount } = render(<Tabs variant="pill" label="Categories" value="one" tabs={tabs} onChange={vi.fn()} />);
+    const root = screen.getByRole("tablist");
+    expect(root.style.getPropertyValue("--tab-indicator-width")).toBe("70px");
+    expect(root.hasAttribute("data-motion-ready")).toBe(false);
+    act(() => paint?.(0));
+    expect(root.hasAttribute("data-motion-ready")).toBe(true);
+    rerender(<Tabs variant="pill" label="Categories" value="wide" tabs={tabs} onChange={vi.fn()} />);
+    expect(root.style.getPropertyValue("--tab-indicator-x")).toBe("72px");
+    expect(root.style.getPropertyValue("--tab-indicator-width")).toBe("128px");
+    wrapped = true;
+    act(() => resize?.([], {} as ResizeObserver));
+    expect(root.style.getPropertyValue("--tab-indicator-x")).toBe("0px");
+    expect(root.style.getPropertyValue("--tab-indicator-y")).toBe("32px");
+    rerender(<Tabs variant="pill" label="Categories" value="missing" tabs={tabs} onChange={vi.fn()} />);
+    expect(root.hasAttribute("data-indicator")).toBe(false);
+    rerender(<Tabs variant="underline" label="Categories" value="one" tabs={tabs} onChange={vi.fn()} />);
+    expect(root.hasAttribute("data-indicator")).toBe(false);
+    expect(root.hasAttribute("data-motion-ready")).toBe(false);
+    unmount();
+    expect(disconnect).toHaveBeenCalled();
   });
 
   it("scrolls the selected virtual row into view after measuring the container", async () => {

@@ -2,6 +2,9 @@ import type { skillLibraryMessages as zh } from "../zh-CN/skill-library";
 import type { TranslationOf } from "../types";
 export const skillLibraryMessages = { skillLibrary: {
   title: "Skills", explore: "Explore", mine: "My skills", views: "Skill view", categories: "Skill categories",
+  recommended: "For you", browseAll: "Browse all", loadFailed: "Skills could not be loaded. Try again.",
+  uncategorized: "Uncategorized", noImages: "No showcase images",
+  prompt: "Prompt", copyPrompt: "Copy prompt", promptLoading: "Loading prompt…", promptEmpty: "This skill does not provide a prompt.", promptFailed: "Could not read the prompt. Try again.",
   scenes: { all: "All", research: "Research", writing: "Writing", image: "Images", slides: "Slides", video: "Video", web: "Web", "github-installed": "GitHub installs", "local-imported": "Local imports" },
   origin: { all: "All sources", preset: "App presets", authored: "Created by me", imported: "Imported", git: "GitHub / Git", local: "Local import" },
   search: "Search skills", create: "Create skill", import: "Import skill", manage: "Manage skills", use: "Use skill", installUse: "Install and use", enableUse: "Enable and use",

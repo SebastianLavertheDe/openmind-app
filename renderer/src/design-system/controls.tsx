@@ -54,8 +54,37 @@ export function Tabs<T extends string>({ value, tabs, onChange, label, className
   className?: string;
   variant?: TabVariant;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const clear = () => {
+      root.removeAttribute("data-indicator");
+      root.removeAttribute("data-motion-ready");
+    };
+    if (variant !== "pill") { clear(); return; }
+    const sync = () => {
+      const active = root.querySelector<HTMLButtonElement>(".ui-tab.active:not(:disabled)");
+      if (!active) { clear(); return; }
+      const { offsetLeft, offsetTop, offsetWidth, offsetHeight } = active;
+      root.style.setProperty("--tab-indicator-x", `${offsetLeft}px`);
+      root.style.setProperty("--tab-indicator-y", `${offsetTop}px`);
+      root.style.setProperty("--tab-indicator-width", `${offsetWidth}px`);
+      root.style.setProperty("--tab-indicator-height", `${offsetHeight}px`);
+      root.setAttribute("data-indicator", "true");
+    };
+    sync();
+    const frame = root.hasAttribute("data-motion-ready") ? 0 : window.requestAnimationFrame(() => {
+      if (root.hasAttribute("data-indicator")) root.setAttribute("data-motion-ready", "true");
+    });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(sync);
+    observer?.observe(root);
+    root.querySelectorAll(".ui-tab").forEach(tab => observer?.observe(tab));
+    window.addEventListener("resize", sync);
+    return () => { if (frame) window.cancelAnimationFrame(frame); observer?.disconnect(); window.removeEventListener("resize", sync); };
+  }, [tabs, value, variant]);
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => handleRovingKeys(event, tabs.filter(tab => !tab.disabled).map(tab => tab.value), value, onChange);
-  return <div data-ui-control="tabs" data-variant={variant} className={`ui-tabs${className ? ` ${className}` : ""}`} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
+  return <div ref={rootRef} data-ui-control="tabs" data-variant={variant} className={`ui-tabs${className ? ` ${className}` : ""}`} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
     {tabs.map(tab => <button {...tab.attributes} type="button" data-ui-control="selection" data-motion="selection" key={tab.value} id={tab.id} aria-controls={tab.controls}
       data-value={tab.value} tabIndex={value === tab.value ? 0 : -1} role="tab" aria-selected={value === tab.value} disabled={tab.disabled}
       className={value === tab.value ? "ui-tab active" : "ui-tab"} onClick={() => void onChange(tab.value)}>

@@ -454,6 +454,7 @@ describe("App bootstrap", () => {
   it("opens settings with a dedicated sidebar and returns to the page that launched it", async () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
+    expect(screen.queryByRole("button", { name: "RSS 源" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "创作" }));
     await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     const creativePage = document.querySelector(".creative-workspace-page");
@@ -463,6 +464,7 @@ describe("App bootstrap", () => {
     expect(document.querySelector(".app-nav")).toBeNull();
     expect(document.querySelector(".global-toolbar")).toBeNull();
     expect(screen.getByRole("navigation", { name: "设置分类" })).toBeTruthy();
+    expect(within(screen.getByRole("navigation", { name: "设置分类" })).getByRole("button", { name: "RSS 源" })).toBeTruthy();
     expect(document.querySelector(".creative-workspace-page")).toBe(creativePage);
     expect(creativePage?.closest(".settings-preserved-route")?.getAttribute("aria-hidden")).toBe("true");
 

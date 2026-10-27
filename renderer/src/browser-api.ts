@@ -378,7 +378,7 @@ export function installBrowserPreviewApi(): boolean {
   ] };
   let briefPreferences = { schemaVersion: 1 as const, revision: 0, text: "", updatedAt: null as string | null };
   const api: DesktopApi = {
-    getRssSources: async () => structuredClone(rssDocument),
+    getRssSources: async () => ({ ...structuredClone(rssDocument), sources: rssDocument.sources.map(row => ({ ...structuredClone(row), localFeed: { path: `${previewOpenmindRoot}/.agent/skill-data/rss-article-saver/feeds/${row.id}.xml`, status: "missing" as const } })) }),
     detectRssSource: async input => ({ kind: "feed", inputUrl: input.inputUrl, resolvedFeedUrl: input.inputUrl, adapterId: "feed", candidates: [] }),
     createRssSource: async input => { rssDocument.sources.push(RssSourceSchema.parse({ ...input, id: crypto.randomUUID(), kind: "feed", revision: 1 })); rssDocument.revision++; return structuredClone(rssDocument); },
     editRssSource: async input => { const row = rssDocument.sources.find(source => source.id === input.id); if (!row || row.revision !== input.revision) throw new Error("Source changed"); Object.assign(row, input, { revision: row.revision + 1 }); return structuredClone(rssDocument); },

@@ -1,6 +1,6 @@
 import { createSessionOriginStore, SessionOriginContext } from "./app/session-origin-context";
 import type { AiSessionOrigin } from "@shared/ai-session-origin";
-import type { SkillLibraryEntry, SkillSelectionInput } from "@shared/skill-library";
+import type { SkillLibraryEntry, SkillLibraryMode, SkillSelectionInput } from "@shared/skill-library";
 import { FeedbackBoundary, useFeedback, useFeedbackState, type FeedbackActions, type FeedbackState } from "./feedback-context";
 import {
   createContext,
@@ -99,7 +99,8 @@ export interface AiUiValue {
   composerFocusRequest: number;
   focusComposer(): void;
   skillSettingsRequest: number;
-  openSkillSettings(): void;
+  skillSettingsMode: SkillLibraryMode;
+  openSkillSettings(mode?: SkillLibraryMode): void;
   /** 项目详情页打开时选定的「新对话归属项目」；null = 常规工作区会话。 */
   projectComposeTarget: { projectId: string; projectName: string } | null;
   setProjectComposeTarget(target: { projectId: string; projectName: string } | null): void;
@@ -912,7 +913,8 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
   }, [refresh, streamingStore]);
 
   const [skillSettingsRequest, setSkillSettingsRequest] = useState(0);
-  const openSkillSettings = useCallback(() => setSkillSettingsRequest(value => value + 1), []);
+  const [skillSettingsMode, setSkillSettingsMode] = useState<SkillLibraryMode>("mine");
+  const openSkillSettings = useCallback((mode: SkillLibraryMode = "mine") => { setSkillSettingsMode(mode); setSkillSettingsRequest(value => value + 1); }, []);
   const selectSkill = useCallback((skill: SkillLibraryEntry | null, sessionId?: string | null) => {
     draftStore.setSkill((sessionId === undefined ? activeSessionRef.current : sessionId) || NEW_SESSION_DRAFT, skill);
   }, [draftStore]);
@@ -950,6 +952,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     setPanelMode: setPanelModeState,
     composerFocusRequest,
     skillSettingsRequest,
+    skillSettingsMode,
     openSkillSettings,
     focusComposer,
     projectComposeTarget,
@@ -962,6 +965,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     panelMode,
     composerFocusRequest,
     skillSettingsRequest,
+    skillSettingsMode,
     openSkillSettings,
     focusComposer,
     projectComposeTarget,
