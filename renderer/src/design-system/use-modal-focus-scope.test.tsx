@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { createPortal } from "react-dom";
-import { cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useModalFocusScope } from "./use-modal-focus-scope";
 
@@ -51,6 +51,22 @@ function LayeredScopes({
 }
 
 describe("useModalFocusScope", () => {
+  it("does not steal focus after a user moves within a newly opened dialog", () => {
+    const frames: FrameRequestCallback[] = [];
+    const frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => { frames.push(callback); return frames.length; });
+    function FocusedDialog() {
+      const containerRef = useRef<HTMLDivElement>(null), initialFocusRef = useRef<HTMLButtonElement>(null);
+      useModalFocusScope({ open: true, containerRef, initialFocusRef, onDismiss() {} });
+      return <div ref={containerRef}><button ref={initialFocusRef}>First</button><button>Second</button></div>;
+    }
+    const view = render(<FocusedDialog />);
+    try {
+      expect(document.activeElement).toBe(view.getByRole("button", { name: "First" }));
+      const second = view.getByRole("button", { name: "Second" }); second.focus();
+      act(() => { for (const callback of frames.splice(0)) callback(16); });
+      expect(document.activeElement).toBe(second);
+    } finally { view.unmount(); frame.mockRestore(); }
+  });
   it("keeps the focused global layer isolated when an underlying modal registers later", async () => {
     const dismissModal = vi.fn();
     const dismissGlobal = vi.fn();

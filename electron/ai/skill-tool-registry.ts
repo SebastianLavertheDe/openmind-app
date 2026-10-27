@@ -13,6 +13,7 @@ import type { InstalledSkillExecutionResolver } from "../skills/installed-skill-
 import type { ProviderSkillBridge } from "./providers/skill-bridge";
 import type { ProviderSkillCatalogEntry } from "./skill-discovery";
 import { WorkflowEngine, type WorkflowAdmission } from "../execution/workflow-engine";
+import { BRIEF_SKILLS, readDailyPreferences } from "../rss/daily-preferences";
 
 export interface SkillExecutionEvent {
   skillId: string;
@@ -290,6 +291,7 @@ export class SkillToolRegistry {
     return {
       ...request,
       version: record.version,
+      ...(BRIEF_SKILLS.has(record.id) ? { dailyBriefPreferences: request.dailyBriefPreferences || readDailyPreferences(this.executionOpenmindRoot) } : {}),
       digest: record.digest.toLowerCase()
     };
   }

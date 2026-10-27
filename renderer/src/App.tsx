@@ -129,10 +129,10 @@ function Workspace({
       page = "ai";
       state = {};
     }
-    if (page === "settings" || page === "skills" || page === "sources") {
+    if (page === "settings" || page === "skills") {
       setSettingsRouteState({
         ...state,
-        ...(page === "skills" || page === "sources" ? { settingsSection: "skills" as const } : {})
+        ...(page === "skills" ? { settingsSection: "skills" as const } : {})
       });
       setSettingsOpen(true);
       return;

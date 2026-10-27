@@ -16,7 +16,7 @@ import type { ConfirmAction } from "../../feedback-context";
 const m = messages;
 
 type RuntimeState = { running: boolean; state: string };
-type TriggerType = "daily" | "weekly" | "hourly" | "interval";
+type TriggerType = "daily" | "weekly" | "hourly" | "interval" | "cron";
 type WorkflowStepDetails = { step: WorkflowRunRecord["stepRuns"][number]; child: BrokerRunRecord | null; events: BrokerRunEvent[] };
 
 export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmation }: { initialSkillId?: string; confirmAction?: ConfirmAction }) {
@@ -263,9 +263,13 @@ function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: Automa
   const [weeklyAt, setWeeklyAt] = useState(rule.trigger.type === "weekly" ? rule.trigger.at : "08:00");
   const [weeklyDays, setWeeklyDays] = useState(rule.trigger.type === "weekly" ? rule.trigger.daysOfWeek.join(",") : "1,2,3,4,5");
   const [interval, setInterval] = useState(String(rule.trigger.type === "interval" ? rule.trigger.everyMinutes : 15));
+  const [timezone, setTimezone] = useState(rule.timezone);
+  const [cron, setCron] = useState(rule.trigger.type === "cron" ? rule.trigger.expression : "0 * * * *");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    setTimezone(rule.timezone);
+    setCron(rule.trigger.type === "cron" ? rule.trigger.expression : "0 * * * *");
     setTriggerType(normalizeTriggerType(rule.trigger.type));
     setDailyAt(rule.trigger.type === "daily" ? rule.trigger.at : "08:00");
     setWeeklyAt(rule.trigger.type === "weekly" ? rule.trigger.at : "08:00");
@@ -276,8 +280,8 @@ function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: Automa
   const save = async () => {
     setSaving(true); onError(null);
     try {
-      const trigger = triggerForEditor(triggerType, dailyAt, weeklyAt, weeklyDays, interval);
-      await window.openmind.saveAutomationRule(toRuleInput({ ...rule, trigger, inputs: rule.inputs }));
+      const trigger = triggerType === "cron" ? { type: "cron" as const, expression: cron } : triggerForEditor(triggerType, dailyAt, weeklyAt, weeklyDays, interval);
+      await window.openmind.saveAutomationRule(toRuleInput({ ...rule, timezone, trigger, inputs: rule.inputs }));
       await onSaved();
     } catch (cause) {
       onError(cause instanceof Error ? cause.message : String(cause));
@@ -290,6 +294,7 @@ function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: Automa
     : rule.target.id;
 
   const triggerOptions: Array<{ value: TriggerType; label: string }> = [
+    { value: "cron", label: "Cron" },
     { value: "daily", label: m.automation.editor.triggerOptions.daily },
     { value: "weekly", label: m.automation.editor.triggerOptions.weekly },
     { value: "hourly", label: m.automation.editor.triggerOptions.hourly },
@@ -329,6 +334,8 @@ function ScheduleEditor({ rule, skillCatalog, onSaved, onError }: { rule: Automa
             <div><strong>{m.automation.editor.schedule}</strong><span>{scheduleDescription(triggerType, rule.timezone)}</span></div>
           </div>
           <div className="automation-schedule-fields">
+            <FormField label={m.automation.editor.timezone}><Input value={timezone} onChange={event => setTimezone(event.target.value)} /></FormField>
+            {triggerType === "cron" ? <FormField label="Cron"><Input value={cron} onChange={event => setCron(event.target.value)} /></FormField> : null}
             {triggerType === "daily" ? <FormField label={m.automation.editor.executionTime}><Input aria-label={m.automation.editor.dailyTime} type="time" value={dailyAt} onChange={(event) => setDailyAt(event.target.value)} /></FormField> : null}
             {triggerType === "weekly" ? <><FormField label={m.automation.editor.executionTime}><Input aria-label={m.automation.editor.weeklyTime} type="time" value={weeklyAt} onChange={(event) => setWeeklyAt(event.target.value)} /></FormField><FormField label={m.automation.editor.weekDay}><Input aria-label={m.automation.editor.weeklyDays} value={weeklyDays} onChange={(event) => setWeeklyDays(event.target.value)} placeholder="1,2,3,4,5" /></FormField></> : null}
             {triggerType === "interval" ? <FormField label={m.automation.editor.intervalMinutes}><InputGroup className="automation-input-suffix"><Input variant="inline" aria-label={m.automation.editor.intervalMinutes} type="number" min={1} value={interval} onChange={(event) => setInterval(event.target.value)} /><span>{m.automation.editor.minutes}</span></InputGroup></FormField> : null}
@@ -404,6 +411,7 @@ function triggerForEditor(type: TriggerType, dailyAt: string, weeklyAt: string, 
     return { type, at: weeklyAt, daysOfWeek: daysOfWeek.length ? daysOfWeek : [1] };
   }
   if (type === "hourly") return { type };
+  if (type === "cron") return { type, expression: "0 * * * *" };
   return { type, everyMinutes: Math.max(1, Number(interval) || 1) };
 }
 
@@ -416,7 +424,7 @@ function scheduleDescription(type: TriggerType, timezone: string): string {
 
 /** Map any backend trigger type to the editor's supported subset. */
 function normalizeTriggerType(type: string): TriggerType {
-  if (type === "daily" || type === "weekly" || type === "hourly" || type === "interval") return type;
+  if (type === "daily" || type === "weekly" || type === "hourly" || type === "interval" || type === "cron") return type;
   return "interval";
 }
 

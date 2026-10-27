@@ -1,0 +1,84 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "skill-run-reporter",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "process",
+  "display": {
+    "name": "运行报告",
+    "description": "汇总当天采集、总结和选题任务的状态报告。",
+    "group": "运维"
+  },
+  "entrypoint": {
+    "runtime": "python",
+    "script": "scripts/report.py",
+    "args": [
+      "{{ inputs.date }}"
+    ]
+  },
+  "runtime": {
+    "version": ">=3.11,<3.13",
+    "dependencyFile": "pyproject.toml",
+    "lockFile": "uv.lock",
+    "packs": [
+      "python-core"
+    ]
+  },
+  "inputs": {
+    "type": "object",
+    "required": [
+      "date"
+    ],
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "compact-date"
+      }
+    }
+  },
+  "config": {},
+  "capabilities": {
+    "openmind": {
+      "read": [
+        "article/**",
+        "daily-summary/**",
+        "daily-topic/**",
+        "post/**",
+        "reddit/**"
+      ],
+      "write": []
+    },
+    "network": {
+      "required": false,
+      "hosts": []
+    },
+    "subprocess": {
+      "allowed": false
+    }
+  },
+  "artifacts": [],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": []
+    },
+    "timeoutSeconds": 600,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

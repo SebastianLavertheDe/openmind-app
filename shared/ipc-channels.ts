@@ -1,5 +1,15 @@
 /** IPC invoke 通道字符串常量。method↔channel 关联见 `ipc-registry.ts`（单一注册表）。 */
 export const IPC = {
+  RSS_LIST: "rss:list",
+  RSS_DETECT: "rss:detect",
+  RSS_ADD: "rss:add",
+  RSS_EDIT: "rss:edit",
+  RSS_REMOVE: "rss:remove",
+  RSS_IMPORT: "rss:import",
+  RSS_RUN: "rss:run",
+  BRIEF_PREFERENCES_GET: "brief:preferences-get",
+  BRIEF_PREFERENCES_SAVE: "brief:preferences-save",
+  BRIEF_GENERATE: "brief:generate",
   SKILL_LIBRARY_LIST: "skill-library:listSkillLibrary",
   SKILL_LIBRARY_INSTALL: "skill-library:installLibraryPreset",
   SKILL_LIBRARY_EDITOR: "skill-library:getSkillEditor",

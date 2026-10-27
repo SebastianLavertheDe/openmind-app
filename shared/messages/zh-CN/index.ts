@@ -1,3 +1,4 @@
+import { rssMessages } from "./rss";
 import { skillLibraryMessages } from "./skill-library";
 import { coreMessages } from "./core";
 import { appMessages } from "./app";
@@ -20,6 +21,7 @@ const { settings: settingsPage, brief: briefPage, ...featureRest } = featureMess
 
 /** Canonical message keys and interpolation signatures for every supported locale. */
 export const zhCN = {
+  ...rssMessages,
   ...skillLibraryMessages,
   ...editorMessages,
   ...interfaceMessages,

@@ -3,7 +3,7 @@ import type { coreMessages as zhCN } from "../zh-CN/core";
 
 /** Navigation, content types, and shared creative labels. */
 export const coreMessages = {
-  nav: { sources: "Library", skills: "Skills", brief: "Daily Brief", creative: "Creative", automation: "Automation", runs: "Runs", ai: "New Task", settings: "Settings" },
+  nav: { sources: "RSS Sources", skills: "Skills", brief: "Daily Brief", creative: "Creative", automation: "Automation", runs: "Runs", ai: "New Task", settings: "Settings" },
   navGroup: { create: "", core: "", workspace: "Recent tasks", system: "" },
   repoRequired: { action: "Open settings" },
   contentKind: { article: "Article", post: "Post", summary: "Summary", topic: "Topic", reddit: "Reddit", html: "HTML", unknown: "File", all: "All" },

@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 import { ALL_SKILL_IDS, SKILL_COMPATIBILITY_MATRIX } from "./skill-compatibility-matrix";
 
 describe("skill-compatibility-matrix", () => {
-  it("contains exactly 16 skills (per refactor plan §2.3 / §17.7)", () => {
-    expect(SKILL_COMPATIBILITY_MATRIX.length).toBe(16);
-    expect(ALL_SKILL_IDS.length).toBe(16);
+  it("contains exactly 15 skills (per refactor plan §2.3 / §17.7)", () => {
+    expect(SKILL_COMPATIBILITY_MATRIX.length).toBe(15);
+    expect(ALL_SKILL_IDS.length).toBe(15);
   });
 
-  it("classifies 12 process / 1 workflow / 3 agent (§17.1 acceptance)", () => {
+  it("classifies 11 process / 1 workflow / 3 agent (§17.1 acceptance)", () => {
     const counts = { process: 0, workflow: 0, agent: 0 } as Record<string, number>;
     for (const e of SKILL_COMPATIBILITY_MATRIX) counts[e.targetKind] += 1;
-    expect(counts).toEqual({ process: 12, workflow: 1, agent: 3 });
+    expect(counts).toEqual({ process: 11, workflow: 1, agent: 3 });
   });
 
   it("ids are unique", () => {
@@ -24,12 +24,12 @@ describe("skill-compatibility-matrix", () => {
     }
   });
 
-  it("batch A has 5 skills, batch B has 5, batch C has 6 (§17.6)", () => {
+  it("batch A has 5 skills, batch B has 4, batch C has 6 (§17.6)", () => {
     const a = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.batch === "A");
     const b = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.batch === "B");
     const c = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.batch === "C");
     expect(a.length).toBe(5);
-    expect(b.length).toBe(5);
+    expect(b.length).toBe(4);
     expect(c.length).toBe(6);
   });
 

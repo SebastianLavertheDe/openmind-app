@@ -529,7 +529,7 @@ describe("App bootstrap", () => {
       fireEvent.click(screen.getByRole("button", { name: "设置" }));
       const settingsNav = await screen.findByRole("navigation", { name: "设置分类" });
       fireEvent.click(within(settingsNav).getByRole("button", { name: /Skills/ }));
-      const toggle = await screen.findByRole("switch", { name: "默认 Skills 与内置定时任务" });
+      const toggle = await screen.findByRole("switch", { name: "准备内置 Skills" });
       await waitFor(() => expect((toggle as HTMLButtonElement).disabled).toBe(false));
       return toggle;
     };

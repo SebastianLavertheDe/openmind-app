@@ -111,6 +111,15 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("AutomationPage", () => {
+  it("preserves an existing cron schedule and saves an explicitly changed timezone", async () => {
+    const rule: AutomationRule = { ...seedRules[0], trigger: { type: "cron", expression: "15 */3 * * 1-5" }, timezone: "Asia/Shanghai" };
+    window.openmind = makeApi({ listAutomationRules: async () => [rule] });
+    await act(async () => { render(<AutomationPage />); });
+    expect(await screen.findByDisplayValue("15 */3 * * 1-5")).toBeTruthy();
+    fireEvent.change(screen.getByDisplayValue("Asia/Shanghai"), { target: { value: "Europe/London" } });
+    fireEvent.click(screen.getByRole("button", { name: /保存规则/ }));
+    await waitFor(() => expect(window.openmind.saveAutomationRule).toHaveBeenCalledWith(expect.objectContaining({ trigger: rule.trigger, timezone: "Europe/London" })));
+  });
   it.each(["success", "failure"])("ignores an older refresh %s after a newer refresh succeeds", async (outcome) => {
     let resolveOld!: (rules: AutomationRule[]) => void;
     let rejectOld!: (cause: Error) => void;

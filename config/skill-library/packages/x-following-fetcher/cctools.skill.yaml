@@ -1,0 +1,85 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "x-following-fetcher",
+  "version": "1.1.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "process",
+  "display": {
+    "name": "X Following 抓取",
+    "description": "抓取关注列表并将帖子和可选外链文章写入内容根 post/ 与 article/ 契约。",
+    "group": "内容采集"
+  },
+  "entrypoint": {
+    "runtime": "python",
+    "script": "main.py"
+  },
+  "runtime": {
+    "version": ">=3.11,<3.13",
+    "dependencyFile": "pyproject.toml",
+    "lockFile": "uv.lock",
+    "packs": [
+      "python-core"
+    ]
+  },
+  "capabilities": {
+    "openmind": {
+      "read": [
+        "post/**",
+        "article/**"
+      ],
+      "write": [
+        "post/**",
+        "article/**"
+      ]
+    },
+    "network": {
+      "required": true,
+      "hosts": [
+        "x.com",
+        "twitter.com",
+        "api.x.com"
+      ]
+    },
+    "subprocess": {
+      "allowed": true
+    }
+  },
+  "artifacts": [
+    {
+      "id": "x-posts",
+      "type": "directory",
+      "path": "post/**"
+    },
+    {
+      "id": "x-articles",
+      "type": "markdown",
+      "path": "article/**/x_*.md"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:post"
+      ]
+    },
+    "timeoutSeconds": 3600,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

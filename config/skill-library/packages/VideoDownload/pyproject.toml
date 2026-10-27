@@ -1,0 +1,11 @@
+[project]
+name = "video-download"
+version = "1.0.0"
+description = "Claude skill for downloading videos and extracting subtitles"
+requires-python = ">=3.12"
+dependencies = [
+    "yt-dlp>=2023.12.30",
+    "openai-whisper>=20231117",
+    "torch>=2.0.0",
+    "torchaudio>=2.0.0",
+]

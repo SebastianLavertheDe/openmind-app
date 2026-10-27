@@ -12,6 +12,7 @@ import { ImageConfigurationStore } from "../images/image-configuration";
 import { resolveSkillLibraryTools } from "./skill-library-runtime";
 import { isAppLibraryInstall, isLegacyAppLibraryInstall, readSkillLibraryCatalog } from "./skill-library-catalog";
 import { prepareSkillAvatar, readSkillAvatar, skillAvatarDataUrl } from "./skill-avatar";
+import { installBuiltinDefault } from "./builtin-default-packages";
 
 type Bindings = Record<string, { key: string; digest: string }>;
 const METADATA = "openmind.library.json";
@@ -45,7 +46,6 @@ export class SkillLibraryService {
 
   list(): SkillLibraryEntry[] {
     const installed = this.packages.listInstalledViews();
-    const bindings = this.bindings();
     const tools = resolveSkillLibraryTools(this.paths);
     let bundledDigests: Record<string, string> = {};
     try { bundledDigests = JSON.parse(fs.readFileSync(path.join(this.bundleRoot, "bundle.json"), "utf8")).packages || {}; }
@@ -60,15 +60,15 @@ export class SkillLibraryService {
       !installed.some(record => record.key === reference.key && record.digest === reference.digest && record.enabled && record.usable));
     const presetKeys = new Set<string>();
     const result: SkillLibraryEntry[] = readSkillLibraryCatalog(this.bundleRoot).skills.map(preset => {
-      const binding = bindings[preset.id];
-      const record = binding && installed.find(item => item.key === binding.key && item.digest === binding.digest && isAppLibraryInstall(item));
+      const record = installed.find(item => item.id === preset.id && isAppLibraryInstall(item));
       if (record) presetKeys.add(record.key);
       const copy = resolveSkillLibraryCopy(preset);
       let reason: string | null = !fs.existsSync(path.join(this.bundleRoot, preset.id, "SKILL.md")) && !record ? m.errors.bundle : null;
+      if (!record && installed.some(item => item.id === preset.id && !isAppLibraryInstall(item))) reason = m.errors.sourceConflict;
       if (!reason && record && !record.usable) reason = m.errors.stale;
       reason ||= runtimeUnavailable(preset.requirement);
       const updateAvailable = Boolean(record && bundledDigests[preset.id] && bundledDigests[preset.id] !== record.digest);
-      return { id: preset.id, updateAvailable, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? true), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? null, skillId: preset.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: m.origin.preset, executionModel: null, updatedAt: record?.installedAt, contributor: this.contributorView(preset.contributor, path.join(this.bundleRoot, preset.id)) };
+      return { id: preset.id, discoverable: preset.discoverable, updateAvailable, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? true), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? null, skillId: preset.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: m.origin.preset, executionModel: null, updatedAt: record?.installedAt, contributor: this.contributorView(preset.contributor, path.join(this.bundleRoot, preset.id)) };
     });
     const authored = this.documents();
     for (const doc of authored) {
@@ -91,6 +91,12 @@ export class SkillLibraryService {
   installPreset(id: string): SkillLibraryEntry {
     const preset = readSkillLibraryCatalog(this.bundleRoot).skills.find(item => item.id === id);
     if (!preset) throw new Error(m.errors.missing);
+    if (preset.packageDirectory) {
+      const record = installBuiltinDefault(this.packages, id, this.bundleRoot, key => this.isUserRetained(key));
+      this.packages.setEnabled(record.key, record.digest, true);
+      writeJsonAtomic(path.join(this.privateRoot, "bindings.json"), { ...this.bindings(), [id]: { key: record.key, digest: record.digest } });
+      return this.list().find(entry => entry.id === id)!;
+    }
     const occupant = this.packages.getInstalledById(id);
     if (occupant && !isAppLibraryInstall(occupant)) throw new Error(m.errors.sourceConflict);
     const source = path.join(this.bundleRoot, preset.id);

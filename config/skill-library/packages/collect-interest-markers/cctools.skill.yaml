@@ -1,0 +1,91 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "collect-interest-markers",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "process",
+  "display": {
+    "name": "兴趣标记整理",
+    "description": "将 daily-summary 中的兴趣标记收集到创作兴趣收集箱。",
+    "group": "创作"
+  },
+  "entrypoint": {
+    "runtime": "python",
+    "script": "scripts/collect_interest_markers.py",
+    "args": [
+      "--source",
+      "{{ inputs.source }}"
+    ]
+  },
+  "runtime": {
+    "version": ">=3.11,<3.13",
+    "dependencyFile": "pyproject.toml",
+    "lockFile": "uv.lock",
+    "packs": [
+      "python-core"
+    ]
+  },
+  "inputs": {
+    "type": "object",
+    "required": [
+      "source"
+    ],
+    "properties": {
+      "source": {
+        "type": "string",
+        "description": "daily-summary/ 下待整理的 Markdown 文件（相对内容根）。"
+      }
+    }
+  },
+  "config": {},
+  "capabilities": {
+    "openmind": {
+      "read": [
+        "daily-summary/**"
+      ],
+      "write": [
+        "creative/**"
+      ]
+    },
+    "network": {
+      "required": false,
+      "hosts": []
+    },
+    "subprocess": {
+      "allowed": false
+    }
+  },
+  "artifacts": [
+    {
+      "id": "interest-inbox",
+      "type": "markdown",
+      "path": "creative/01-内容生产/选题管理/00-兴趣收集箱.md"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:creative"
+      ]
+    },
+    "timeoutSeconds": 900,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

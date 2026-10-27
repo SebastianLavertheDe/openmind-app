@@ -793,6 +793,276 @@
       "contributor": {
         "nick": "OpenMind"
       }
+    },
+    {
+      "id": "video-download",
+      "version": "1.0.0",
+      "category": "video",
+      "packageDirectory": "VideoDownload",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "视频下载",
+          "subtitle": "从 URL 下载视频、抽取字幕/文本，并按结构化目录组织；产物通过 Export Location Binding 导出到内容根之外。"
+        },
+        "en": {
+          "title": "video-download",
+          "subtitle": "从 URL 下载视频、抽取字幕/文本，并按结构化目录组织；产物通过 Export Location Binding 导出到内容根之外。"
+        }
+      }
+    },
+    {
+      "id": "agent-browser",
+      "version": "1.0.0",
+      "category": "research",
+      "packageDirectory": "agent-browser",
+      "executionKind": "agent",
+      "discoverable": true,
+      "display": {
+        "zh-CN": {
+          "title": "浏览器自动化 Agent",
+          "subtitle": "在 AI 控制台中由 Claude Code 或 Codex CLI 驱动 agent-browser，完成导航、点击、填表、截图、数据抓取与 Web 测试。"
+        },
+        "en": {
+          "title": "agent-browser",
+          "subtitle": "在 AI 控制台中由 Claude Code 或 Codex CLI 驱动 agent-browser，完成导航、点击、填表、截图、数据抓取与 Web 测试。"
+        }
+      }
+    },
+    {
+      "id": "ai-media-topic-selector",
+      "version": "1.0.0",
+      "category": "research",
+      "packageDirectory": "ai-media-topic-selector",
+      "executionKind": "agent",
+      "discoverable": true,
+      "display": {
+        "zh-CN": {
+          "title": "选题助手",
+          "subtitle": "根据用户偏好筛选、排序并说明推荐理由。"
+        },
+        "en": {
+          "title": "Topic assistant",
+          "subtitle": "Select and rank topics using your saved preferences."
+        }
+      }
+    },
+    {
+      "id": "asset-collector",
+      "version": "1.0.0",
+      "category": "research",
+      "packageDirectory": "asset-collector",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "素材收集器",
+          "subtitle": "从创作包中提取来源证据、截图和素材需求。"
+        },
+        "en": {
+          "title": "asset-collector",
+          "subtitle": "从创作包中提取来源证据、截图和素材需求。"
+        }
+      }
+    },
+    {
+      "id": "collect-interest-markers",
+      "version": "1.0.0",
+      "category": "research",
+      "packageDirectory": "collect-interest-markers",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "兴趣标记整理",
+          "subtitle": "将 daily-summary 中的兴趣标记收集到创作兴趣收集箱。"
+        },
+        "en": {
+          "title": "collect-interest-markers",
+          "subtitle": "将 daily-summary 中的兴趣标记收集到创作兴趣收集箱。"
+        }
+      }
+    },
+    {
+      "id": "creative-writing",
+      "version": "1.0.0",
+      "category": "writing",
+      "packageDirectory": "creative-writing",
+      "executionKind": "agent",
+      "discoverable": true,
+      "display": {
+        "zh-CN": {
+          "title": "多平台内容生产助手",
+          "subtitle": "在 AI 控制台中由 Claude Code 或 Codex CLI 读取本地素材并生成多平台内容生产包。"
+        },
+        "en": {
+          "title": "creative-writing",
+          "subtitle": "在 AI 控制台中由 Claude Code 或 Codex CLI 读取本地素材并生成多平台内容生产包。"
+        }
+      }
+    },
+    {
+      "id": "daily-article-summarizer",
+      "version": "1.0.0",
+      "category": "research",
+      "packageDirectory": "daily-article-summarizer",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "每日文章总结",
+          "subtitle": "汇总内容根中当天文章、帖子和 Reddit 内容并生成每日总结。"
+        },
+        "en": {
+          "title": "daily-article-summarizer",
+          "subtitle": "汇总内容根中当天文章、帖子和 Reddit 内容并生成每日总结。"
+        }
+      }
+    },
+    {
+      "id": "daily-topic-selector",
+      "version": "1.0.0",
+      "category": "research",
+      "packageDirectory": "daily-topic-selector",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "每日选题筛选",
+          "subtitle": "根据用户偏好筛选、排序并说明推荐理由。"
+        },
+        "en": {
+          "title": "Daily topic selection",
+          "subtitle": "Select and rank topics using your saved preferences."
+        }
+      }
+    },
+    {
+      "id": "daily-writing-orchestrator",
+      "version": "1.0.0",
+      "category": "writing",
+      "packageDirectory": "daily-writing-orchestrator",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "写作素材包",
+          "subtitle": "从每日选题中选择主题并生成标准创作素材包。"
+        },
+        "en": {
+          "title": "daily-writing-orchestrator",
+          "subtitle": "从每日选题中选择主题并生成标准创作素材包。"
+        }
+      }
+    },
+    {
+      "id": "reddit-fetcher",
+      "version": "1.0.0",
+      "category": "research",
+      "packageDirectory": "reddit-fetcher",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "Reddit 内容抓取",
+          "subtitle": "抓取配置的 Reddit 热门内容并保存到 reddit/（相对内容根）。"
+        },
+        "en": {
+          "title": "reddit-fetcher",
+          "subtitle": "抓取配置的 Reddit 热门内容并保存到 reddit/（相对内容根）。"
+        }
+      }
+    },
+    {
+      "id": "rss-article-saver",
+      "version": "1.0.0",
+      "category": "research",
+      "packageDirectory": "rss-article-saver",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "RSS 文章采集",
+          "subtitle": "抓取 RSS、提取文章正文并保存到 article/（相对内容根）。"
+        },
+        "en": {
+          "title": "rss-article-saver",
+          "subtitle": "抓取 RSS、提取文章正文并保存到 article/（相对内容根）。"
+        }
+      }
+    },
+    {
+      "id": "rss-to-summary-workflow",
+      "version": "1.0.0",
+      "category": "research",
+      "packageDirectory": "rss-to-summary-workflow",
+      "executionKind": "workflow",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "RSS 到每日总结",
+          "subtitle": "按同一个内容根快照依次执行 RSS 采集、文章总结和每日选题筛选。"
+        },
+        "en": {
+          "title": "rss-to-summary-workflow",
+          "subtitle": "按同一个内容根快照依次执行 RSS 采集、文章总结和每日选题筛选。"
+        }
+      }
+    },
+    {
+      "id": "skill-run-reporter",
+      "version": "1.0.0",
+      "category": "research",
+      "packageDirectory": "skill-run-reporter",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "运行报告",
+          "subtitle": "汇总当天采集、总结和选题任务的状态报告。"
+        },
+        "en": {
+          "title": "skill-run-reporter",
+          "subtitle": "汇总当天采集、总结和选题任务的状态报告。"
+        }
+      }
+    },
+    {
+      "id": "video-burnin-subtitles",
+      "version": "1.0.0",
+      "category": "video",
+      "packageDirectory": "video-burnin-subtitles",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "视频烧录字幕",
+          "subtitle": "下载或使用本地视频，检测/生成/翻译字幕，并用 ffmpeg 把字幕硬烧进输出视频，产物固定写入绑定根的 video/<job>/。"
+        },
+        "en": {
+          "title": "video-burnin-subtitles",
+          "subtitle": "下载或使用本地视频，检测/生成/翻译字幕，并用 ffmpeg 把字幕硬烧进输出视频，产物固定写入绑定根的 video/<job>/。"
+        }
+      }
+    },
+    {
+      "id": "x-following-fetcher",
+      "version": "1.1.0",
+      "category": "research",
+      "packageDirectory": "x-following-fetcher",
+      "executionKind": "process",
+      "discoverable": false,
+      "display": {
+        "zh-CN": {
+          "title": "X Following 抓取",
+          "subtitle": "抓取关注列表并将帖子和可选外链文章写入内容根 post/ 与 article/ 契约。"
+        },
+        "en": {
+          "title": "x-following-fetcher",
+          "subtitle": "抓取关注列表并将帖子和可选外链文章写入内容根 post/ 与 article/ 契约。"
+        }
+      }
     }
   ],
   "executionRules": [

@@ -1,6 +1,6 @@
 # Data Root Binding and Relocation Spec
 
-- **Status:** Current binding/relocation contract; no legacy upgrade path
+- **Status:** Current root binding contract; RSS and managed Skill upgrade migration supported
 - **Date:** 2026-08-05
 - **Related:** ADR-001 (path boundaries), ADR-002 (layout)
 
@@ -103,3 +103,11 @@ staged tree can be completed on the next startup; the original empty target can
 be restored when the swap did not finish. A non-matching or non-empty target is
 fail-closed and is never merged or overwritten. Relocation is copy-only and
 never removes the source.
+
+## RSS and built-in Skill consolidation
+
+Root binding still does not infer or reshape a content tree. On first RSS access, `RssRepository` imports the user's persistent OPML and nested references, preserving name, grouping and disabled state. Package-local legacy OPML is only a migration fallback. A complete parse precedes the atomic `sources.json` initialization; the old files remain. Empty initialized lists and deleted presets stay empty/deleted.
+
+App startup migrates only intact, provenance-verified official defaults. A pending/completed journal under app-private migrations maps old to new package identities and permits retry after interruption. Active processes prevent replacement. Conflicting imports remain visible in Skill source management. Historical runs retain their original identities; future default rules retain enabled state, cadence and timezone while switching RSS capture to the local pipeline. Existing workflow run records continue to use their recorded target type.
+
+Preferences live at `.agent/preferences/daily-brief.json`, and run admission freezes their revision. Python and TypeScript share PID/token file locks for source commits; another live CLI process is not recovered as a crashed worker. See [RSS and Skills guide](../RSS_AND_SKILLS_GUIDE.md).

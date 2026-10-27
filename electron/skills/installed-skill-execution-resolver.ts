@@ -1,3 +1,4 @@
+import { YoutubeToolsService } from "../install/youtube-tools-service";
 import { readSkillLibraryMetadata } from "./skill-library-service";
 import fs from "node:fs";
 import path from "node:path";
@@ -14,6 +15,9 @@ import { readDefaultProviderEnv } from "../config/providers-yaml";
 import { resolveSkillLibraryCopy } from "../../shared/skill-library-catalog";
 import { isAppLibraryInstall, readSkillLibraryCatalog } from "./skill-library-catalog";
 import type { WorkflowAdmission } from "../execution/workflow-engine";
+import { RssRepository } from "../rss/rss-repository";
+import { readRssCatalog } from "../rss/rss-service";
+import { BRIEF_SKILLS, readDailyPreferences, dailyPreferencesContext } from "../rss/daily-preferences";
 
 const FORBIDDEN_ENV_NAMES = new Set(["PATH", "HOME", "NODE_OPTIONS", "PYTHONPATH", "LD_PRELOAD"]);
 
@@ -134,7 +138,7 @@ export class InstalledSkillExecutionResolver {
       digest: record.digest,
       packageRoot,
       skillPath,
-      instructions: fs.readFileSync(skillPath, "utf8"),
+      instructions: fs.readFileSync(skillPath, "utf8") + (BRIEF_SKILLS.has(record.id) ? dailyPreferencesContext(this.openmindRoot) : ""),
       referencePaths: listReferenceFiles(packageRoot),
       openmindRoot: canonicalDirectory(this.openmindRoot),
       capabilities: inspection.manifest.capabilities,
@@ -201,6 +205,7 @@ export class InstalledSkillExecutionResolver {
   /** Admit the Workflow body and every referenced Process Step as one unit. */
   admitWorkflow(skillId: string, version?: string): WorkflowAdmission {
     const manifest = this.workflowManifest(skillId, version);
+    const preferences = readDailyPreferences(this.openmindRoot);
     const steps = manifest.workflow.steps.map((step) => {
       const record = this.enabledInstalled(step.skill);
       if (!record) throw new InstalledSkillExecutionError(`Workflow Step Skill 不存在：${step.skill}`);
@@ -216,6 +221,7 @@ export class InstalledSkillExecutionResolver {
       }
       return {
         stepId: step.id,
+        ...(BRIEF_SKILLS.has(record.id) ? { dailyBriefPreferences: preferences } : {}),
         skillId: record.id,
         version: record.version,
         digest: record.digest.toLowerCase()
@@ -241,11 +247,13 @@ export class InstalledSkillExecutionResolver {
     const openmindRoot = canonicalDirectory(this.openmindRoot);
     // Resolve provider state against the same frozen root snapshot as content;
     // never let a later workspace/settings change redirect an admitted run.
-    const provider = readDefaultProviderEnv(openmindRoot);
+    if (manifest.id === "rss-article-saver") new RssRepository(openmindRoot, readRssCatalog()).read();
+    const provider = manifest.id === "rss-article-saver" ? { env: {}, apiKey: "" } : readDefaultProviderEnv(openmindRoot);
     // Managed runs receive only the selected Provider fields. The full YAML
     // path is reserved for trusted cron/direct runs so a Skill cannot open
     // unrelated credentials from the private provider file.
-    const providerEnvironment = provider.env;
+    const preferences = request.dailyBriefPreferences || (BRIEF_SKILLS.has(manifest.id) ? readDailyPreferences(openmindRoot) : undefined);
+    const providerEnvironment = { ...provider.env, ...(preferences ? { OPENMIND_DAILY_BRIEF_PREFERENCES: JSON.stringify(preferences) } : {}) };
     const externalBindings: Record<string, ExternalBinding> = {};
     for (const artifact of manifest.artifacts) {
       if (!artifact.externalExportId) continue;
@@ -259,6 +267,17 @@ export class InstalledSkillExecutionResolver {
     if (manifest.kind !== "process") throw new InstalledSkillExecutionError("只有 Process Skill 可由 Execution Broker 执行。 ");
     const script = resolvePackageFile(packageRoot, manifest.entrypoint.script);
     const runtime = this.runtimes.resolve(manifest, packageRoot, record.digest);
+    const auxiliary: Record<string, string> = {
+      PLAYWRIGHT_BROWSERS_PATH: path.join(this.packages.appPaths.runtimes, "browser-playwright"),
+      XDG_CACHE_HOME: path.join(this.packages.appPaths.cache, "python")
+    };
+    if (manifest.runtime.packs.includes("media-core")) {
+      const tools = new YoutubeToolsService(this.packages.appPaths);
+      const ffmpeg = await tools.resolveTool("ffmpeg");
+      if (ffmpeg) auxiliary.OPENMIND_MEDIA_FFMPEG = ffmpeg;
+      const downloader = await tools.resolveTool("yt-dlp");
+      if (downloader) auxiliary.OPENMIND_MEDIA_YTDLP = downloader;
+    }
     const args = manifest.entrypoint.args.map((arg) => resolveTemplate(arg, inputs, externalBindings));
     const manifestEnv = resolveEntrypointEnv(manifest, inputs);
     const artifacts = manifest.artifacts.map((artifact) => artifact.path
@@ -282,7 +301,7 @@ export class InstalledSkillExecutionResolver {
         executable: runtime.executable,
         args: [script, ...args],
         cwd: packageRoot,
-        env: { ...runtime.env, ...manifestEnv.values, ...providerEnvironment },
+        env: { ...runtime.env, ...manifestEnv.values, ...providerEnvironment, ...auxiliary },
         timeoutMs: manifest.execution.timeoutSeconds * 1000,
         gracefulStopMs: manifest.execution.gracefulStopSeconds * 1000
       },
@@ -299,7 +318,7 @@ export class InstalledSkillExecutionResolver {
         await runtime.prepare();
         // Refresh the process spec with the prepared absolute interpreter.
         plan.process.executable = runtime.executable;
-        plan.process.env = { ...plan.process.env, ...runtime.env, ...manifestEnv.values, ...providerEnvironment };
+        plan.process.env = { ...plan.process.env, ...runtime.env, ...manifestEnv.values, ...providerEnvironment, ...auxiliary };
       }
     };
     return plan;

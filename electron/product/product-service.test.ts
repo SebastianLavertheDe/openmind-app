@@ -82,7 +82,7 @@ describe("ProductService", () => {
     const service = createService();
     const sources = service.listSources();
     expect(sources.some((source) => source.kind === "rss" && source.name === "Example")).toBe(true);
-    expect(fs.readFileSync(path.join(root, "openmind", ".agent", "skill-data", "rss-article-saver", "subscriptions.opml"), "utf8")).toContain("https://example.com/feed.xml");
+    expect(fs.readFileSync(path.join(root, "openmind", ".agent", "skill-data", "rss-article-saver", "sources.json"), "utf8")).toContain("https://example.com/feed.xml");
   });
 
   it("keeps an existing persistent RSS list instead of reseeding package defaults", () => {
@@ -207,14 +207,13 @@ sources:
     expect(added.name).toBe("Second Feed");
     expect(service.listSources().some((source) => source.url === "https://second.example/feed.xml")).toBe(true);
     const installedOpml = path.join(root, "openmind", ".agent", "skills", "rss-article-saver", "subscriptions.opml");
-    const persistentOpml = path.join(root, "openmind", ".agent", "skill-data", "rss-article-saver", "subscriptions.opml");
+    const persistentOpml = path.join(root, "openmind", ".agent", "skill-data", "rss-article-saver", "sources.json");
     expect(fs.readFileSync(installedOpml, "utf8")).not.toContain("https://second.example/feed.xml");
     expect(fs.readFileSync(persistentOpml, "utf8")).toContain("https://second.example/feed.xml");
 
     const disabled = service.updateSource(added.id, { enabled: false, frequency: "每 6 小时" });
-    expect(disabled).toMatchObject({ enabled: false, frequency: "每 6 小时", status: "disabled" });
-    const settings = JSON.parse(fs.readFileSync(path.join(root, ".openmind", "source-settings.json"), "utf8"));
-    expect(settings.disabledUrls).toContain("https://second.example/feed.xml");
+    expect(disabled).toMatchObject({ enabled: false, status: "disabled" });
+    expect(JSON.parse(fs.readFileSync(persistentOpml, "utf8")).sources.find((row: { id: string }) => row.id === added.id).enabled).toBe(false);
 
     const importedPath = path.join(root, "import.opml");
     fs.writeFileSync(importedPath, `<?xml version="1.0"?><opml version="2.0"><body><outline text="Third" type="rss" xmlUrl="https://third.example/feed.xml"/></body></opml>`);

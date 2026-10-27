@@ -1,0 +1,3 @@
+display_name: Asset Collector
+short_description: Collect source evidence and asset manifests
+default_prompt: Collect assets for the current writing package

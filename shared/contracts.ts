@@ -36,6 +36,8 @@ export {
 import type { ProvidersYamlInput, ProvidersYamlView } from "./providers-yaml";
 import type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord, WorkflowResumeRequest } from "./execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
+import type { RssDocument, RssDetection, RssSourceInput, RssSourcePatch, RssRunInput } from "./rss-contracts";
+import type { DailyBriefPreferences } from "./daily-brief-preferences";
 import { RuntimeTargetSchema } from "./runtime-targets";
 
 export type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord, WorkflowResumeRequest } from "./execution-contracts";
@@ -1228,6 +1230,16 @@ export interface DesktopApi {
   getXFollowingCurls(): Promise<string[]>;
   saveXFollowingCurls(contents: string[]): Promise<void>;
   listSources(): Promise<SourceDefinition[]>;
+  getRssSources(): Promise<RssDocument>;
+  detectRssSource(input: { inputUrl: string; selectedFeedUrl?: string }): Promise<RssDetection>;
+  createRssSource(input: RssSourceInput): Promise<RssDocument>;
+  editRssSource(input: RssSourcePatch): Promise<RssDocument>;
+  removeRssSource(input: { id: string; revision: number }): Promise<RssDocument>;
+  importRssOpml(): Promise<RssDocument | null>;
+  runRss(input: RssRunInput): Promise<BrokerRunRecord>;
+  getDailyBriefPreferences(): Promise<DailyBriefPreferences>;
+  saveDailyBriefPreferences(input: { revision: number; text: string }): Promise<DailyBriefPreferences>;
+  generateDailyBrief(input: { date: string; topics?: boolean }): Promise<BrokerRunRecord>;
   updateSource(id: string, patch: SourcePatch): Promise<SourceDefinition>;
   addRssSource(input: AddRssSourceInput): Promise<SourceDefinition>;
   importOpml(): Promise<number>;

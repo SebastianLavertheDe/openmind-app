@@ -1,0 +1,16 @@
+# Article source directory
+article_directory:
+  - "article"
+
+reddit_directory:
+  - "reddit"
+
+# AI settings
+# provider 链由 ArticleSummarizer 按 _shared auto order 决定（claude→deepseek→doubao），
+# 不在 config 配置——曾经的 provider/model 字段从未被读取，已移除避免误导。
+# 切换/启用 provider 请设对应的 *_API_KEY 环境变量（见 _shared/ai_client.py）。
+ai:
+  batch_size: 5
+
+# Cache file
+cache_file: "summary_cache.json"

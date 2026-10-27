@@ -27,14 +27,17 @@ export const SkillLibraryPresetSchema = z.object({
   version: z.string().regex(/^\d+\.\d+\.\d+$/).default("1.0.0"),
   category: SkillSceneSchema,
   contributor: SkillContributorSchema.optional(),
-  instructions: z.array(InstructionSchema).min(1).max(50),
+  instructions: z.array(InstructionSchema).max(50).default([]),
+  packageDirectory: AssetPathSchema.optional(),
+  executionKind: z.enum(["agent", "process", "workflow"]).default("agent"),
+  discoverable: z.boolean().default(true),
   files: z.array(AssetSchema).max(50).default([]),
   requirement: z.enum(["image", "ffmpeg", "python"]).optional(),
   display: z.object({
     "zh-CN": SkillLibraryCopySchema.optional(),
     en: SkillLibraryCopySchema.optional()
   }).strict().refine(value => Boolean(value["zh-CN"] || value.en), "Provide at least one display language")
-}).strict();
+}).strict().refine(value => Boolean(value.packageDirectory) || value.instructions.length > 0, "Provide instructions or a manifest package directory");
 
 export const SkillLibraryCatalogSchema = z.object({
   schemaVersion: z.literal(1),

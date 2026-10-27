@@ -638,6 +638,24 @@ const api = {
   }
 };
 
+// RSS consolidation fixtures use only synthetic content and URLs.
+let visualRss = { schemaVersion: 1, initialized: true, revision: 1, deletedPresetIds: [], migrationWarnings: [], sources: [
+  { id: "design", name: "Design research", inputUrl: "https://design.example/research", kind: "website", enabled: true },
+  { id: "science", name: "Science articles", inputUrl: "https://science.example/feed.xml", kind: "feed", enabled: false },
+  { id: "broken", name: "Source awaiting retry", inputUrl: "https://retry.example/rss", kind: "feed", enabled: true, lastError: { stage: "sync", code: "access-denied", message: "The website requires login or restricts access.", retryable: true } }
+].map(row => ({ revision: 1, adapterId: "feed", resolvedFeedUrl: row.inputUrl, presetId: null, group: "", tags: [], lastAttemptAt: null, lastSuccessAt: null, lastError: null, itemCount: 0, feedRevision: 0, ...row })) };
+let visualPreferences = { schemaVersion: 1, revision: 1, text: "关注产品设计和交互研究，排除融资快讯。用中文简洁总结，最多推荐 5 条。", updatedAt: null };
+Object.assign(api, {
+  getRssSources: async () => visualRss,
+  detectRssSource: async ({ inputUrl }) => { if (inputUrl.includes('invalid')) throw new Error('[invalid-feed] 无法解析该 RSS 内容'); return { inputUrl, kind: "feed", resolvedFeedUrl: inputUrl, adapterId: "feed", candidates: [] }; },
+  createRssSource: async input => { visualRss.sources.push({ ...visualRss.sources[0], id: `added-${visualRss.sources.length}`, ...input }); return visualRss; },
+  editRssSource: async input => { visualRss.sources = visualRss.sources.map(row => row.id === input.id ? { ...row, ...input, revision: row.revision + 1 } : row); return visualRss; },
+  removeRssSource: async ({ id }) => { visualRss.sources = visualRss.sources.filter(row => row.id !== id); return visualRss; },
+  importRssOpml: async () => visualRss, runRss: async () => ({ id: 'rss-fixture-run' }),
+  getDailyBriefPreferences: async () => visualPreferences,
+  saveDailyBriefPreferences: async ({ text }) => { visualPreferences = { ...visualPreferences, revision: visualPreferences.revision + 1, text, updatedAt: new Date().toISOString() }; return visualPreferences; },
+  generateDailyBrief: async () => ({ id: 'brief-fixture-run' })
+});
 contextBridge.exposeInMainWorld("openmind", api);
 
 function currentAiSnapshot() {

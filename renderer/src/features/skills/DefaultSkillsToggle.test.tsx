@@ -6,7 +6,7 @@ import { DefaultSkillsToggle } from "./DefaultSkillsToggle";
 afterEach(cleanup);
 
 describe("DefaultSkillsToggle", () => {
-  it("starts off, waits for installation and allows uninstalling from the same switch", async () => {
+  it("starts off, waits for installation and can save the switch independently of installed packages", async () => {
     let enabled = false;
     let finish!: () => void;
     const setEnabled = vi.fn(async (next: boolean) => {
@@ -20,13 +20,13 @@ describe("DefaultSkillsToggle", () => {
     } as unknown as DesktopApi;
     const onChange = vi.fn(async () => undefined);
     render(<DefaultSkillsToggle onChange={onChange} />);
-    const toggle = screen.getByRole("switch", { name: "默认 Skills 与内置定时任务" }) as HTMLButtonElement;
+    const toggle = screen.getByRole("switch", { name: "准备内置 Skills" }) as HTMLButtonElement;
     await waitFor(() => expect(toggle.disabled).toBe(false));
     expect(toggle.getAttribute("aria-checked")).toBe("false");
     fireEvent.click(toggle);
     expect(setEnabled).toHaveBeenCalledWith(true);
     expect(toggle.disabled).toBe(true);
-    expect(screen.getByRole("status").textContent).toContain("正在安装");
+    expect(screen.getByRole("status").textContent).toContain("正在准备");
     finish();
     await waitFor(() => expect(toggle.getAttribute("aria-checked")).toBe("true"));
     await waitFor(() => expect(toggle.disabled).toBe(false));
@@ -37,7 +37,7 @@ describe("DefaultSkillsToggle", () => {
     expect(onChange).toHaveBeenCalledTimes(2);
   });
 
-  it("shows a failed removal and leaves the switch available for another attempt", async () => {
+  it("shows a failed setting update and leaves the switch available for another attempt", async () => {
     window.openmind = {
       getDefaultSkillsEnabled: async () => true,
       setDefaultSkillsEnabled: async () => { throw new Error("任务正在停止"); }

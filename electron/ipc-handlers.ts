@@ -54,6 +54,10 @@ import { ChatImageRequestSchema, ImageSelectionSchema } from "../shared/image-ge
 import { messages, setLocale } from "../shared/messages";
 import { WorkflowResumeRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
+import { RssService } from "./rss/rss-service";
+import { RssSourceInputSchema, RssSourcePatchSchema, RssRunInputSchema, RssUrlSchema } from "../shared/rss-contracts";
+import { installBuiltinDefault } from "./skills/builtin-default-packages";
+import { SaveDailyBriefPreferencesSchema } from "../shared/daily-brief-preferences";
 import {
   ProjectAddFilesInputSchema,
   ProjectAddUrlInputSchema,
@@ -219,8 +223,24 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
   // and the mutation itself must be atomic with respect to starting/continuing
   // a Project turn; otherwise a run could slip in after a zero-count check.
   const projectAdmission = new AsyncSerialGate();
+  const rss = () => {
+    const root = settings.resolveOpenmindRoot();
+    if (!root) throw new Error(messages.skillLibrary.errors.root);
+    const stateRoot = ctx.resolveAiStateRoot?.();
+    return new RssService(root, skillPackages(), sharedPython(), resolveSkillLibraryBundleRoot(), stateRoot ? [path.join(stateRoot, ".openmind")] : []);
+  };
 
   return [
+    { channel: C.getRssSources, handler: () => rss().repository.read() },
+    { channel: C.detectRssSource, handler: input => projectAdmission.run(() => { const value = z.object({ inputUrl: RssUrlSchema, selectedFeedUrl: RssUrlSchema.optional() }).parse(input); return rss().detect(value.inputUrl, value.selectedFeedUrl); }) },
+    { channel: C.createRssSource, handler: input => projectAdmission.run(() => rss().add(RssSourceInputSchema.parse(input))) },
+    { channel: C.editRssSource, handler: input => projectAdmission.run(() => rss().update(RssSourcePatchSchema.parse(input))) },
+    { channel: C.removeRssSource, handler: input => { const value = z.object({ id: z.string().regex(/^[a-zA-Z0-9-]{1,64}$/), revision: z.number().int().positive() }).parse(input); return rss().repository.remove(value.id, value.revision); } },
+    { channel: C.importRssOpml, handler: async () => { const result = await dialog.showOpenDialog({ title: messages.dialogs.importOpml, filters: [{ name: "OPML", extensions: ["opml", "xml"] }], properties: ["openFile"] }); return result.canceled || !result.filePaths[0] ? null : rss().repository.importOpml(result.filePaths[0]); } },
+    { channel: C.runRss, handler: input => projectAdmission.run(async () => { const value = RssRunInputSchema.parse(input); rss().repository.read(); const record = installBuiltinDefault(skillPackages(), "rss-article-saver"); skillPackages().setEnabled(record.key, record.digest, true); return ai().call("rss-run", value); }) },
+    { channel: C.getDailyBriefPreferences, handler: () => rss().repository.preferences() },
+    { channel: C.saveDailyBriefPreferences, handler: input => rss().repository.savePreferences(SaveDailyBriefPreferencesSchema.parse(input)) },
+    { channel: C.generateDailyBrief, handler: input => projectAdmission.run(async () => { const value = z.object({ date: z.string().regex(/^\d{8}$/), topics: z.boolean().optional() }).parse(input); const id = value.topics ? "daily-topic-selector" : "daily-article-summarizer"; const record = installBuiltinDefault(skillPackages(), id); skillPackages().setEnabled(record.key, record.digest, true); return ai().call("brief-run", value); }) },
     { channel: C.listSkillLibrary, handler: () => library().list() },
     { channel: C.getSkillEditor, handler: id => library().editor(id == null ? undefined : z.string().uuid().parse(id)) },
     { channel: C.saveSkillDraft, handler: raw => library().saveDraft(AuthoredSkillSchema.parse(raw)) },
@@ -361,7 +381,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     },
     { channel: C.listSources, handler: () => product().listSources() },
     { channel: C.updateSource, handler: (id, patch) => product().updateSource(parseString(id), SourcePatchSchema.parse(patch)) },
-    { channel: C.addRssSource, handler: (input) => product().addRssSource(AddRssSourceInputSchema.parse(input)) },
+    { channel: C.addRssSource, handler: async (input) => { const value = AddRssSourceInputSchema.parse(input); if (value.kind !== "rss") return product().addRssSource(value); await rss().add({ name: value.name, inputUrl: value.url, enabled: true }); return product().listSources().find(row => row.url === value.url); } },
     {
       channel: C.importOpml,
       handler: async () => {
@@ -371,7 +391,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
           filters: [{ name: "OPML", extensions: ["opml", "xml"] }]
         });
         if (result.canceled || !result.filePaths[0]) return 0;
-        return product().importOpml(settings.ensureInsideRepo(result.filePaths[0]));
+        return product().importOpml(result.filePaths[0]);
       }
     },
     { channel: C.searchWorkspace, handler: (rawQuery) => ctx.globalSearch(rawQuery) },

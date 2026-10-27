@@ -1,3 +1,4 @@
+import { SourcesPage } from "../sources";
 import { SkillLibraryPage } from "./SkillLibraryPage";
 import type { SkillLibraryEntry, SkillLibraryMode } from "@shared/skill-library";
 import type { ProviderCapabilities } from "@shared/contracts";
@@ -882,6 +883,8 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
       setImporting(false);
     }
   };
+
+  if (isRss) return <SourcesPage embedded />;
 
   if (summary.id === "x-following-fetcher") return <SkillXCurlPanel
     summary={summary}

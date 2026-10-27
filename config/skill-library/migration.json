@@ -1,0 +1,798 @@
+{
+  "schemaVersion": 1,
+  "sources": {
+    "cctools-skills": "e07b31063737616aa3bce6a39af55414049631d7",
+    "blog-rss-feed": "5aaaceb1cdb9d97257da37fe0a333a56f3e3b482"
+  },
+  "excluded": [
+    "knowledge-wiki-compiler"
+  ],
+  "files": [
+    {
+      "source": "VideoDownload/README.md",
+      "target": "config/skill-library/packages/VideoDownload/README.md"
+    },
+    {
+      "source": "VideoDownload/SKILL.md",
+      "target": "config/skill-library/packages/VideoDownload/SKILL.md"
+    },
+    {
+      "source": "VideoDownload/cctools.skill.yaml",
+      "target": "config/skill-library/packages/VideoDownload/cctools.skill.yaml"
+    },
+    {
+      "source": "VideoDownload/main.py",
+      "target": "config/skill-library/packages/VideoDownload/main.py"
+    },
+    {
+      "source": "VideoDownload/pyproject.toml",
+      "target": "config/skill-library/packages/VideoDownload/pyproject.toml"
+    },
+    {
+      "source": "VideoDownload/uv.lock",
+      "target": "config/skill-library/packages/VideoDownload/uv.lock"
+    },
+    {
+      "source": "_shared/__init__.py",
+      "target": "config/skill-library/packages/_shared/__init__.py"
+    },
+    {
+      "source": "_shared/ai_client.py",
+      "target": "config/skill-library/packages/_shared/ai_client.py"
+    },
+    {
+      "source": "_shared/log_rotate.py",
+      "target": "config/skill-library/packages/_shared/log_rotate.py"
+    },
+    {
+      "source": "_shared/pyproject.toml",
+      "target": "config/skill-library/packages/_shared/pyproject.toml"
+    },
+    {
+      "source": "_shared/uv.lock",
+      "target": "config/skill-library/packages/_shared/uv.lock"
+    },
+    {
+      "source": "agent-browser/SKILL.md",
+      "target": "config/skill-library/packages/agent-browser/SKILL.md"
+    },
+    {
+      "source": "agent-browser/cctools.skill.yaml",
+      "target": "config/skill-library/packages/agent-browser/cctools.skill.yaml"
+    },
+    {
+      "source": "ai-media-topic-selector/SKILL.md",
+      "target": "config/skill-library/packages/ai-media-topic-selector/SKILL.md"
+    },
+    {
+      "source": "ai-media-topic-selector/agents/openai.yaml",
+      "target": "config/skill-library/packages/ai-media-topic-selector/agents/openai.yaml"
+    },
+    {
+      "source": "ai-media-topic-selector/cctools.skill.yaml",
+      "target": "config/skill-library/packages/ai-media-topic-selector/cctools.skill.yaml"
+    },
+    {
+      "source": "ai-media-topic-selector/references/agents.md",
+      "target": "config/skill-library/packages/ai-media-topic-selector/references/agents.md"
+    },
+    {
+      "source": "ai-media-topic-selector/references/output-template.md",
+      "target": "config/skill-library/packages/ai-media-topic-selector/references/output-template.md"
+    },
+    {
+      "source": "ai-media-topic-selector/references/sources.md",
+      "target": "config/skill-library/packages/ai-media-topic-selector/references/sources.md"
+    },
+    {
+      "source": "asset-collector/SKILL.md",
+      "target": "config/skill-library/packages/asset-collector/SKILL.md"
+    },
+    {
+      "source": "asset-collector/agents/openai.yaml",
+      "target": "config/skill-library/packages/asset-collector/agents/openai.yaml"
+    },
+    {
+      "source": "asset-collector/cctools.skill.yaml",
+      "target": "config/skill-library/packages/asset-collector/cctools.skill.yaml"
+    },
+    {
+      "source": "asset-collector/pyproject.toml",
+      "target": "config/skill-library/packages/asset-collector/pyproject.toml"
+    },
+    {
+      "source": "asset-collector/references/asset-schema.md",
+      "target": "config/skill-library/packages/asset-collector/references/asset-schema.md"
+    },
+    {
+      "source": "asset-collector/scripts/collect_assets.py",
+      "target": "config/skill-library/packages/asset-collector/scripts/collect_assets.py"
+    },
+    {
+      "source": "asset-collector/scripts/runtime_paths.py",
+      "target": "config/skill-library/packages/asset-collector/scripts/runtime_paths.py"
+    },
+    {
+      "source": "asset-collector/uv.lock",
+      "target": "config/skill-library/packages/asset-collector/uv.lock"
+    },
+    {
+      "source": "collect-interest-markers/SKILL.md",
+      "target": "config/skill-library/packages/collect-interest-markers/SKILL.md"
+    },
+    {
+      "source": "collect-interest-markers/agents/openai.yaml",
+      "target": "config/skill-library/packages/collect-interest-markers/agents/openai.yaml"
+    },
+    {
+      "source": "collect-interest-markers/cctools.skill.yaml",
+      "target": "config/skill-library/packages/collect-interest-markers/cctools.skill.yaml"
+    },
+    {
+      "source": "collect-interest-markers/pyproject.toml",
+      "target": "config/skill-library/packages/collect-interest-markers/pyproject.toml"
+    },
+    {
+      "source": "collect-interest-markers/scripts/collect_interest_markers.py",
+      "target": "config/skill-library/packages/collect-interest-markers/scripts/collect_interest_markers.py"
+    },
+    {
+      "source": "collect-interest-markers/scripts/runtime_paths.py",
+      "target": "config/skill-library/packages/collect-interest-markers/scripts/runtime_paths.py"
+    },
+    {
+      "source": "collect-interest-markers/uv.lock",
+      "target": "config/skill-library/packages/collect-interest-markers/uv.lock"
+    },
+    {
+      "source": "creative-writing/SKILL.md",
+      "target": "config/skill-library/packages/creative-writing/SKILL.md"
+    },
+    {
+      "source": "creative-writing/cctools.skill.yaml",
+      "target": "config/skill-library/packages/creative-writing/cctools.skill.yaml"
+    },
+    {
+      "source": "creative-writing/references/cover-image-preferences.md",
+      "target": "config/skill-library/packages/creative-writing/references/cover-image-preferences.md"
+    },
+    {
+      "source": "creative-writing/references/short-video-methodology.md",
+      "target": "config/skill-library/packages/creative-writing/references/short-video-methodology.md"
+    },
+    {
+      "source": "creative-writing/references/wechat-methodology.md",
+      "target": "config/skill-library/packages/creative-writing/references/wechat-methodology.md"
+    },
+    {
+      "source": "creative-writing/references/xiaohongshu-methodology.md",
+      "target": "config/skill-library/packages/creative-writing/references/xiaohongshu-methodology.md"
+    },
+    {
+      "source": "daily-article-summarizer/.env.example",
+      "target": "config/skill-library/packages/daily-article-summarizer/.env.example"
+    },
+    {
+      "source": "daily-article-summarizer/SKILL.md",
+      "target": "config/skill-library/packages/daily-article-summarizer/SKILL.md"
+    },
+    {
+      "source": "daily-article-summarizer/cctools.skill.yaml",
+      "target": "config/skill-library/packages/daily-article-summarizer/cctools.skill.yaml"
+    },
+    {
+      "source": "daily-article-summarizer/config.yaml",
+      "target": "config/skill-library/packages/daily-article-summarizer/config.yaml"
+    },
+    {
+      "source": "daily-article-summarizer/main.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/main.py"
+    },
+    {
+      "source": "daily-article-summarizer/pyproject.toml",
+      "target": "config/skill-library/packages/daily-article-summarizer/pyproject.toml"
+    },
+    {
+      "source": "daily-article-summarizer/runtime_paths.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/runtime_paths.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/__init__.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/__init__.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/ai/__init__.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/ai/__init__.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/ai/claude_client.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/ai/claude_client.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/ai/deepseek_client.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/ai/deepseek_client.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/ai/doubao_client.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/ai/doubao_client.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/ai/google_client.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/ai/google_client.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/ai/shared_summarizer.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/ai/shared_summarizer.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/ai_client.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/ai_client.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/core/__init__.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/core/__init__.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/core/models.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/core/models.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/managers/__init__.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/managers/__init__.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/managers/article_scanner.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/managers/article_scanner.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/managers/cache_manager.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/managers/cache_manager.py"
+    },
+    {
+      "source": "daily-article-summarizer/src/managers/summarizer.py",
+      "target": "config/skill-library/packages/daily-article-summarizer/src/managers/summarizer.py"
+    },
+    {
+      "source": "daily-article-summarizer/uv.lock",
+      "target": "config/skill-library/packages/daily-article-summarizer/uv.lock"
+    },
+    {
+      "source": "daily-topic-selector/SKILL.md",
+      "target": "config/skill-library/packages/daily-topic-selector/SKILL.md"
+    },
+    {
+      "source": "daily-topic-selector/cctools.skill.yaml",
+      "target": "config/skill-library/packages/daily-topic-selector/cctools.skill.yaml"
+    },
+    {
+      "source": "daily-topic-selector/pyproject.toml",
+      "target": "config/skill-library/packages/daily-topic-selector/pyproject.toml"
+    },
+    {
+      "source": "daily-topic-selector/scripts/ai_client.py",
+      "target": "config/skill-library/packages/daily-topic-selector/scripts/ai_client.py"
+    },
+    {
+      "source": "daily-topic-selector/scripts/generate_daily_topics.py",
+      "target": "config/skill-library/packages/daily-topic-selector/scripts/generate_daily_topics.py"
+    },
+    {
+      "source": "daily-topic-selector/scripts/runtime_paths.py",
+      "target": "config/skill-library/packages/daily-topic-selector/scripts/runtime_paths.py"
+    },
+    {
+      "source": "daily-topic-selector/uv.lock",
+      "target": "config/skill-library/packages/daily-topic-selector/uv.lock"
+    },
+    {
+      "source": "daily-writing-orchestrator/SKILL.md",
+      "target": "config/skill-library/packages/daily-writing-orchestrator/SKILL.md"
+    },
+    {
+      "source": "daily-writing-orchestrator/agents/openai.yaml",
+      "target": "config/skill-library/packages/daily-writing-orchestrator/agents/openai.yaml"
+    },
+    {
+      "source": "daily-writing-orchestrator/cctools.skill.yaml",
+      "target": "config/skill-library/packages/daily-writing-orchestrator/cctools.skill.yaml"
+    },
+    {
+      "source": "daily-writing-orchestrator/pyproject.toml",
+      "target": "config/skill-library/packages/daily-writing-orchestrator/pyproject.toml"
+    },
+    {
+      "source": "daily-writing-orchestrator/references/package-schema.md",
+      "target": "config/skill-library/packages/daily-writing-orchestrator/references/package-schema.md"
+    },
+    {
+      "source": "daily-writing-orchestrator/references/topic-selection.md",
+      "target": "config/skill-library/packages/daily-writing-orchestrator/references/topic-selection.md"
+    },
+    {
+      "source": "daily-writing-orchestrator/scripts/create_writing_package.py",
+      "target": "config/skill-library/packages/daily-writing-orchestrator/scripts/create_writing_package.py"
+    },
+    {
+      "source": "daily-writing-orchestrator/scripts/runtime_paths.py",
+      "target": "config/skill-library/packages/daily-writing-orchestrator/scripts/runtime_paths.py"
+    },
+    {
+      "source": "daily-writing-orchestrator/uv.lock",
+      "target": "config/skill-library/packages/daily-writing-orchestrator/uv.lock"
+    },
+    {
+      "source": "reddit-fetcher/SKILL.md",
+      "target": "config/skill-library/packages/reddit-fetcher/SKILL.md"
+    },
+    {
+      "source": "reddit-fetcher/cctools.skill.yaml",
+      "target": "config/skill-library/packages/reddit-fetcher/cctools.skill.yaml"
+    },
+    {
+      "source": "reddit-fetcher/config.yaml",
+      "target": "config/skill-library/packages/reddit-fetcher/config.yaml"
+    },
+    {
+      "source": "reddit-fetcher/main.py",
+      "target": "config/skill-library/packages/reddit-fetcher/main.py"
+    },
+    {
+      "source": "reddit-fetcher/pyproject.toml",
+      "target": "config/skill-library/packages/reddit-fetcher/pyproject.toml"
+    },
+    {
+      "source": "reddit-fetcher/scripts/fetch_comments.py",
+      "target": "config/skill-library/packages/reddit-fetcher/scripts/fetch_comments.py"
+    },
+    {
+      "source": "reddit-fetcher/src/__init__.py",
+      "target": "config/skill-library/packages/reddit-fetcher/src/__init__.py"
+    },
+    {
+      "source": "reddit-fetcher/src/app.py",
+      "target": "config/skill-library/packages/reddit-fetcher/src/app.py"
+    },
+    {
+      "source": "reddit-fetcher/src/cache.py",
+      "target": "config/skill-library/packages/reddit-fetcher/src/cache.py"
+    },
+    {
+      "source": "reddit-fetcher/src/config.py",
+      "target": "config/skill-library/packages/reddit-fetcher/src/config.py"
+    },
+    {
+      "source": "reddit-fetcher/src/fetcher.py",
+      "target": "config/skill-library/packages/reddit-fetcher/src/fetcher.py"
+    },
+    {
+      "source": "reddit-fetcher/src/models.py",
+      "target": "config/skill-library/packages/reddit-fetcher/src/models.py"
+    },
+    {
+      "source": "reddit-fetcher/src/runtime_paths.py",
+      "target": "config/skill-library/packages/reddit-fetcher/src/runtime_paths.py"
+    },
+    {
+      "source": "reddit-fetcher/src/storage.py",
+      "target": "config/skill-library/packages/reddit-fetcher/src/storage.py"
+    },
+    {
+      "source": "reddit-fetcher/tests/test_persistent_sources.py",
+      "target": "config/skill-library/packages/reddit-fetcher/tests/test_persistent_sources.py"
+    },
+    {
+      "source": "reddit-fetcher/uv.lock",
+      "target": "config/skill-library/packages/reddit-fetcher/uv.lock"
+    },
+    {
+      "source": "rss-article-saver/.env.example",
+      "target": "config/skill-library/packages/rss-article-saver/.env.example"
+    },
+    {
+      "source": "rss-article-saver/SKILL.md",
+      "target": "config/skill-library/packages/rss-article-saver/SKILL.md"
+    },
+    {
+      "source": "rss-article-saver/cctools.skill.yaml",
+      "target": "config/skill-library/packages/rss-article-saver/cctools.skill.yaml"
+    },
+    {
+      "source": "rss-article-saver/config.yaml",
+      "target": "config/skill-library/packages/rss-article-saver/config.yaml"
+    },
+    {
+      "source": "rss-article-saver/main.py",
+      "target": "config/skill-library/packages/rss-article-saver/main.py"
+    },
+    {
+      "source": "rss-article-saver/pyproject.toml",
+      "target": "config/skill-library/packages/rss-article-saver/pyproject.toml"
+    },
+    {
+      "source": "rss-article-saver/scripts/extract_external_articles_json.py",
+      "target": "config/skill-library/packages/rss-article-saver/scripts/extract_external_articles_json.py"
+    },
+    {
+      "source": "rss-article-saver/scripts/save_wechat_storage_state.py",
+      "target": "config/skill-library/packages/rss-article-saver/scripts/save_wechat_storage_state.py"
+    },
+    {
+      "source": "rss-article-saver/src/__init__.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/__init__.py"
+    },
+    {
+      "source": "rss-article-saver/src/ai/__init__.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/ai/__init__.py"
+    },
+    {
+      "source": "rss-article-saver/src/ai/claude_client.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/ai/claude_client.py"
+    },
+    {
+      "source": "rss-article-saver/src/ai/deepseek_client.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/ai/deepseek_client.py"
+    },
+    {
+      "source": "rss-article-saver/src/ai/doubao_client.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/ai/doubao_client.py"
+    },
+    {
+      "source": "rss-article-saver/src/ai/google_client.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/ai/google_client.py"
+    },
+    {
+      "source": "rss-article-saver/src/ai/shared_analysis.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/ai/shared_analysis.py"
+    },
+    {
+      "source": "rss-article-saver/src/ai/shared_translation.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/ai/shared_translation.py"
+    },
+    {
+      "source": "rss-article-saver/src/ai/translation_client.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/ai/translation_client.py"
+    },
+    {
+      "source": "rss-article-saver/src/ai/zhipu_client.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/ai/zhipu_client.py"
+    },
+    {
+      "source": "rss-article-saver/src/ai_client.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/ai_client.py"
+    },
+    {
+      "source": "rss-article-saver/src/core/__init__.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/core/__init__.py"
+    },
+    {
+      "source": "rss-article-saver/src/core/models.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/core/models.py"
+    },
+    {
+      "source": "rss-article-saver/src/core/monitor.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/core/monitor.py"
+    },
+    {
+      "source": "rss-article-saver/src/managers/__init__.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/managers/__init__.py"
+    },
+    {
+      "source": "rss-article-saver/src/managers/cache_manager.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/managers/cache_manager.py"
+    },
+    {
+      "source": "rss-article-saver/src/managers/config_manager.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/managers/config_manager.py"
+    },
+    {
+      "source": "rss-article-saver/src/managers/content_manager.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/managers/content_manager.py"
+    },
+    {
+      "source": "rss-article-saver/src/managers/opml_parser.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/managers/opml_parser.py"
+    },
+    {
+      "source": "rss-article-saver/src/managers/rss_manager.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/managers/rss_manager.py"
+    },
+    {
+      "source": "rss-article-saver/src/runtime_paths.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/runtime_paths.py"
+    },
+    {
+      "source": "rss-article-saver/src/utils/__init__.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/utils/__init__.py"
+    },
+    {
+      "source": "rss-article-saver/src/utils/text_utils.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/utils/text_utils.py"
+    },
+    {
+      "source": "rss-article-saver/tests/test_persistent_subscriptions.py",
+      "target": "config/skill-library/packages/rss-article-saver/tests/test_persistent_subscriptions.py"
+    },
+    {
+      "source": "rss-article-saver/uv.lock",
+      "target": "config/skill-library/packages/rss-article-saver/uv.lock"
+    },
+    {
+      "source": "rss-to-summary-workflow/SKILL.md",
+      "target": "config/skill-library/packages/rss-to-summary-workflow/SKILL.md"
+    },
+    {
+      "source": "rss-to-summary-workflow/agents/openai.yaml",
+      "target": "config/skill-library/packages/rss-to-summary-workflow/agents/openai.yaml"
+    },
+    {
+      "source": "rss-to-summary-workflow/cctools.skill.yaml",
+      "target": "config/skill-library/packages/rss-to-summary-workflow/cctools.skill.yaml"
+    },
+    {
+      "source": "rss-to-summary-workflow/pyproject.toml",
+      "target": "config/skill-library/packages/rss-to-summary-workflow/pyproject.toml"
+    },
+    {
+      "source": "rss-to-summary-workflow/scripts/run_workflow.py",
+      "target": "config/skill-library/packages/rss-to-summary-workflow/scripts/run_workflow.py"
+    },
+    {
+      "source": "rss-to-summary-workflow/uv.lock",
+      "target": "config/skill-library/packages/rss-to-summary-workflow/uv.lock"
+    },
+    {
+      "source": "rss-to-summary-workflow/workflows.yaml",
+      "target": "config/skill-library/packages/rss-to-summary-workflow/cctools.skill.yaml",
+      "status": "superseded",
+      "reason": "Workflow Engine manifest and packaged CLI replace sibling-repository commands"
+    },
+    {
+      "source": "skill-run-reporter/SKILL.md",
+      "target": "config/skill-library/packages/skill-run-reporter/SKILL.md"
+    },
+    {
+      "source": "skill-run-reporter/cctools.skill.yaml",
+      "target": "config/skill-library/packages/skill-run-reporter/cctools.skill.yaml"
+    },
+    {
+      "source": "skill-run-reporter/pyproject.toml",
+      "target": "config/skill-library/packages/skill-run-reporter/pyproject.toml"
+    },
+    {
+      "source": "skill-run-reporter/scripts/report.py",
+      "target": "config/skill-library/packages/skill-run-reporter/scripts/report.py"
+    },
+    {
+      "source": "skill-run-reporter/scripts/runtime_paths.py",
+      "target": "config/skill-library/packages/skill-run-reporter/scripts/runtime_paths.py"
+    },
+    {
+      "source": "skill-run-reporter/uv.lock",
+      "target": "config/skill-library/packages/skill-run-reporter/uv.lock"
+    },
+    {
+      "source": "video-burnin-subtitles/SKILL.md",
+      "target": "config/skill-library/packages/video-burnin-subtitles/SKILL.md"
+    },
+    {
+      "source": "video-burnin-subtitles/agents/openai.yaml",
+      "target": "config/skill-library/packages/video-burnin-subtitles/agents/openai.yaml"
+    },
+    {
+      "source": "video-burnin-subtitles/cctools.skill.yaml",
+      "target": "config/skill-library/packages/video-burnin-subtitles/cctools.skill.yaml"
+    },
+    {
+      "source": "video-burnin-subtitles/pyproject.toml",
+      "target": "config/skill-library/packages/video-burnin-subtitles/pyproject.toml"
+    },
+    {
+      "source": "video-burnin-subtitles/references/commands.md",
+      "target": "config/skill-library/packages/video-burnin-subtitles/references/commands.md"
+    },
+    {
+      "source": "video-burnin-subtitles/scripts/burnin_subtitles.py",
+      "target": "config/skill-library/packages/video-burnin-subtitles/scripts/burnin_subtitles.py"
+    },
+    {
+      "source": "video-burnin-subtitles/scripts/burnin_subtitles.sh",
+      "target": "config/skill-library/packages/video-burnin-subtitles/scripts/burnin_subtitles.sh"
+    },
+    {
+      "source": "video-burnin-subtitles/scripts/translate_srt_gemini.py",
+      "target": "config/skill-library/packages/video-burnin-subtitles/scripts/translate_srt_gemini.py"
+    },
+    {
+      "source": "video-burnin-subtitles/uv.lock",
+      "target": "config/skill-library/packages/video-burnin-subtitles/uv.lock"
+    },
+    {
+      "source": "x-following-fetcher/SKILL.md",
+      "target": "config/skill-library/packages/x-following-fetcher/SKILL.md"
+    },
+    {
+      "source": "x-following-fetcher/cctools.skill.yaml",
+      "target": "config/skill-library/packages/x-following-fetcher/cctools.skill.yaml"
+    },
+    {
+      "source": "x-following-fetcher/config.yaml",
+      "target": "config/skill-library/packages/x-following-fetcher/config.yaml"
+    },
+    {
+      "source": "x-following-fetcher/main.py",
+      "target": "config/skill-library/packages/x-following-fetcher/main.py"
+    },
+    {
+      "source": "x-following-fetcher/pyproject.toml",
+      "target": "config/skill-library/packages/x-following-fetcher/pyproject.toml"
+    },
+    {
+      "source": "x-following-fetcher/scripts/cleanup_duplicate_articles.py",
+      "target": "config/skill-library/packages/x-following-fetcher/scripts/cleanup_duplicate_articles.py"
+    },
+    {
+      "source": "x-following-fetcher/scripts/extract_external_articles_json.py",
+      "target": "config/skill-library/packages/x-following-fetcher/scripts/extract_external_articles_json.py"
+    },
+    {
+      "source": "x-following-fetcher/src/__init__.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/__init__.py"
+    },
+    {
+      "source": "x-following-fetcher/src/app.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/app.py"
+    },
+    {
+      "source": "x-following-fetcher/src/config.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/config.py"
+    },
+    {
+      "source": "x-following-fetcher/src/fetcher/__init__.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/fetcher/__init__.py"
+    },
+    {
+      "source": "x-following-fetcher/src/fetcher/client.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/fetcher/client.py"
+    },
+    {
+      "source": "x-following-fetcher/src/media_download.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/media_download.py"
+    },
+    {
+      "source": "x-following-fetcher/src/media_enrichment.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/media_enrichment.py"
+    },
+    {
+      "source": "x-following-fetcher/src/models.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/models.py"
+    },
+    {
+      "source": "x-following-fetcher/src/parser/__init__.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/parser/__init__.py"
+    },
+    {
+      "source": "x-following-fetcher/src/parser/timeline.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/parser/timeline.py"
+    },
+    {
+      "source": "x-following-fetcher/src/render/__init__.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/render/__init__.py"
+    },
+    {
+      "source": "x-following-fetcher/src/render/content.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/render/content.py"
+    },
+    {
+      "source": "x-following-fetcher/src/render/html.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/render/html.py"
+    },
+    {
+      "source": "x-following-fetcher/src/render/markdown.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/render/markdown.py"
+    },
+    {
+      "source": "x-following-fetcher/src/runtime_paths.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/runtime_paths.py"
+    },
+    {
+      "source": "x-following-fetcher/src/serialize.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/serialize.py"
+    },
+    {
+      "source": "x-following-fetcher/src/storage/__init__.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/storage/__init__.py"
+    },
+    {
+      "source": "x-following-fetcher/src/storage/cache.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/storage/cache.py"
+    },
+    {
+      "source": "x-following-fetcher/src/storage/files.py",
+      "target": "config/skill-library/packages/x-following-fetcher/src/storage/files.py"
+    },
+    {
+      "source": "x-following-fetcher/test_parse.py",
+      "target": "config/skill-library/packages/x-following-fetcher/test_parse.py"
+    },
+    {
+      "source": "x-following-fetcher/tests/test_external_article_dedup.py",
+      "target": "config/skill-library/packages/x-following-fetcher/tests/test_external_article_dedup.py"
+    },
+    {
+      "source": "x-following-fetcher/tests/test_managed_credential.py",
+      "target": "config/skill-library/packages/x-following-fetcher/tests/test_managed_credential.py"
+    },
+    {
+      "source": "x-following-fetcher/tests/test_multi_curl_execution.py",
+      "target": "config/skill-library/packages/x-following-fetcher/tests/test_multi_curl_execution.py"
+    },
+    {
+      "source": "x-following-fetcher/tests/test_parser_and_render.py",
+      "target": "config/skill-library/packages/x-following-fetcher/tests/test_parser_and_render.py"
+    },
+    {
+      "source": "x-following-fetcher/uv.lock",
+      "target": "config/skill-library/packages/x-following-fetcher/uv.lock"
+    },
+    {
+      "source": "blog-rss-feed/LICENSE",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/LICENSE"
+    },
+    {
+      "source": "blog-rss-feed/script/a16z_ai_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/a16z_ai_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/anthropic_engineering_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/anthropic_engineering_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/bessemer_ai_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/bessemer_ai_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/claude_blog_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/claude_blog_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/cursor_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/cursor_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/external_rss_importer.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/external_rss_importer.py"
+    },
+    {
+      "source": "blog-rss-feed/script/greylock_ai_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/greylock_ai_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/gwern_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/gwern_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/institution_feed.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/institution_feed.py"
+    },
+    {
+      "source": "blog-rss-feed/script/menlo_ai_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/menlo_ai_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/nfx_ai_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/nfx_ai_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/questmobile_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/questmobile_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/sequoia_ai_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/sequoia_ai_rss.py"
+    },
+    {
+      "source": "blog-rss-feed/script/stanford_hai_rss.py",
+      "target": "config/skill-library/packages/rss-article-saver/src/feed_generation/stanford_hai_rss.py"
+    }
+  ]
+}

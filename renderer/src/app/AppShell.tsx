@@ -48,9 +48,8 @@ export function AppShell({
 }) {
   const locale = useLocale();
   const navItems = NAV_ITEMS.filter((item) => defaultSkillsEnabled || !isDefaultSkillsPage(item.id));
-  // sources / skills remain valid legacy routes, but now live inside the
-  // dedicated settings information architecture.
-  const settingsMode = page === "settings" || page === "sources" || page === "skills";
+  // The legacy Skills route still uses settings; RSS has its own workspace.
+  const settingsMode = page === "settings" || page === "skills";
   const onboardingMode = page === "onboarding";
   const fullPageMode = settingsMode || onboardingMode;
   const showAiSidebar = page !== "ai" && !fullPageMode;

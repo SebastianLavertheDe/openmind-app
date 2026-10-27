@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DailyBriefPreferencesSchema } from "./daily-brief-preferences";
 
 export const EXECUTION_SCHEMA_VERSION = 1 as const;
 export const WORKFLOW_INTERRUPTED_ERROR = "Workflow 在应用重启时中断，未恢复执行。";
@@ -32,6 +33,7 @@ export const SkillRunRequestSchema = z.object({
   digest: z.string().regex(/^[a-f0-9]{64}$/i).optional(),
   inputs: z.record(z.string().max(120), z.unknown()).default({}),
   configRevision: z.string().trim().min(1).max(200).optional(),
+  dailyBriefPreferences: DailyBriefPreferencesSchema.optional(),
   providerBindings: z.record(z.string().max(120), z.string().trim().min(1).max(120)).default({}),
   trigger: SkillRunTriggerSchema,
   externalExportBindingIds: z.array(z.string().trim().min(1).max(120)).max(32).default([]),
@@ -150,6 +152,7 @@ export const BrokerRunRecordSchema = z.object({
   terminalState: BrokerTerminalStateSchema.nullable(),
   error: z.string().max(2000).nullable(),
   processPid: z.number().int().positive().nullable().default(null),
+  ownerPid: z.number().int().positive().nullable().default(null),
   orphanPid: z.number().int().positive().nullable().default(null),
   usage: RunUsageSchema.nullable().default(null),
   /** Deprecated history-only fields from the removed direct-API Agent runtime. */

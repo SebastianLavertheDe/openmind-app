@@ -105,6 +105,21 @@ describe("SharedPythonRuntimeService", () => {
     );
   });
 
+  it.skipIf(process.platform === "win32")("keeps a virtual environment interpreter symlink instead of launching base Python", async () => {
+    const fixture = createFixture();
+    const project = createProject(fixture.root, "alpha", "requests>=2");
+    const service = new SharedPythonRuntimeService(fixture.paths, { bundledAssetRoot: fixture.assets, target: fixture.target, projects: () => [project], runCommand: fakeUvRunner() });
+    await service.setEnabled(true);
+    const python = service.readyExecutable()!;
+    const base = path.join(fixture.root, "base-python"); fs.copyFileSync(python, base);
+    fs.unlinkSync(python); fs.symlinkSync(base, python);
+    const preparation = service.resolve(manifest("alpha"), project.packageRoot, project.digest);
+    await preparation.prepare();
+    expect(preparation.executable).toBe(python);
+    expect(service.readyExecutable()).toBe(python);
+    expect(fs.realpathSync(preparation.executable)).toBe(base);
+  });
+
   it("keeps the last shared generation when a new dependency set conflicts", async () => {
     const fixture = createFixture();
     const alpha = createProject(fixture.root, "alpha", "shared-lib==1");

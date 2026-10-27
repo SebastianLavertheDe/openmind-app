@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+resources_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+app_dir=$(CDPATH= cd -- "$resources_dir/.." && pwd)
+if [ -x "$app_dir/MacOS/OpenMind" ]; then
+  app_binary="$app_dir/MacOS/OpenMind"
+else
+  app_binary="$app_dir/openmind-desktop"
+fi
+export ELECTRON_RUN_AS_NODE=1
+exec "$app_binary" "$resources_dir/app.asar/.build/electron/electron/cli/openmind.js" "$@"

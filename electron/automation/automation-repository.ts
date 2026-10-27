@@ -44,9 +44,7 @@ export class AutomationRepository {
       throw new Error(messages.skillCenter.defaults.ruleConflict);
     }
     const now = new Date().toISOString();
-    const rules = registry.rules.map((rule) => isDefaultAutomationRule(rule)
-      ? { ...rule, enabled, updatedAt: now }
-      : rule);
+    const rules = [...registry.rules];
     const existing = new Set(registry.rules.map((rule) => rule.id));
     if (enabled) {
       rules.push(...DEFAULT_AUTOMATION_RULES.filter((rule) => !existing.has(rule.id)).map((input) => AutomationRuleSchema.parse({
@@ -130,7 +128,14 @@ export class AutomationRepository {
     try {
       const raw = JSON.parse(fs.readFileSync(this.filePath, "utf8")) as Partial<AutomationRegistry>;
       if (raw.schemaVersion !== AUTOMATION_SCHEMA_VERSION || !Array.isArray(raw.rules) || !Array.isArray(raw.runs)) throw new Error("Automation registry schema mismatch");
-      const rules = raw.rules.map((rule) => AutomationRuleSchema.parse(rule));
+      const rules = raw.rules.map((rule) => {
+        const parsed = AutomationRuleSchema.parse(rule);
+        // A managed legacy capture keeps its enabled state, period and zone.
+        if (parsed.id === "rss-capture" && parsed.target.type === "workflow" && parsed.target.id === "rss-to-summary-workflow") {
+          return AutomationRuleSchema.parse({ ...parsed, target: { type: "skill", id: "rss-article-saver", versionPolicy: "*" }, inputs: { ...parsed.inputs, mode: "pipeline" } });
+        }
+        return parsed;
+      });
       const runs = raw.runs.map((run) => AutomationRunRecordSchema.parse(run));
       if (new Set(rules.map((rule) => rule.id)).size !== rules.length) throw new Error("Automation Rule ID 重复");
       // Preserve the existing opt-in for older installations without inspecting Skills.

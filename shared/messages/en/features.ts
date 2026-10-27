@@ -57,14 +57,14 @@ export const featureMessages = {
 
   skillCenter: {
     defaults: {
-      title: "Default Skills and built-in schedules",
-      description: "Turn on to install default Skills and enable RSS, X, Reddit, and daily topic schedules. Turn off to stop these jobs and remove their Skills, keeping generated content and personal settings.",
-      installing: "Installing default Skills and enabling built-in schedules…",
-      disabling: "Stopping built-in jobs and removing default Skills…",
+      title: "Prepare built-in Skills",
+      description: "Install built-in Skills locally and create disabled schedule templates. Subscriptions and schedules are enabled separately. Turning this off keeps packages, content and schedule choices.",
+      installing: "Preparing built-in Skills and schedule templates…",
+      disabling: "Saving built-in Skill settings…",
       loadFailed: "Could not load default Skills settings.",
       changeFailed: "Could not update default Skills. Please try again.",
       stopTimeout: "Built-in jobs are still stopping. Skills were kept; please try turning this off again shortly.",
-      enableFirst: "First turn on default Skills and built-in schedules in Skills settings.",
+      enableFirst: "Built-in Skills are being migrated. Try again shortly.",
       ruleConflict: "A custom schedule uses a built-in rule ID. Please update that schedule first.",
       retry: "Retry"
     },

@@ -1,0 +1,3011 @@
+{
+  "schemaVersion": 1,
+  "adapters": [
+    {
+      "id": "a16z_ai_rss",
+      "module": "a16z_ai_rss",
+      "className": "A16zAIRSSGenerator",
+      "url": "https://a16z.com/category/ai/"
+    },
+    {
+      "id": "anthropic_engineering_rss",
+      "module": "anthropic_engineering_rss",
+      "className": "AnthropicEngineeringRSSGenerator",
+      "url": "https://www.anthropic.com/engineering"
+    },
+    {
+      "id": "bessemer_ai_rss",
+      "module": "bessemer_ai_rss",
+      "className": "BessemerAIRSSGenerator",
+      "url": "https://www.bvp.com/atlas"
+    },
+    {
+      "id": "claude_blog_rss",
+      "module": "claude_blog_rss",
+      "className": "ClaudeBlogRSSGenerator",
+      "url": "https://claude.com/blog"
+    },
+    {
+      "id": "cursor_rss",
+      "module": "cursor_rss",
+      "className": "CursorRSSGenerator",
+      "url": "https://cursor.com/blog"
+    },
+    {
+      "id": "greylock_ai_rss",
+      "module": "greylock_ai_rss",
+      "className": "GreylockAIRSSGenerator",
+      "url": "https://greylock.com/blog/greymatter/"
+    },
+    {
+      "id": "gwern_rss",
+      "module": "gwern_rss",
+      "className": "GwernRSSGenerator",
+      "url": "https://gwern.net"
+    },
+    {
+      "id": "menlo_ai_rss",
+      "module": "menlo_ai_rss",
+      "className": "MenloAIRSSGenerator",
+      "url": "https://menlovc.com/focus-areas/ai/"
+    },
+    {
+      "id": "nfx_ai_rss",
+      "module": "nfx_ai_rss",
+      "className": "NFXAIRSSGenerator",
+      "url": "https://www.nfx.com/library/generative-ai"
+    },
+    {
+      "id": "questmobile_rss",
+      "module": "questmobile_rss",
+      "className": "QuestMobileRSSGenerator",
+      "url": "https://www.questmobile.com.cn"
+    },
+    {
+      "id": "sequoia_ai_rss",
+      "module": "sequoia_ai_rss",
+      "className": "SequoiaAIRSSGenerator",
+      "url": "https://sequoiacap.com/stories"
+    },
+    {
+      "id": "stanford_hai_rss",
+      "module": "stanford_hai_rss",
+      "className": "StanfordHAIRSSGenerator",
+      "url": "https://hai.stanford.edu/news"
+    }
+  ],
+  "sources": [
+    {
+      "id": "b42aafdcff76543dd3b42a63",
+      "name": "Sequoia Capital AI",
+      "inputUrl": "https://sequoiacap.com/stories",
+      "kind": "website",
+      "adapterId": "sequoia_ai_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/sequoia_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/sequoia_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "2312482d14fcdd13e6a54360",
+      "name": "Greylock AI",
+      "inputUrl": "https://greylock.com/blog/greymatter/",
+      "kind": "website",
+      "adapterId": "greylock_ai_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/greylock_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/greylock_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "2b7e99c5db34d36fdf852d3c",
+      "name": "Bessemer Atlas AI",
+      "inputUrl": "https://www.bvp.com/atlas",
+      "kind": "website",
+      "adapterId": "bessemer_ai_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/bessemer_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/bessemer_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "37b6332588e5d06d36e69a99",
+      "name": "NFX AI",
+      "inputUrl": "https://www.nfx.com/library/generative-ai",
+      "kind": "website",
+      "adapterId": "nfx_ai_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/nfx_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/nfx_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "f4d9ed9805a68af2336ae848",
+      "name": "Menlo Ventures AI",
+      "inputUrl": "https://menlovc.com/focus-areas/ai/",
+      "kind": "website",
+      "adapterId": "menlo_ai_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/menlo_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/menlo_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "1647adede221cf8df5bfaf0a",
+      "name": "Stanford HAI News",
+      "inputUrl": "https://hai.stanford.edu/news",
+      "kind": "website",
+      "adapterId": "stanford_hai_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/stanford_hai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/stanford_hai_rss.xml"
+      ]
+    },
+    {
+      "id": "9c92f29eb29326b99ea4da7c",
+      "name": "Google DeepMind News",
+      "inputUrl": "https://deepmind.google/blog/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/google_deepmind_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/google_deepmind_rss.xml"
+      ]
+    },
+    {
+      "id": "e484e1aa73e0b44fed63308c",
+      "name": "a16z AI News & Content",
+      "inputUrl": "https://a16z.com/category/ai/",
+      "kind": "website",
+      "adapterId": "a16z_ai_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/a16z_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/a16z_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "d03e3ca2752c763a94ff8ba0",
+      "name": "Anthropic Engineering Blog",
+      "inputUrl": "https://www.anthropic.com/engineering",
+      "kind": "website",
+      "adapterId": "anthropic_engineering_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/anthropic_engineering_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/anthropic_engineering_rss.xml"
+      ]
+    },
+    {
+      "id": "9c0885bdb370f69c9262b88c",
+      "name": "Cursor Blog",
+      "inputUrl": "https://cursor.com/blog",
+      "kind": "website",
+      "adapterId": "cursor_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/cursor_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/cursor_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "5da6410aa6fc1a3fbdf07d99",
+      "name": "Claude Blog",
+      "inputUrl": "https://claude.com/blog",
+      "kind": "website",
+      "adapterId": "claude_blog_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/claude_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/claude_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "8e5d65f13df70f229c36f902",
+      "name": "OpenAI Blog",
+      "inputUrl": "https://openai.com/blog/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/openai_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/openai_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "1ef4c9f12f28bac97734667b",
+      "name": "LangChain Blog",
+      "inputUrl": "https://www.blog.langchain.com/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/langchain_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/langchain_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "9b4b5a0521aec75e59078a01",
+      "name": "Andrej Karpathy Blog",
+      "inputUrl": "https://karpathy.bearblog.dev/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/karpathy_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/karpathy_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "ef3ff28c60b4cdf184d720bf",
+      "name": "MarkTechPost",
+      "inputUrl": "https://www.marktechpost.com/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/marktechpost_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/marktechpost_rss.xml"
+      ]
+    },
+    {
+      "id": "0be246f02cb943666fd46b76",
+      "name": "Azure Blog",
+      "inputUrl": "https://azure.microsoft.com/en-us/blog/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/azure_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/azure_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "4871da15c06eda2d714ffdd9",
+      "name": "TLDR Tech Newsletter",
+      "inputUrl": "https://tldr.tech/api/rss/tech",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/tldr_tech_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/tldr_tech_rss.xml"
+      ]
+    },
+    {
+      "id": "fca10909c45394fb0ad60fed",
+      "name": "The Batch | DeepLearning.AI",
+      "inputUrl": "https://charonhub.deeplearning.ai/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/deeplearning_batch_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/deeplearning_batch_rss.xml"
+      ]
+    },
+    {
+      "id": "96fe006ed5f7b38bfc889c7d",
+      "name": "Ben's Bites",
+      "inputUrl": "https://www.bensbites.com/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/bensbites_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/bensbites_rss.xml"
+      ]
+    },
+    {
+      "id": "0e9770270556fa3fb07953ee",
+      "name": "TechCrunch AI",
+      "inputUrl": "https://techcrunch.com/category/artificial-intelligence/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/techcrunch_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/techcrunch_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "ebf01c7ef7c9ac319b71db87",
+      "name": "TechCrunch AI Tag",
+      "inputUrl": "https://techcrunch.com/tag/ai/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/techcrunch_ai_tag_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/techcrunch_ai_tag_rss.xml"
+      ]
+    },
+    {
+      "id": "89edb92b1cd7152067ffd04c",
+      "name": "TechCrunch Generative AI",
+      "inputUrl": "https://techcrunch.com/tag/generative-ai/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/techcrunch_generative_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/techcrunch_generative_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "044484a943c13d89b4111611",
+      "name": "Wired AI",
+      "inputUrl": "https://www.wired.com/feed/tag/ai/latest/rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/wired_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/wired_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "30d3075711420e93e097be5b",
+      "name": "The Verge AI",
+      "inputUrl": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/verge_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/verge_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "0f90c142536df2544cafca35",
+      "name": "Import AI",
+      "inputUrl": "https://importai.substack.com/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/importai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/importai_rss.xml"
+      ]
+    },
+    {
+      "id": "baea8fd30110b295ef3c3fa4",
+      "name": "VentureBeat AI",
+      "inputUrl": "https://venturebeat.com/category/ai/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/venturebeat_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/venturebeat_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "31fd665bfa89c686675acb4c",
+      "name": "AI News",
+      "inputUrl": "https://www.artificialintelligence-news.com/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/artificial_intelligence_news_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/artificial_intelligence_news_rss.xml"
+      ]
+    },
+    {
+      "id": "814a5de5287ac6f8ef3c5fb9",
+      "name": "Ars Technica AI",
+      "inputUrl": "https://arstechnica.com/ai/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/arstechnica_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/arstechnica_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "fc346149a123966d203fe198",
+      "name": "雷峰网 AI",
+      "inputUrl": "https://www.leiphone.com/feed/categoryRss/name/ai",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/leiphone_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/leiphone_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "6c37d5455c563fbf7b8e0bd2",
+      "name": "David Heinemeier Hansson",
+      "inputUrl": "https://world.hey.com/dhh/feed.atom",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/david_heinemeier_hansson_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/david_heinemeier_hansson_rss.xml"
+      ]
+    },
+    {
+      "id": "9555dced3e9f34511288c5cf",
+      "name": "Smashing Magazine",
+      "inputUrl": "http://rss1.smashingmagazine.com/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/smashing_magazine_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/smashing_magazine_rss.xml"
+      ]
+    },
+    {
+      "id": "a5689419c24836e7e0ce37dd",
+      "name": "Latent Space",
+      "inputUrl": "https://www.latent.space/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/latent_space_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/latent_space_rss.xml"
+      ]
+    },
+    {
+      "id": "4e5aee58ba579e52b1c04dde",
+      "name": "Google Research Blog",
+      "inputUrl": "https://research.google/blog/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/google_research_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/google_research_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "141dd720a5f171e321e2a135",
+      "name": "Google AI",
+      "inputUrl": "https://blog.google/technology/ai/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/google_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/google_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "61d3148bc0572cab03be2891",
+      "name": "Hugging Face Blog",
+      "inputUrl": "https://huggingface.co/blog/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/huggingface_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/huggingface_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "219951b2c406ee4b71aae747",
+      "name": "NVIDIA AI Blog",
+      "inputUrl": "https://blogs.nvidia.com/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/nvidia_ai_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/nvidia_ai_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "50914fe5c60ced884554b268",
+      "name": "AWS Machine Learning Blog",
+      "inputUrl": "https://aws.amazon.com/blogs/machine-learning/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/aws_machine_learning_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/aws_machine_learning_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "740de9a19f7a07485ca93025",
+      "name": "Apple Machine Learning Research",
+      "inputUrl": "https://machinelearning.apple.com/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/apple_machine_learning_research_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/apple_machine_learning_research_rss.xml"
+      ]
+    },
+    {
+      "id": "51f8274975973f60426b72f2",
+      "name": "BAIR Blog",
+      "inputUrl": "https://bair.berkeley.edu/blog/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/bair_blog_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/bair_blog_rss.xml"
+      ]
+    },
+    {
+      "id": "0274e48fefb3e2195ebd8ea0",
+      "name": "MIT News AI",
+      "inputUrl": "https://news.mit.edu/topic/mitartificial-intelligence2-rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/mit_news_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/mit_news_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "c4683e6fa7178e4227aa592b",
+      "name": "Lilian Weng",
+      "inputUrl": "https://lilianweng.github.io/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/lilian_weng_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/lilian_weng_rss.xml"
+      ]
+    },
+    {
+      "id": "14c54713fb90236e8daad30b",
+      "name": "Chip Huyen",
+      "inputUrl": "https://huyenchip.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/chip_huyen_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/chip_huyen_rss.xml"
+      ]
+    },
+    {
+      "id": "e2a35dcabe116d15429f46f9",
+      "name": "Eugene Yan",
+      "inputUrl": "https://eugeneyan.com/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/eugene_yan_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/eugene_yan_rss.xml"
+      ]
+    },
+    {
+      "id": "4f833f985ed12add27e1cbef",
+      "name": "The Gradient",
+      "inputUrl": "https://thegradient.pub/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/the_gradient_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/the_gradient_rss.xml"
+      ]
+    },
+    {
+      "id": "315e1eea9727356580ae2ef9",
+      "name": "fast.ai",
+      "inputUrl": "https://www.fast.ai/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/fastai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/fastai_rss.xml"
+      ]
+    },
+    {
+      "id": "633e5ebcb8362611e9ac8d8f",
+      "name": "Interconnects",
+      "inputUrl": "https://www.interconnects.ai/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/interconnects_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/interconnects_rss.xml"
+      ]
+    },
+    {
+      "id": "8249346b6d16594c12b44b68",
+      "name": "Ahead of AI",
+      "inputUrl": "https://magazine.sebastianraschka.com/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/ahead_of_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/ahead_of_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "4317c649bc1b9ce76549094d",
+      "name": "arXiv cs.AI",
+      "inputUrl": "https://rss.arxiv.org/rss/cs.AI",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": false,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/arxiv_cs_ai_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/arxiv_cs_ai_rss.xml"
+      ]
+    },
+    {
+      "id": "ff10e47e85d5bebceccfe180",
+      "name": "arXiv cs.LG",
+      "inputUrl": "https://rss.arxiv.org/rss/cs.LG",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": false,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/arxiv_cs_lg_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/arxiv_cs_lg_rss.xml"
+      ]
+    },
+    {
+      "id": "1191d2e9306f276cf4bad80c",
+      "name": "arXiv cs.CL",
+      "inputUrl": "https://rss.arxiv.org/rss/cs.CL",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": false,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/arxiv_cs_cl_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/arxiv_cs_cl_rss.xml"
+      ]
+    },
+    {
+      "id": "7d900a497361c67b88484194",
+      "name": "LessWrong",
+      "inputUrl": "https://www.lesswrong.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/lesswrong_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/lesswrong_rss.xml"
+      ]
+    },
+    {
+      "id": "9f0d873e19f2c9b3acdb7260",
+      "name": "Alignment Forum",
+      "inputUrl": "https://www.alignmentforum.org/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/alignment_forum_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/alignment_forum_rss.xml"
+      ]
+    },
+    {
+      "id": "052434531db837d632ebc483",
+      "name": "simonwillison.net",
+      "inputUrl": "https://simonwillison.net/atom/everything/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_simonwillisonnet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_simonwillisonnet_rss.xml"
+      ]
+    },
+    {
+      "id": "99e2c21c83344ada6c1ee927",
+      "name": "jeffgeerling.com",
+      "inputUrl": "https://www.jeffgeerling.com/blog.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_jeffgeerlingcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_jeffgeerlingcom_rss.xml"
+      ]
+    },
+    {
+      "id": "5b15950a2f66728c46b5de37",
+      "name": "seangoedecke.com",
+      "inputUrl": "https://www.seangoedecke.com/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_seangoedeckecom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_seangoedeckecom_rss.xml"
+      ]
+    },
+    {
+      "id": "4359bb4a3387d403201c8827",
+      "name": "krebsonsecurity.com",
+      "inputUrl": "https://krebsonsecurity.com/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_krebsonsecuritycom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_krebsonsecuritycom_rss.xml"
+      ]
+    },
+    {
+      "id": "6eaf402c6927f9fbeccb7eec",
+      "name": "daringfireball.net",
+      "inputUrl": "https://daringfireball.net/feeds/main",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_daringfireballnet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_daringfireballnet_rss.xml"
+      ]
+    },
+    {
+      "id": "a61777605e36445280fe4f5b",
+      "name": "ericmigi.com",
+      "inputUrl": "https://ericmigi.com/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_ericmigicom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_ericmigicom_rss.xml"
+      ]
+    },
+    {
+      "id": "c0f4b24763ff5326957d9509",
+      "name": "antirez.com",
+      "inputUrl": "http://antirez.com/rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_antirezcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_antirezcom_rss.xml"
+      ]
+    },
+    {
+      "id": "81f55676967cc25f9d967efe",
+      "name": "idiallo.com",
+      "inputUrl": "https://idiallo.com/feed.rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_idiallocom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_idiallocom_rss.xml"
+      ]
+    },
+    {
+      "id": "396f090452a7d3f50d2411ae",
+      "name": "maurycyz.com",
+      "inputUrl": "https://maurycyz.com/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_maurycyzcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_maurycyzcom_rss.xml"
+      ]
+    },
+    {
+      "id": "0a8471bbdabcd97069225c04",
+      "name": "pluralistic.net",
+      "inputUrl": "https://pluralistic.net/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_pluralisticnet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_pluralisticnet_rss.xml"
+      ]
+    },
+    {
+      "id": "030398bf614965dcd9d05e5f",
+      "name": "shkspr.mobi",
+      "inputUrl": "https://shkspr.mobi/blog/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_shksprmobi_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_shksprmobi_rss.xml"
+      ]
+    },
+    {
+      "id": "1f0f44467f804cf18fe52f07",
+      "name": "lcamtuf.substack.com",
+      "inputUrl": "https://lcamtuf.substack.com/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_lcamtufsubstackcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_lcamtufsubstackcom_rss.xml"
+      ]
+    },
+    {
+      "id": "64b519bb5e5f54ea0f1d2cf0",
+      "name": "mitchellh.com",
+      "inputUrl": "https://mitchellh.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_mitchellhcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_mitchellhcom_rss.xml"
+      ]
+    },
+    {
+      "id": "d6abad9d48f6de169cc85cfd",
+      "name": "dynomight.net",
+      "inputUrl": "https://dynomight.net/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_dynomightnet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_dynomightnet_rss.xml"
+      ]
+    },
+    {
+      "id": "7958ea20b06636b251e80757",
+      "name": "utcc.utoronto.ca/~cks",
+      "inputUrl": "https://utcc.utoronto.ca/~cks/space/blog/?atom",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": false,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_utccutorontocacks_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_utccutorontocacks_rss.xml"
+      ]
+    },
+    {
+      "id": "db28536d226b8c8931991515",
+      "name": "xeiaso.net",
+      "inputUrl": "https://xeiaso.net/blog.rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_xeiasonet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_xeiasonet_rss.xml"
+      ]
+    },
+    {
+      "id": "afae77b077c201ce023031ca",
+      "name": "devblogs.microsoft.com/oldnewthing",
+      "inputUrl": "https://devblogs.microsoft.com/oldnewthing/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_devblogsmicrosoftcomoldnewthing_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_devblogsmicrosoftcomoldnewthing_rss.xml"
+      ]
+    },
+    {
+      "id": "f07d072e1234eea47a8bf8c8",
+      "name": "righto.com",
+      "inputUrl": "https://www.righto.com/feeds/posts/default",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_rightocom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_rightocom_rss.xml"
+      ]
+    },
+    {
+      "id": "f3dd435da7cad0eb60d6ad6c",
+      "name": "lucumr.pocoo.org",
+      "inputUrl": "https://lucumr.pocoo.org/feed.atom",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_lucumrpocooorg_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_lucumrpocooorg_rss.xml"
+      ]
+    },
+    {
+      "id": "b2c3b984fee3ff3d21131d90",
+      "name": "skyfall.dev",
+      "inputUrl": "https://skyfall.dev/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_skyfalldev_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_skyfalldev_rss.xml"
+      ]
+    },
+    {
+      "id": "ea33fa47270669b92267d019",
+      "name": "garymarcus.substack.com",
+      "inputUrl": "https://garymarcus.substack.com/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_garymarcussubstackcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_garymarcussubstackcom_rss.xml"
+      ]
+    },
+    {
+      "id": "5286720695066d8076f21c41",
+      "name": "rachelbythebay.com",
+      "inputUrl": "https://rachelbythebay.com/w/atom.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": false,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_rachelbythebaycom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_rachelbythebaycom_rss.xml"
+      ]
+    },
+    {
+      "id": "449cde1ff77e04f2cf5cee22",
+      "name": "overreacted.io",
+      "inputUrl": "https://overreacted.io/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_overreactedio_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_overreactedio_rss.xml"
+      ]
+    },
+    {
+      "id": "a3b87b58c00347514c0b7dc9",
+      "name": "timsh.org",
+      "inputUrl": "https://timsh.org/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_timshorg_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_timshorg_rss.xml"
+      ]
+    },
+    {
+      "id": "0befdd2bc5435e839bd2a720",
+      "name": "johndcook.com",
+      "inputUrl": "https://www.johndcook.com/blog/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_johndcookcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_johndcookcom_rss.xml"
+      ]
+    },
+    {
+      "id": "49fb416252053fe1b8dc8a2a",
+      "name": "gilesthomas.com",
+      "inputUrl": "https://gilesthomas.com/feed/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_gilesthomascom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_gilesthomascom_rss.xml"
+      ]
+    },
+    {
+      "id": "541eb97207b30138020d72f8",
+      "name": "matklad.github.io",
+      "inputUrl": "https://matklad.github.io/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_matkladgithubio_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_matkladgithubio_rss.xml"
+      ]
+    },
+    {
+      "id": "50cc9c5544916688fdb4b74f",
+      "name": "derekthompson.org",
+      "inputUrl": "https://www.theatlantic.com/feed/author/derek-thompson/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_derekthompsonorg_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_derekthompsonorg_rss.xml"
+      ]
+    },
+    {
+      "id": "ba543586ec142b9fafb2f0e9",
+      "name": "evanhahn.com",
+      "inputUrl": "https://evanhahn.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_evanhahncom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_evanhahncom_rss.xml"
+      ]
+    },
+    {
+      "id": "8d3f1e6f70686eb8bad4929f",
+      "name": "terriblesoftware.org",
+      "inputUrl": "https://terriblesoftware.org/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": false,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_terriblesoftwareorg_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_terriblesoftwareorg_rss.xml"
+      ]
+    },
+    {
+      "id": "d07fb2f032f8060ea390a18f",
+      "name": "rakhim.exotext.com",
+      "inputUrl": "https://rakhim.exotext.com/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_rakhimexotextcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_rakhimexotextcom_rss.xml"
+      ]
+    },
+    {
+      "id": "68efaa38fb045ffaf6a2e771",
+      "name": "joanwestenberg.com",
+      "inputUrl": "https://joanwestenberg.com/rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_joanwestenbergcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_joanwestenbergcom_rss.xml"
+      ]
+    },
+    {
+      "id": "2b7e04e02a9bcce49d10a80e",
+      "name": "xania.org",
+      "inputUrl": "https://xania.org/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_xaniaorg_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_xaniaorg_rss.xml"
+      ]
+    },
+    {
+      "id": "5b9cd62dff86e22d5563c984",
+      "name": "micahflee.com",
+      "inputUrl": "https://micahflee.com/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_micahfleecom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_micahfleecom_rss.xml"
+      ]
+    },
+    {
+      "id": "756042742b8ac25370ce8836",
+      "name": "nesbitt.io",
+      "inputUrl": "https://nesbitt.io/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_nesbittio_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_nesbittio_rss.xml"
+      ]
+    },
+    {
+      "id": "4855fd2d01535e9cc1aa9e08",
+      "name": "construction-physics.com",
+      "inputUrl": "https://www.construction-physics.com/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_construction_physicscom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_construction_physicscom_rss.xml"
+      ]
+    },
+    {
+      "id": "704865dd9800d1776fe5d4cf",
+      "name": "tedium.co",
+      "inputUrl": "https://feed.tedium.co/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_tediumco_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_tediumco_rss.xml"
+      ]
+    },
+    {
+      "id": "8e920d240c80e1efc79bc4b2",
+      "name": "susam.net",
+      "inputUrl": "https://susam.net/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_susamnet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_susamnet_rss.xml"
+      ]
+    },
+    {
+      "id": "2cd576d341685c74ce428df6",
+      "name": "entropicthoughts.com",
+      "inputUrl": "https://entropicthoughts.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_entropicthoughtscom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_entropicthoughtscom_rss.xml"
+      ]
+    },
+    {
+      "id": "c6b8c48872665bead089dfe2",
+      "name": "buttondown.com/hillelwayne",
+      "inputUrl": "https://buttondown.com/hillelwayne/rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_buttondowncomhillelwayne_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_buttondowncomhillelwayne_rss.xml"
+      ]
+    },
+    {
+      "id": "aa795f5d8bf79d790c468593",
+      "name": "dwarkesh.com",
+      "inputUrl": "https://www.dwarkeshpatel.com/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_dwarkeshcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_dwarkeshcom_rss.xml"
+      ]
+    },
+    {
+      "id": "c243ca13e1c13ead42c40cd5",
+      "name": "borretti.me",
+      "inputUrl": "https://borretti.me/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_borrettime_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_borrettime_rss.xml"
+      ]
+    },
+    {
+      "id": "505f02d2c421ffd057f527da",
+      "name": "wheresyoured.at",
+      "inputUrl": "https://www.wheresyoured.at/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_wheresyouredat_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_wheresyouredat_rss.xml"
+      ]
+    },
+    {
+      "id": "f973f90941901d7a104bbc22",
+      "name": "jayd.ml",
+      "inputUrl": "https://jayd.ml/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_jaydml_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_jaydml_rss.xml"
+      ]
+    },
+    {
+      "id": "8a16d3dbf117d8f95d419c1d",
+      "name": "minimaxir.com",
+      "inputUrl": "https://minimaxir.com/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_minimaxircom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_minimaxircom_rss.xml"
+      ]
+    },
+    {
+      "id": "68e950f671d2e5e0813e37af",
+      "name": "geohot.github.io",
+      "inputUrl": "https://geohot.github.io/blog/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_geohotgithubio_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_geohotgithubio_rss.xml"
+      ]
+    },
+    {
+      "id": "b41056fdf74f32e3ad5cd32a",
+      "name": "paulgraham.com",
+      "inputUrl": "http://www.aaronsw.com/2002/feeds/pgessays.rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_paulgrahamcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_paulgrahamcom_rss.xml"
+      ]
+    },
+    {
+      "id": "3a8a2496eddb5662862a68ff",
+      "name": "filfre.net",
+      "inputUrl": "https://www.filfre.net/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_filfrenet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_filfrenet_rss.xml"
+      ]
+    },
+    {
+      "id": "fafb02ce167dbe9e95f98eff",
+      "name": "blog.jim-nielsen.com",
+      "inputUrl": "https://blog.jim-nielsen.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_blogjim_nielsencom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_blogjim_nielsencom_rss.xml"
+      ]
+    },
+    {
+      "id": "541f6adb32e96d7f2dc56f1e",
+      "name": "dfarq.homeip.net",
+      "inputUrl": "https://dfarq.homeip.net/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_dfarqhomeipnet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_dfarqhomeipnet_rss.xml"
+      ]
+    },
+    {
+      "id": "74d858071d9fddf888adb27b",
+      "name": "jyn.dev",
+      "inputUrl": "https://jyn.dev/atom.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_jyndev_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_jyndev_rss.xml"
+      ]
+    },
+    {
+      "id": "2bfabf868f69e7bbe899e1c0",
+      "name": "geoffreylitt.com",
+      "inputUrl": "https://www.geoffreylitt.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_geoffreylittcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_geoffreylittcom_rss.xml"
+      ]
+    },
+    {
+      "id": "0737dfe90fdaca7205d90afa",
+      "name": "downtowndougbrown.com",
+      "inputUrl": "https://www.downtowndougbrown.com/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_downtowndougbrowncom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_downtowndougbrowncom_rss.xml"
+      ]
+    },
+    {
+      "id": "b70cec289e9788bbdce692a8",
+      "name": "brutecat.com",
+      "inputUrl": "https://brutecat.com/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_brutecatcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_brutecatcom_rss.xml"
+      ]
+    },
+    {
+      "id": "f24ed5bab7a69bf845a0ab28",
+      "name": "eli.thegreenplace.net",
+      "inputUrl": "https://eli.thegreenplace.net/feeds/all.atom.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_elithegreenplacenet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_elithegreenplacenet_rss.xml"
+      ]
+    },
+    {
+      "id": "a84582a94d6008d01cd83e2d",
+      "name": "abortretry.fail",
+      "inputUrl": "https://www.abortretry.fail/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_abortretryfail_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_abortretryfail_rss.xml"
+      ]
+    },
+    {
+      "id": "ce9ad60b092e38b0bdc69963",
+      "name": "fabiensanglard.net",
+      "inputUrl": "https://fabiensanglard.net/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_fabiensanglardnet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_fabiensanglardnet_rss.xml"
+      ]
+    },
+    {
+      "id": "542183fd152ee098fcfede61",
+      "name": "oldvcr.blogspot.com",
+      "inputUrl": "https://oldvcr.blogspot.com/feeds/posts/default",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_oldvcrblogspotcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_oldvcrblogspotcom_rss.xml"
+      ]
+    },
+    {
+      "id": "10891151e6c079216d5347e5",
+      "name": "bogdanthegeek.github.io",
+      "inputUrl": "https://bogdanthegeek.github.io/blog/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_bogdanthegeekgithubio_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_bogdanthegeekgithubio_rss.xml"
+      ]
+    },
+    {
+      "id": "00f20348abd84aeb39eea557",
+      "name": "hugotunius.se",
+      "inputUrl": "https://hugotunius.se/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_hugotuniusse_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_hugotuniusse_rss.xml"
+      ]
+    },
+    {
+      "id": "b3eec02ad0c77dbc709c3afd",
+      "name": "gwern.net",
+      "inputUrl": "https://gwern.net",
+      "kind": "website",
+      "adapterId": "gwern_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_gwernnet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_gwernnet_rss.xml"
+      ]
+    },
+    {
+      "id": "772f8b58346732b3d3b06231",
+      "name": "QuestMobile 行业研究报告",
+      "inputUrl": "https://www.questmobile.com.cn/research/reports/",
+      "kind": "website",
+      "adapterId": "questmobile_rss",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/questmobile_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/questmobile_rss.xml"
+      ]
+    },
+    {
+      "id": "3b12c0f59c06b2050137ecaa",
+      "name": "berthub.eu",
+      "inputUrl": "https://berthub.eu/articles/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_berthubeu_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_berthubeu_rss.xml"
+      ]
+    },
+    {
+      "id": "912454e6b50aada84e29d548",
+      "name": "chadnauseam.com",
+      "inputUrl": "https://chadnauseam.com/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_chadnauseamcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_chadnauseamcom_rss.xml"
+      ]
+    },
+    {
+      "id": "a6c4e18392bfd983682ce098",
+      "name": "simone.org",
+      "inputUrl": "https://simone.org/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_simoneorg_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_simoneorg_rss.xml"
+      ]
+    },
+    {
+      "id": "abeb3d886027815838b6c9ee",
+      "name": "it-notes.dragas.net",
+      "inputUrl": "https://it-notes.dragas.net/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_it_notesdragasnet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_it_notesdragasnet_rss.xml"
+      ]
+    },
+    {
+      "id": "770187db2708029fb766f6f0",
+      "name": "beej.us",
+      "inputUrl": "https://beej.us/blog/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_beejus_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_beejus_rss.xml"
+      ]
+    },
+    {
+      "id": "59ba11b41f28de541bf440d6",
+      "name": "hey.paris",
+      "inputUrl": "https://hey.paris/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_heyparis_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_heyparis_rss.xml"
+      ]
+    },
+    {
+      "id": "6741c6bee254d858d1020e21",
+      "name": "danielwirtz.com",
+      "inputUrl": "https://danielwirtz.com/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_danielwirtzcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_danielwirtzcom_rss.xml"
+      ]
+    },
+    {
+      "id": "7fc8e6f5be9db2dde5f440bd",
+      "name": "matduggan.com",
+      "inputUrl": "https://matduggan.com/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_matduggancom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_matduggancom_rss.xml"
+      ]
+    },
+    {
+      "id": "7f96838ab754a049c1fb06e5",
+      "name": "refactoringenglish.com",
+      "inputUrl": "https://refactoringenglish.com/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_refactoringenglishcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_refactoringenglishcom_rss.xml"
+      ]
+    },
+    {
+      "id": "44f8cff1b01f5f588c7d305a",
+      "name": "worksonmymachine.ai",
+      "inputUrl": "https://worksonmymachine.ai/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_worksonmymachinesubstackcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_worksonmymachinesubstackcom_rss.xml"
+      ]
+    },
+    {
+      "id": "dd4ff9dce4ffbdca18abe216",
+      "name": "philiplaine.com",
+      "inputUrl": "https://philiplaine.com/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_philiplainecom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_philiplainecom_rss.xml"
+      ]
+    },
+    {
+      "id": "d542e2e615ae7150766e4cbd",
+      "name": "steveblank.com",
+      "inputUrl": "https://steveblank.com/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": false,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_steveblankcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_steveblankcom_rss.xml"
+      ]
+    },
+    {
+      "id": "2b2c3f5ac3d2e836ccf1ea68",
+      "name": "bernsteinbear.com",
+      "inputUrl": "https://bernsteinbear.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_bernsteinbearcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_bernsteinbearcom_rss.xml"
+      ]
+    },
+    {
+      "id": "1f2e37993790fa1659f0cd8e",
+      "name": "danieldelaney.net",
+      "inputUrl": "https://danieldelaney.net/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_danieldelaneynet_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_danieldelaneynet_rss.xml"
+      ]
+    },
+    {
+      "id": "2ca35d6c0a43c1c1280ded69",
+      "name": "troyhunt.com",
+      "inputUrl": "https://www.troyhunt.com/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_troyhuntcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_troyhuntcom_rss.xml"
+      ]
+    },
+    {
+      "id": "59990f9eb0e3b46dafda31f9",
+      "name": "herman.bearblog.dev",
+      "inputUrl": "https://herman.bearblog.dev/feed/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_hermanbearblogdev_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_hermanbearblogdev_rss.xml"
+      ]
+    },
+    {
+      "id": "942a4d2bf3a955727f3c5885",
+      "name": "tomrenner.com",
+      "inputUrl": "https://tomrenner.com/index.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_tomrennercom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_tomrennercom_rss.xml"
+      ]
+    },
+    {
+      "id": "a5e5165c8f669a293ef23a3b",
+      "name": "blog.pixelmelt.dev",
+      "inputUrl": "https://blog.pixelmelt.dev/rss/",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_blogpixelmeltdev_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_blogpixelmeltdev_rss.xml"
+      ]
+    },
+    {
+      "id": "14a2e6653864d8ebfa166237",
+      "name": "martinalderson.com",
+      "inputUrl": "https://martinalderson.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_martinaldersoncom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_martinaldersoncom_rss.xml"
+      ]
+    },
+    {
+      "id": "e54b020d85845fc2b13382d3",
+      "name": "danielchasehooper.com",
+      "inputUrl": "https://danielchasehooper.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_danielchasehoopercom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_danielchasehoopercom_rss.xml"
+      ]
+    },
+    {
+      "id": "8340a4835cecaeb8db59ec47",
+      "name": "chiark.greenend.org.uk/~sgtatham",
+      "inputUrl": "https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_chiarkgreenendorguksgtatham_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_chiarkgreenendorguksgtatham_rss.xml"
+      ]
+    },
+    {
+      "id": "8299c27feb6c6d638cebcae1",
+      "name": "grantslatton.com",
+      "inputUrl": "https://grantslatton.com/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_grantslattoncom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_grantslattoncom_rss.xml"
+      ]
+    },
+    {
+      "id": "3b7b03f6ccfdb95d759945e0",
+      "name": "experimental-history.com",
+      "inputUrl": "https://www.experimental-history.com/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_experimental_historycom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_experimental_historycom_rss.xml"
+      ]
+    },
+    {
+      "id": "0f15fed2a48f2c915fe7c14f",
+      "name": "anildash.com",
+      "inputUrl": "https://anildash.com/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_anildashcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_anildashcom_rss.xml"
+      ]
+    },
+    {
+      "id": "84d542a6144d407a33edde2f",
+      "name": "aresluna.org",
+      "inputUrl": "https://aresluna.org/main.rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_areslunaorg_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_areslunaorg_rss.xml"
+      ]
+    },
+    {
+      "id": "4977f17e33d9f1aa46bb9921",
+      "name": "michael.stapelberg.ch",
+      "inputUrl": "https://michael.stapelberg.ch/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_michaelstapelbergch_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_michaelstapelbergch_rss.xml"
+      ]
+    },
+    {
+      "id": "f3104e212f9ea5fc3254c974",
+      "name": "miguelgrinberg.com",
+      "inputUrl": "https://blog.miguelgrinberg.com/feed",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_miguelgrinbergcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_miguelgrinbergcom_rss.xml"
+      ]
+    },
+    {
+      "id": "9dcadfa39ef000b316476762",
+      "name": "keygen.sh",
+      "inputUrl": "https://keygen.sh/blog/feed.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_keygensh_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_keygensh_rss.xml"
+      ]
+    },
+    {
+      "id": "2c8821e7f2c314a4a5fa52f7",
+      "name": "mjg59.dreamwidth.org",
+      "inputUrl": "https://mjg59.dreamwidth.org/data/rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_mjg59dreamwidthorg_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_mjg59dreamwidthorg_rss.xml"
+      ]
+    },
+    {
+      "id": "59cab0e069ce1bec2c578d60",
+      "name": "computer.rip",
+      "inputUrl": "https://computer.rip/rss.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_computerrip_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_computerrip_rss.xml"
+      ]
+    },
+    {
+      "id": "1c8b39a0a69eff34f77f9a53",
+      "name": "tedunangst.com",
+      "inputUrl": "https://www.tedunangst.com/flak/rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": false,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": [
+        "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_tedunangstcom_rss.xml",
+        "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_tedunangstcom_rss.xml"
+      ]
+    },
+    {
+      "id": "25595e1bc7b40cd3be0e1865",
+      "name": "GitButler Blog",
+      "inputUrl": "https://blog.gitbutler.com/rss",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "blog",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "78275cec01c969a49b131a7d",
+      "name": "腾讯技术工程",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/1e0ac39f8952b2e7f0807313cf2633d25078a171.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "1502ebfb03ffed7f56c80d83",
+      "name": "阿里技术",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/6535a444e9651fecae3383363be7589acdebe2b6.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "c433391d09af025f411533bf",
+      "name": "小米技术",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/8bbc1ba1d363e70cd42d1ce89fb9070cb075c3b3.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "1c1efb3532c63e4e8d798bf7",
+      "name": "哔哩哔哩技术",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/3a12ae4fde5bb74aab2fddc9f710a3c057eab82f.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "35d23cb43502d119d718d127",
+      "name": "阿里云开发者",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/39fc51b0b1316137e608c45da5dbbca4f9eb9538.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "e134a5773263ed1825aa82f4",
+      "name": "字节跳动技术团队",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/d3a9e4d6f125cc98d1691dbc30cd97fec7ae2d03.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "1f8b7aed866787543e986f1d",
+      "name": "ShowMeAI研究中心",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/854a592a3bac3c2574d092daf4628cf65dfd1858.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "4700cc7552e2f34d175fa1de",
+      "name": "奇舞精选",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/156a64fe3e95eebe4b85bf981d6ebb85441897bf.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "9ecb54830af38fb2c6bb8c47",
+      "name": "京东技术",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/fa0be550682410cc187c0d1eab1a0fc4e073b949.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "b3a91c9aedc3c33fb0e7d7c3",
+      "name": "硅谷科技评论",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/4515ee058133ff68570ad586abdd81f54f2b6ee3.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "70cfbe4795db294d1e812286",
+      "name": "得物技术",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/1cde72c9129b1f79cbb150166e7fed9a7568ee10.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "e45bec5502dd631aca8efa35",
+      "name": "百度Geek说",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/6cc437d76f9dc4f7c35011c72e471e33e7bdd384.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "24cb68b86d84166a42d81388",
+      "name": "大淘宝技术",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/26fef2307bebc8673703f7e726982d8f56c9a219.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "31b0204e5dbd464899170bee",
+      "name": "51CTO技术栈",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/d1fabe6c569ffc44979075dde2f57c65e07c3045.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "36389a9b17701aa78fac88a5",
+      "name": "优设",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/8fee9d33e883a769a59a5a3e27d249cf8567b55a.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "2f22f9c987211e54e41fceb1",
+      "name": "前端充电宝",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/efed19b684285ee14f88b3f234b350fba9376d7a.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "71b64453caf2cd0d1aa48b09",
+      "name": "稀土掘金技术社区",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/33ecd2122ae788ea02dfcf1df857a54b9ae1338d.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "2c364acefc497078934d02cc",
+      "name": "腾讯云开发者",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/6cec2c211479a5502896375860009782cf10c2ba.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "e309d7b29c42e962b825aee0",
+      "name": "体验进阶",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/083c360a74b36b2c33820a995d21cbf60c813c0a.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "654d3623d850a05ef5c57ef6",
+      "name": "前端早读课",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/ce2456e157156d42259c1198f05a33e27b1ed959.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "93fccd83db26d841bb49d763",
+      "name": "开源服务指南",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/c125f09ef36fd6b6cb092c409e69a5bcc867d378.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "fa51b0dfeaa8c708a0a492de",
+      "name": "超人的电话亭",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/4be15abcd5621887bb7c1e2efd2d1cd8c68a16f0.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "06138593578233dbdd871a3c",
+      "name": "Qunar技术沙龙",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/84c072f8d34d1690f2783d7dda6013cf6d892b7f.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "4c7d73b36de69f7ca4a4b515",
+      "name": "42章经",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/f6694726ced4ba3d7c7cd65c6edf2160c5978387.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "619f7d567a943c8646d1f2db",
+      "name": "随机小分队",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/115e814e7b12d373a55459cb2aea3223152f2af2.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "a1142ae837491291236411b8",
+      "name": "阿里研究院",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/e2f1190c120f7f3d74b630bfcfe9e58296bd535c.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "1d1ee66517341e8d94567c35",
+      "name": "深思圈",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/3e6fcb56a39b2e18f1036113655d4ff8fe726b62.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "f1a7e88a676d7ac77d3d15da",
+      "name": "Hugging Face",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/8b68fdb4f24ab2287100988a8cec36363fec4214.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "90275dc83d7b56b99a190cb3",
+      "name": "Founder Park",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/f940695505f2be1399d23cc98182297cadf6f90d.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "1eea54235f92cd1f936d6bd1",
+      "name": "vivo互联网技术",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/b3ceb5cb1e4602ca55704650a157ec9c5b2f0d31.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "46a02bfc0228c48fa0714c6a",
+      "name": "歸藏的AI工具箱",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/1c3e3571b1627d23ee9c64521a0b0a41d3fe2987.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "44761693c36a3f44b1bdddde",
+      "name": "Clip设计夹",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/ebd5f5bd705dd531066eeca5ee500a1e6a269e17.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "090a4748ee942288675d4a32",
+      "name": "InfoQ 中文",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/13da94d7eb314b49fa251cb7e8399cae29d772db.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "a0cb50c5f61c0c42f2732f1c",
+      "name": "Dify",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/e46c03a4cb65509e22ab9a8507888a2096319d65.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "ed9bbe6aca7da6e5eaa0639a",
+      "name": "海外独角兽",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/7200d3a5e976d231deb1e40ad33745c0e649b029.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "29e308e646c998de7f3226a0",
+      "name": "赛博禅心",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/752c31ca0446b837339463fc5440539e20267d2f.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "c0e9003c13a1060c7081a5e3",
+      "name": "小红书技术REDtech",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/0f8c47df6fd304112518544776e0bbf1d98ba0b9.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "590f6db1e6128f3fc732ce51",
+      "name": "智谱",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/433d2134dca54d80804daf32e8be546155be3300.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "787427d3a63ff71c237272e5",
+      "name": "月之暗面 Kimi",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/c5c43d4bc17bae656763859ed0903bb6314ec6fe.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "9459e601f79427c72127f922",
+      "name": "HelloGitHub",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/e6cc80b97bf64eeef61cc5927c78ba6ce3356422.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "214ff3d17dd1222e91bf0ec9",
+      "name": "经纬创投",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/05efb1c4cf91e5a37443cc323150ea38a838e9fd.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "004ab6a979abe539854d805d",
+      "name": "腾讯混元",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/306ce19a1ca590c9c2df781789e828d1acfa1356.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "e64bd31a2472d30dd4951c9b",
+      "name": "腾讯研究院",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/6152301e0978bffb0a8284cab339262b9764dcfb.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "97617e2dcb73ac285a3f509e",
+      "name": "Thoughtworks洞见",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/96b507f9985efa59e549e95a6363c2b6edfa8f2e.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "6b389644cc08112f55be6c68",
+      "name": "浮之静",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/abb0de0c0cb8f684a1606a4b20121b245547adce.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "2833c21610ae223dbf0191e0",
+      "name": "数字生命卡兹克",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/ff621c3e98d6ae6fceb3397e57441ffc6ea3c17f.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "275db3e14384b21c48bd2e4e",
+      "name": "AI产品黄叔",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/1f1030491e15e5349aae42367513d6b3f70a8f8b.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "51f5f7742618bfd5ad0cb761",
+      "name": "印记中文",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/2b038bb5307a75a603405f7191b5030576d3e8bd.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "9ba853d007724f12687edc1d",
+      "name": "真格基金",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/47798a14d51da72e68fae4f7a259f096750cf03e.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "b4647fa8818e0fa42431a34e",
+      "name": "大模型智能",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/bfc6440c1a2443fab9a6bf607137d41db5cd5c93.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "1244f0283ed07bebf456f0f5",
+      "name": "深网腾讯新闻",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/396591aa7d3ef15fa3b5b17ec4b1aa840ebde335.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "e6d60e15857e7174085f3ca8",
+      "name": "AI炼金术",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/4915f3747653bbb9c7975323c11b768d2b9cd6c9.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "2e82a108bfea7d16ac8bcb78",
+      "name": "山行AI",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/98bc16b6f53902a2ab511b4faa3499e0a1c78eb1.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "0e69b662d7bc2615b73fbd58",
+      "name": "魔搭ModelScope社区",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/d993a885260f96057b9a4c96212cb2c95bb5054b.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "1a6933873ef67bfdbb5781f6",
+      "name": "强少来了",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/3c36fe804f63a7b936e372a37929d81fa0ad948a.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "d116de0a448e6aafdf4ecd64",
+      "name": "土猛的员外",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/3ee671d065adc460bc20bbd269115987098c54a0.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "c5e390a8b057f7e51dd3ec66",
+      "name": "DeeplearningAI",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/9d094d066a5faacff0eb0a6b95efbba20d4f1fc9.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "2b5acb5e7f46485b5e9ca42e",
+      "name": "机器之心SOTA模型",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/2f520471856d56c7b3a95cd09eb777149b32828a.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "b951a095192c9ca2fee4564c",
+      "name": "阶跃星辰",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/3e2714d06aa36142e8ed6b3f4e5cf9090a069dd2.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "c0b453229f198d959e591813",
+      "name": "快手技术",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/c4cc10d2e32a5fa12927581ae581a336f399fe75.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "e5fe6cb1c5f3bcea1faafbb3",
+      "name": "DeepSeek",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/1709da4f538d4ce4fb6d7a8ba1a5a1c297919601.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "2c75cee2acd66a943f9d7497",
+      "name": "字节跳动Seed",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/6efd40bb335d2037f365d284cb5e00f0843e737e.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "d3665844412badea85535d76",
+      "name": "青哥谈AI",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/00a1da3493512c20aff1ea5a0d1a02537e931b36.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "e181de80101b9512e9109323",
+      "name": "AI寒武纪",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/5903009f48a5e4aa44d8ac941a54fe3aafc3e03c.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "4e4a648b874bb8111bb28a22",
+      "name": "MiniMax 稀宇科技",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/00306b171f754d463b28cf83f3ba086ad009b430.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "59bdd8a03bd5cc20e9d2c145",
+      "name": "Jina AI",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/ff2c5468828ebe7236afd6c1d128e219774487c2.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "52335ed6ad387c190e57bf3b",
+      "name": "花叔",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/ed3e181242a4622709081439d802523ecf7b78f2.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "a99beea9be5cdbd4b700e2c3",
+      "name": "向阳乔木推荐看",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/3e50f11753a7c5ed689565fbf5abf96cb4541c57.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "67a5884ae7c5d2c0e74787b0",
+      "name": "yikai 的摸鱼笔记",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/13492cb50df57702cdc0dfa71467cd03f9dd69be.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "4277ce41a6500faca7268147",
+      "name": "沃垠AI",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/339818dbd5154cecdf5f4161f3391c7038a72bae.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "868967ff80b4b2320a9ea52e",
+      "name": "L先生说",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/31c7fb6f7959a5ff90ae997b536e78b8b3f23321.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "403d21374d72b372a973aade",
+      "name": "有新Newin",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/74554dcb3da8982083426b871bc8c314a9de9729.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "1bf50866cb41dc58c68d9004",
+      "name": "晚点LatePost",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/c442206ec9957f3c52f2f40300ca532079538b31.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "d440ef3530b33d8c282e6b65",
+      "name": "袋鼠帝AI客栈",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/24d0930cc9f4f0c708182dc1c087d41e1f4cbd33.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "2e3cd33f86682b874ea91814",
+      "name": "AI科技大本营",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/dfd3b5e742e32d8032a445832373191957202bf3.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "ae732b58ed4adc82f04cc6aa",
+      "name": "卡尔的AI沃茨",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/8a1fc997e5c742e91ad7c253836c28ca3a69ccb1.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "18e5529b07bc9290b5d4a115",
+      "name": "逛逛GitHub",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/38be32e5376d852c13d3383e4d7a757fd9a55ff6.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "001a8f36d402f59144ba801e",
+      "name": "阿真Irene",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/d5ead392b0cf117d0ba4070e2261111fdde49711.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "bf8f044c7572300b76748e6b",
+      "name": "硅谷101",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/8f8fe34034f6123b168ed7847c51d50ff47cd7ee.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "29dc745d30d9e3314cc97c6c",
+      "name": "语言即世界language is world",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/e1ed0d3edd93f90aef602105eb7ca51b35b7060a.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    },
+    {
+      "id": "1f977c00b55fd488050c79f9",
+      "name": "43 Talks",
+      "inputUrl": "https://wechat2rss.bestblogs.dev/feed/4efe7ec6970afd4a050d6f10b9e8131a9d5e6816.xml",
+      "kind": "feed",
+      "adapterId": "feed",
+      "enabled": true,
+      "group": "WeChat",
+      "tags": [],
+      "legacyAliases": []
+    }
+  ]
+}

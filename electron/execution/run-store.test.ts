@@ -35,6 +35,10 @@ describe("RunStore", () => {
     first.transition("run-recover", "inspecting");
     first.transition("run-recover", "waiting_execution_consent");
 
+    const file = path.join(root, first.list()[0].id, "run.json");
+    const persisted = JSON.parse(fs.readFileSync(file, "utf8"));
+    persisted.ownerPid = 2147483647; // Simulate a terminated owner, not another live broker.
+    fs.writeFileSync(file, JSON.stringify(persisted));
     const reopened = new RunStore(root);
     const recovered = reopened.recoverInterrupted();
 
@@ -53,12 +57,24 @@ describe("RunStore", () => {
     first.transition("run-orphan", "running");
     first.bindProcessPid("run-orphan", process.pid);
 
+    const file = path.join(root, first.list()[0].id, "run.json");
+    const persisted = JSON.parse(fs.readFileSync(file, "utf8"));
+    persisted.ownerPid = 2147483647; // Simulate a terminated owner, not another live broker.
+    fs.writeFileSync(file, JSON.stringify(persisted));
     const reopened = new RunStore(root);
     const recovered = reopened.recoverInterrupted();
 
     expect(recovered[0]?.orphanPid).toBe(process.pid);
     expect(reopened.get("run-orphan").processPid).toBeNull();
     expect(reopened.get("run-orphan").error).toContain(`PID ${process.pid}`);
+  });
+
+  it("preserves live owner runs when another broker opens the same history", () => {
+    const root = makeRoot(); const first = new RunStore(root);
+    first.create(request(), "live-owner");
+    const second = new RunStore(root);
+    expect(second.recoverInterrupted()).toEqual([]);
+    expect(second.get("live-owner").state).toBe("queued");
   });
 
   it("lists artifacts and deletes only terminal Run metadata", () => {

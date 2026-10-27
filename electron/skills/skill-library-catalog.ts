@@ -21,7 +21,7 @@ export function isAppLibraryInstall(record: LibraryRecord): boolean {
 export function resolveSkillLibraryBundleRoot(): string {
   return process.env.OPENMIND_SKILL_LIBRARY_BUNDLE || (app?.isPackaged
     ? path.join(process.resourcesPath, "skill-library")
-    : path.resolve(__dirname, "../../../skill-library"));
+    : fs.existsSync(path.resolve(__dirname, "../../.build/skill-library/catalog.json")) ? path.resolve(__dirname, "../../.build/skill-library") : path.resolve(__dirname, "../../../skill-library"));
 }
 
 /** Read on demand so catalog changes do not require recompiling application code. */

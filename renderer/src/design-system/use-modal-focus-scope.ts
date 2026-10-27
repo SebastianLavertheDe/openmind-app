@@ -151,6 +151,9 @@ export function useModalFocusScope({
     if (!hasLayerAbove(container)) preferredFocus()?.focus();
     const frame = window.requestAnimationFrame(() => {
       if (topModalScope()?.id !== scope.id || hasLayerAbove(container)) return;
+      // A user may already have tabbed after the synchronous initial focus.
+      // The deferred fallback must not reset their position in this dialog.
+      if (container.contains(document.activeElement)) return;
       const targets = focusableElements(container);
       (preferredFocus() || targets[0] || container).focus();
     });

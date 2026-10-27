@@ -1,0 +1,6 @@
+[project]
+name = "video-burnin-subtitles"
+version = "1.0.0"
+description = "Managed video subtitle burn-in process Skill"
+requires-python = ">=3.11,<3.13"
+dependencies = ["yt-dlp>=2023.12.30", "openai-whisper>=20231117"]

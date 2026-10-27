@@ -1,0 +1,115 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "rss-article-saver",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "process",
+  "display": {
+    "name": "RSS 文章采集",
+    "description": "抓取 RSS、提取文章正文并保存到 article/（相对内容根）。",
+    "group": "内容采集"
+  },
+  "entrypoint": {
+    "runtime": "python",
+    "script": "pipeline.py",
+    "args": [
+      "--date",
+      "{{ inputs.date }}",
+      "--mode",
+      "{{ inputs.mode }}",
+      "--source-id",
+      "{{ inputs.sourceId }}"
+    ]
+  },
+  "runtime": {
+    "version": ">=3.11,<3.13",
+    "dependencyFile": "pyproject.toml",
+    "lockFile": "uv.lock",
+    "packs": [
+      "python-core",
+      "browser-playwright"
+    ]
+  },
+  "inputs": {
+    "type": "object",
+    "required": [
+      "date"
+    ],
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "compact-date"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "sync",
+          "collect",
+          "pipeline"
+        ],
+        "default": "pipeline"
+      },
+      "sourceId": {
+        "type": "string",
+        "default": ""
+      }
+    }
+  },
+  "capabilities": {
+    "openmind": {
+      "read": [],
+      "write": [
+        "article/**",
+        "post/**"
+      ]
+    },
+    "network": {
+      "required": true,
+      "hosts": [
+        "*"
+      ]
+    },
+    "browser": true,
+    "subprocess": {
+      "allowed": false
+    }
+  },
+  "artifacts": [
+    {
+      "id": "articles",
+      "type": "markdown",
+      "path": "article/{{ inputs.date }}/*.md"
+    },
+    {
+      "id": "posts",
+      "type": "markdown",
+      "path": "post/{{ inputs.date }}/*.md"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:article"
+      ]
+    },
+    "timeoutSeconds": 7200,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 1
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

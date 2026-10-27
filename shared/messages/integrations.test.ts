@@ -187,10 +187,10 @@ describe("shared UI localization integrations", () => {
   it("uses the selected language when creating default rules and keeps parsed snapshots stable", () => {
     setLocale("en");
     const saved = AutomationRuleInputSchema.parse(DEFAULT_AUTOMATION_RULES[0]);
-    expect(saved.name).toBe("RSS collection and daily summary");
+    expect(saved.name).toBe("RSS updates");
     expect(DEFAULT_AUTOMATION_RULES.map(rule => `${rule.name} ${rule.description}`).join(" ")).not.toMatch(/\p{Script=Han}/u);
     setLocale("zh-CN");
-    expect(DEFAULT_AUTOMATION_RULES[0].name).toBe("RSS 抓取与每日总结");
-    expect(saved.name).toBe("RSS collection and daily summary");
+    expect(DEFAULT_AUTOMATION_RULES[0].name).toBe("RSS 更新");
+    expect(saved.name).toBe("RSS updates");
   });
 });

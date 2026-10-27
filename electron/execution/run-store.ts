@@ -62,6 +62,7 @@ export class RunStore {
       terminalState: null,
       error: null,
       processPid: null,
+      ownerPid: process.pid,
       orphanPid: null,
       usage: null,
       agentCheckpoint: null,
@@ -75,12 +76,14 @@ export class RunStore {
   }
 
   get(runId: string): BrokerRunRecord {
+    if (this.records.get(runId)?.ownerPid !== process.pid) this.load();
     const record = this.records.get(runId);
     if (!record) throw new Error(`Run 不存在：${runId}`);
     return cloneRecord(record);
   }
 
   list(): BrokerRunRecord[] {
+    this.load();
     return Array.from(this.records.values())
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
       .map(cloneRecord);
@@ -223,6 +226,7 @@ export class RunStore {
     const recovered: BrokerRunRecord[] = [];
     for (const record of this.list()) {
       if (TERMINAL_STATES.has(record.state)) continue;
+      if (record.ownerPid && isProcessAlive(record.ownerPid)) continue;
       const current = this.records.get(record.id)!;
       const timestamp = this.now().toISOString();
       const orphanPid = current.processPid && isProcessAlive(current.processPid) ? current.processPid : null;
@@ -247,6 +251,7 @@ export class RunStore {
   private requireMutable(runId: string): BrokerRunRecord {
     const record = this.records.get(runId);
     if (!record) throw new Error(`Run 不存在：${runId}`);
+    if (record.ownerPid && record.ownerPid !== process.pid && isProcessAlive(record.ownerPid)) throw new Error("This run is owned by another active OpenMind process.");
     if (TERMINAL_STATES.has(record.state)) {
       throw new Error(`Run 已经结束：${runId}`);
     }
@@ -299,6 +304,7 @@ export class RunStore {
       if (!fs.existsSync(file)) continue;
       try {
         const record = BrokerRunRecordSchema.parse(JSON.parse(fs.readFileSync(file, "utf8")));
+        if (this.records.get(record.id)?.ownerPid === process.pid) continue;
         this.records.set(record.id, record);
       } catch {
         // Preserve corrupt records for manual recovery; never overwrite them.

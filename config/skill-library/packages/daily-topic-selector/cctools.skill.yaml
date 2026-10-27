@@ -1,0 +1,95 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "daily-topic-selector",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "process",
+  "display": {
+    "name": "每日选题筛选",
+    "description": "根据用户偏好筛选、排序并说明推荐理由。",
+    "group": "内容链路"
+  },
+  "entrypoint": {
+    "runtime": "python",
+    "script": "scripts/generate_daily_topics.py",
+    "args": [
+      "--date",
+      "{{ inputs.date }}"
+    ]
+  },
+  "runtime": {
+    "version": ">=3.11,<3.13",
+    "dependencyFile": "pyproject.toml",
+    "lockFile": "uv.lock",
+    "packs": [
+      "python-core"
+    ]
+  },
+  "inputs": {
+    "type": "object",
+    "required": [
+      "date"
+    ],
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "compact-date"
+      }
+    }
+  },
+  "capabilities": {
+    "openmind": {
+      "read": [
+        "article/**",
+        "daily-summary/**",
+        "post/**",
+        "reddit/**"
+      ],
+      "write": [
+        "daily-topic/**"
+      ]
+    },
+    "network": {
+      "required": true,
+      "hosts": [
+        "*"
+      ]
+    },
+    "subprocess": {
+      "allowed": false
+    }
+  },
+  "artifacts": [
+    {
+      "id": "daily-topic",
+      "type": "markdown",
+      "path": "daily-topic/{{ inputs.date }}_daily_topic.md"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:daily-topic"
+      ]
+    },
+    "timeoutSeconds": 3600,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

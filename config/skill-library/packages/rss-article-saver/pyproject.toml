@@ -1,0 +1,24 @@
+[project]
+name = "rss-article-saver"
+version = "1.0.0"
+description = "Local RSS normalization and article collection"
+readme = "SKILL.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "feedparser>=6.0.0",
+    "feedgen>=0.9.0",
+    "python-dateutil>=2.8.0",
+    "PyYAML>=6.0",
+    "requests>=2.28.0",
+    "trafilatura>=1.6.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+    "playwright>=1.52.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]

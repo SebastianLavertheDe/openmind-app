@@ -12,7 +12,7 @@
   "scripts": {
     "clean": "node scripts/clean-build.js",
     "build:renderer": "vite build",
-    "build:electron": "tsc -p tsconfig.electron.json && node scripts/build-preload.js",
+    "build:electron": "tsc -p tsconfig.electron.json && node scripts/build-preload.js && node scripts/build-headless-cli.js",
     "prepare:python-runtime": "node scripts/prepare-bundled-python-runtime.mjs",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.electron.json --noEmit",
     "lint:reporoot": "node scripts/audit-no-reporoot.js",
@@ -75,7 +75,11 @@
     "visual:ui": "node scripts/ui-catalog.js",
     "ui:catalog": "node scripts/ui-catalog.js --preview",
     "perf:ui": "node scripts/ui-catalog.js --performance-only",
-    "prepare:skill-library": "tsx scripts/prepare-skill-library.ts"
+    "prepare:skill-library": "tsx scripts/prepare-skill-library.ts",
+    "cli": "node .build/electron/electron/cli/openmind.js",
+    "pretest:unit": "npm run prepare:skill-library",
+    "test:rss": "node scripts/test-rss.cjs",
+    "test:rss:packaged": "node scripts/rss-packaged-smoke.cjs"
   },
   "devDependencies": {
     "@fontsource/jetbrains-mono": "^5.3.0",
@@ -129,6 +133,10 @@
       {
         "from": ".build/skill-library",
         "to": "skill-library"
+      },
+      {
+        "from": "resources/cli",
+        "to": "cli"
       }
     ],
     "directories": {

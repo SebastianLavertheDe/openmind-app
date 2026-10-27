@@ -1,53 +1,36 @@
 import { ALL_SKILL_IDS } from "../../shared/skill-compatibility-matrix";
-import { isCctoolsSkillsSourceLocator, OPENMIND_SKILLS_REPO_URL } from "../../shared/skill-package-sources";
+import { installBuiltinDefault, removeManagedWikiGenerator } from "./builtin-default-packages";
+import { resolveSkillLibraryBundleRoot } from "./skill-library-catalog";
 import type { SkillPackageService } from "./skill-package-service";
 import type { SkillSourceService } from "./skill-source-service";
 
-type DefaultSkillsAutomation = {
-  stop(): Promise<unknown>;
-  setEnabled(enabled: boolean): Promise<unknown>;
-  refresh(): Promise<unknown>;
-};
+type DefaultSkillsAutomation = { stop(): Promise<unknown>; setEnabled(enabled: boolean): Promise<unknown>; refresh(): Promise<unknown> };
 
-/** Coordinates package mutations with the worker that owns the running jobs. */
 export class DefaultSkillsService {
-  constructor(
-    private readonly packages: SkillPackageService,
-    private readonly sources: SkillSourceService,
+  constructor(private readonly packages: SkillPackageService, _sources: SkillSourceService,
     private readonly automation: DefaultSkillsAutomation,
-    private readonly userRetained: (key: string) => boolean = () => false
-  ) {}
+    private readonly userRetained: (key: string) => boolean = () => false,
+    private readonly bundleRoot: string = resolveSkillLibraryBundleRoot()) {}
 
   async setEnabled(enabled: boolean): Promise<boolean> {
     if (enabled) {
-      const previousKeys = new Set(this.packages.listInstalled().map((record) => record.key));
+      await this.automation.stop();
       try {
-        const records = await this.sources.install({ type: "git", locator: OPENMIND_SKILLS_REPO_URL }, undefined, ALL_SKILL_IDS);
-        for (const record of records) this.packages.setEnabled(record.key, record.digest, true);
-        await this.automation.refresh();
-        await this.automation.setEnabled(true);
-      } catch (error) {
-        await this.automation.stop();
-        // A multi-package install can fail after writing some packages. Remove
-        // only newly installed defaults, preserving pre-existing user packages.
-        for (const record of this.defaultPackages()) {
-          if (!previousKeys.has(record.key)) this.packages.uninstall(record.key, record.digest);
+        for (const id of ALL_SKILL_IDS) {
+          const record = installBuiltinDefault(this.packages, id, this.bundleRoot, this.userRetained);
+          this.packages.setEnabled(record.key, record.digest, true);
         }
+        removeManagedWikiGenerator(this.packages, this.userRetained);
+      } catch (error) {
+        // Successful migrations remain durable. Retry resumes remaining IDs.
         await this.automation.refresh();
         await this.automation.setEnabled(false);
         throw error;
       }
-    } else {
-      await this.automation.stop();
-      for (const record of this.defaultPackages()) this.packages.uninstall(record.key, record.digest);
-      await this.automation.refresh();
-      await this.automation.setEnabled(false);
     }
+    // This switch never deletes installed packages, subscriptions or content.
+    await this.automation.refresh();
+    await this.automation.setEnabled(enabled);
     return enabled;
-  }
-
-  private defaultPackages() {
-    return this.packages.listInstalled().filter((record) =>
-      !this.userRetained(record.key) && ALL_SKILL_IDS.includes(record.id) && record.sourceType === "git" && isCctoolsSkillsSourceLocator(record.sourceLocator || record.sourcePath));
   }
 }

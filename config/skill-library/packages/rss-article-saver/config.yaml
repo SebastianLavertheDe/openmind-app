@@ -1,0 +1,47 @@
+# RSS Article Configuration
+# article_base_dir: output directory for saved articles. Supports ~ and relative paths.
+#   - Absolute: any user-selected content root, e.g. "/home/<you>/openmind/article"
+#   - Relative: resolved against the bound content root ($OPENMIND_ROOT)
+#   - Default (empty): resolved against the bound content root ($OPENMIND_ROOT)
+article_base_dir: ""
+opml_file: "subscriptions.opml"
+max_articles_per_feed: 1
+max_article_age_days: 7  # Only fetch articles published within last N days
+content:
+  extractor: "trafilatura"
+  include_images: true
+  max_content_length: 50000
+  wechat:
+    enabled: true
+    timeout_ms: 30000
+    min_interval_seconds: 15
+    user_data_dir: ""
+    storage_state_path: "wechat_storage_state.json"
+    extra_http_headers:
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+      Accept-Language: "en,zh-CN;q=0.9,zh;q=0.8"
+      Cache-Control: "no-cache"
+      DNT: "1"
+      Pragma: "no-cache"
+      Upgrade-Insecure-Requests: "1"
+ai:
+  # AI provider 由仓库根 config/providers.yaml 的 default 决定
+  # （desktop 注入 OPENMIND_PROVIDER_* 或 crontab 自读 YAML）；此处不配置 provider。
+  enabled: false
+  summarize_full_content: true
+  categories:
+    - System Design
+    - Distributed Systems
+    - Database
+    - Network
+    - Architecture
+    - Algorithms
+    - Backend
+    - Frontend
+    - DevOps
+    - Machine Learning
+    - AI
+    - Golang
+    - Other
+translation:
+  enabled: false  # 启用翻译

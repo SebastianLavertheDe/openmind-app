@@ -54,14 +54,14 @@ export const featureMessages = {
 
   skillCenter: {
     defaults: {
-      title: "默认 Skills 与内置定时任务",
-      description: "开启后自动安装默认 Skills，并启用 RSS、X、Reddit 采集和每日选题定时任务。关闭后停止这些任务并删除对应 Skills，保留已生成内容和个人配置。",
-      installing: "正在安装默认 Skills 并启用内置定时任务…",
-      disabling: "正在停止内置任务并移除默认 Skills…",
+      title: "准备内置 Skills",
+      description: "从本地安装内置 Skills，并创建默认停用的任务模板。订阅和任务单独启用；关闭此开关保留已安装包、内容及任务设置。",
+      installing: "正在准备内置 Skills 和任务模板…",
+      disabling: "正在保存内置 Skills 设置…",
       loadFailed: "无法读取默认 Skills 设置。",
       changeFailed: "更新默认 Skills 失败，请重试。",
-      stopTimeout: "内置任务尚未停止，Skills 已保留，请稍后重试关闭。",
-      enableFirst: "请先在 Skills 设置中开启默认 Skills 与内置定时任务。",
+      stopTimeout: "内置任务尚未停止，Skills 已保留，请稍后重试。",
+      enableFirst: "内置 Skills 正在迁移，请稍后重试。",
       ruleConflict: "已有自定义任务使用了内置任务的 ID，请先调整该任务。",
       retry: "重试"
     },

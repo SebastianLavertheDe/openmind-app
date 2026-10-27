@@ -1,0 +1,4 @@
+interface:
+  display_name: "Collect Interest Markers"
+  short_description: "Convert daily-summary markers into an interest inbox"
+  default_prompt: "Use $collect-interest-markers to collect [i] and [t] markers from today's daily summary into the interest inbox."

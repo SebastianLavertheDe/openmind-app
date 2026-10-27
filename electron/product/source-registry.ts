@@ -1,3 +1,5 @@
+import { RssRepository } from "../rss/rss-repository";
+import { readRssCatalog } from "../rss/rss-service";
 import fs from "node:fs";
 import path from "node:path";
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
@@ -255,7 +257,7 @@ export class SourceRegistry {
       // Reddit entries are fully owned by user-sources.yaml so their enabled
       // state is also consumed by the Skill runner. Legacy app-only overrides
       // must not win over that persistent per-Skill configuration.
-      const override = source.kind === "reddit" ? {} : settings.sources[source.id] || {};
+      const override = source.kind === "reddit" || source.kind === "rss" ? {} : settings.sources[source.id] || {};
       const enabled = override.enabled ?? source.enabled;
       const recentRuns = runs.filter((run) => run.sourceId === source.id || run.skillId === source.skillId).slice(0, 20);
       const latest = recentRuns[0];
@@ -283,15 +285,15 @@ export class SourceRegistry {
     const existing = this.listSources().find((source) => source.id === id);
     if (!existing) throw new Error(messages.errors.source.updateNotFound);
     if (existing.kind === "reddit") return this.updateRedditSource(existing, patch);
-    let targetId = id;
-    let targetUrl = existing.url;
-    if (existing.kind === "rss" && patch.url && patch.url !== existing.url) {
-      this.replaceRssOutline(existing.url || "", { name: patch.name || existing.name, url: patch.url });
-      targetUrl = patch.url;
-      targetId = stableId(`rss:${patch.url}`);
-    } else if (existing.kind === "rss" && patch.name && patch.name !== existing.name) {
-      this.replaceRssOutline(existing.url || "", { name: patch.name, url: existing.url || "" });
+    if (existing.kind === "rss") {
+      const repository = this.rssRepository();
+      const row = repository.read().sources.find(item => item.id === id)!;
+      if (patch.url && patch.url !== row.inputUrl) throw new Error("Use RSS Sources to detect and change the URL.");
+      repository.update({ id, revision: row.revision, name: patch.name, enabled: patch.enabled });
+      return this.listSources().find(item => item.id === id)!;
     }
+    const targetId = id;
+    const targetUrl = existing.url;
     const settings = this.readSourceSettings();
     const current = settings.sources[id] || {};
     if (targetId !== id) delete settings.sources[id];
@@ -324,38 +326,16 @@ export class SourceRegistry {
     const input = AddRssSourceInputSchema.parse(rawInput);
     if (input.kind === "reddit") return this.addRedditSource(input);
     if (input.kind !== "rss") return this.addCustomSource(input);
-    try { new URL(input.url); } catch { throw new Error(messages.errors.source.invalidRssUrl); }
-    const current = this.listSources();
-    const duplicate = current.find((source) => source.url === input.url);
-    if (duplicate) return duplicate;
-    this.appendRssOutlines([{ name: input.name, url: input.url }]);
-    const settings = this.readSourceSettings();
-    const sourceId = stableId(`rss:${input.url}`);
-    settings.sources[sourceId] = {
-      ...(settings.sources[sourceId] || {}),
-      frequency: input.frequency,
-      tags: input.tags
-    };
-    writeJsonAtomic(this.sourceSettingsPath, settings);
-    const source = this.listSources().find((item) => item.url === input.url);
-    if (!source) throw new Error(messages.errors.source.opmlWriteUnreadable);
-    return source;
+    const repository = this.rssRepository();
+    const duplicate = repository.read().sources.find(row => row.inputUrl === input.url);
+    if (!duplicate) repository.add({ name: input.name, inputUrl: input.url, enabled: true }, { kind: "feed", inputUrl: input.url, resolvedFeedUrl: input.url, adapterId: "feed", candidates: [] });
+    return this.listSources().find(row => row.url === input.url)!;
   }
 
   importOpml(filePath: string): number {
-    const raw = readText(filePath);
-    const parser = new XMLParser({ ignoreAttributes: false });
-    const parsed = parser.parse(raw) as Record<string, unknown>;
-    const outlines = collectPrefixedOutlines(parsed)
-      .filter((outline) => typeof outline["@_xmlUrl"] === "string")
-      .map((outline) => ({
-        name: String(outline["@_title"] || outline["@_text"] || outline["@_xmlUrl"]),
-        url: String(outline["@_xmlUrl"])
-      }));
-    const existingUrls = new Set(this.listSources().flatMap((source) => source.url ? [source.url] : []));
-    const additions = outlines.filter((outline) => !existingUrls.has(outline.url));
-    if (additions.length) this.appendRssOutlines(additions);
-    return additions.length;
+    const repository = this.rssRepository();
+    const before = repository.read().sources.length;
+    return repository.importOpml(filePath).sources.length - before;
   }
 
   listSourceRuns(sourceId?: string): SourceRun[] {
@@ -439,36 +419,19 @@ export class SourceRegistry {
     this.sourceRunsDirty = false;
   }
 
-  private readRssSources(date: string): SourceDefinition[] {
-    const opmlPath = this.rssSubscriptionsPath();
-    const raw = readText(opmlPath);
-    if (!raw) return [];
-    const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
-    const parsed = parser.parse(raw) as Record<string, unknown>;
-    const outlines = collectOutlines(parsed);
-    const count = this.content.getContent("articles", date).length;
-    const lastRun = newestMtime([
-      this.skillDataPath("rss-article-saver", "article_cache.json"),
-      this.contentPath("article", date)
-    ]);
-    return outlines
-      .filter((outline) => typeof outline.xmlUrl === "string")
-      .map((outline, index) => SourceDefinitionSchema.parse({
-        schemaVersion: 1,
-        id: stableId(`rss:${outline.xmlUrl}`),
-        name: String(outline.title || outline.text || `RSS ${index + 1}`),
-        kind: "rss",
-        url: String(outline.xmlUrl),
-        skillId: "rss-article-saver",
-        enabled: true,
-        frequency: messages.source.frequencyPipeline,
-        lastRunAt: lastRun,
-        lastSuccessAt: lastRun,
-        successRate: lastRun ? 100 : null,
-        status: lastRun ? "success" : "idle",
-        recentError: null,
-        itemCount: count
-      }));
+  private rssRepository(): RssRepository {
+    return new RssRepository(this.openmindRoot, readRssCatalog(), [path.dirname(this.sourceSettingsPath)]);
+  }
+
+  private readRssSources(_date: string): SourceDefinition[] {
+    if (!fs.existsSync(this.openmindRoot)) return [];
+    return this.rssRepository().read().sources.map(row => SourceDefinitionSchema.parse({
+      schemaVersion: 1, id: row.id, name: row.name, kind: "rss", url: row.inputUrl || null,
+      skillId: "rss-article-saver", enabled: row.enabled, tags: row.tags,
+      frequency: messages.source.frequencyPipeline, lastRunAt: row.lastAttemptAt, lastSuccessAt: row.lastSuccessAt,
+      successRate: null, status: !row.enabled ? "disabled" : row.lastError ? "failed" : row.lastSuccessAt ? "success" : "idle",
+      recentError: row.lastError?.message || null, itemCount: row.itemCount
+    }));
   }
 
   private readRedditSources(date: string, binding: SkillSourceBinding): SourceDefinition[] {

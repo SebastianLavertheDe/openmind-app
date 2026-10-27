@@ -1,0 +1,4 @@
+interface:
+  display_name: "每日编辑选题"
+  short_description: "按用户偏好从本地文章和社交内容生成每日选题"
+  default_prompt: "Use $ai-media-topic-selector to select daily topics using my saved preferences."

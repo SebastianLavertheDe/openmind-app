@@ -42,17 +42,17 @@ describe("AutomationRepository", () => {
     expect(repository.getDefaultSkillsEnabled()).toBe(false);
     expect(repository.listRules()).toEqual([]);
     repository.setDefaultRulesEnabled(true);
-    expect(repository.listRules().map((rule) => rule.id)).toEqual(["rss-capture", "x-following-capture", "reddit-capture", "daily-topic-generation"]);
+    expect(repository.listRules().map((rule) => rule.id)).toEqual(DEFAULT_AUTOMATION_RULES.map(rule => rule.id));
     expect(repository.removeRule("rss-capture")).toBe(true);
     const reloaded = new AutomationRepository(paths);
     expect(reloaded.getDefaultSkillsEnabled()).toBe(true);
-    expect(reloaded.listRules().map((rule) => rule.id)).toEqual(["x-following-capture", "reddit-capture", "daily-topic-generation"]);
+    expect(reloaded.listRules().map((rule) => rule.id)).toEqual(DEFAULT_AUTOMATION_RULES.filter(rule => rule.id !== "rss-capture").map(rule => rule.id));
     reloaded.setDefaultRulesEnabled(false);
     expect(new AutomationRepository(paths).getDefaultSkillsEnabled()).toBe(false);
     expect(reloaded.listRules().every((rule) => !rule.enabled)).toBe(true);
     reloaded.setDefaultRulesEnabled(true);
-    expect(reloaded.listRules()).toHaveLength(4);
-    expect(reloaded.listRules().every((rule) => rule.enabled)).toBe(true);
+    expect(reloaded.listRules()).toHaveLength(6);
+    expect(reloaded.listRules().every((rule) => !rule.enabled)).toBe(true);
   });
 
   it("preserves old seeded settings without inspecting the Skill store", () => {
@@ -80,8 +80,9 @@ describe("AutomationScheduler", () => {
   it("stops built-in running jobs and queued retries while preserving custom jobs", async () => {
     const harness = createHarness(new Date("2026-08-05T09:00:00.000Z"));
     harness.scheduler.setDefaultSkillsEnabled(true);
+    for (const rule of DEFAULT_AUTOMATION_RULES) harness.scheduler.saveRule({ ...rule, enabled: true });
     const reddit = DEFAULT_AUTOMATION_RULES.find((rule) => rule.id === "reddit-capture")!;
-    harness.scheduler.saveRule({ ...reddit, concurrencyPolicy: "queue" });
+    harness.scheduler.saveRule({ ...reddit, enabled: true, concurrencyPolicy: "queue" });
     harness.scheduler.saveRule(rule({ id: "custom" }));
     await harness.scheduler.runNow("reddit-capture");
     await harness.scheduler.runNow("reddit-capture");
@@ -94,7 +95,8 @@ describe("AutomationScheduler", () => {
     expect(harness.scheduler.listRuns("rss-capture")[0].state).toBe("cancelled");
     expect(harness.scheduler.listRuns("custom")[0].state).toBe("running");
     expect(harness.scheduler.getRule("custom").enabled).toBe(true);
-    expect(() => harness.scheduler.saveRule({ ...reddit, enabled: true })).toThrow("请先");
+    expect(harness.scheduler.getRule("reddit-capture").enabled).toBe(true);
+    for (const rule of DEFAULT_AUTOMATION_RULES) harness.scheduler.saveRule({ ...rule, enabled: false });
     const count = harness.submitted.length;
     await harness.scheduler.tick();
     expect(harness.submitted).toHaveLength(count);
@@ -103,7 +105,9 @@ describe("AutomationScheduler", () => {
   it("waits for workflow child processes to exit before finishing stop", async () => {
     const harness = createHarness(new Date("2026-08-05T09:00:00.000Z"), { cancelSkill: async () => true });
     harness.scheduler.setDefaultSkillsEnabled(true);
-    const run = await harness.scheduler.runNow("rss-capture");
+    for (const rule of DEFAULT_AUTOMATION_RULES) harness.scheduler.saveRule({ ...rule, enabled: true });
+    const childWorkflow = harness.scheduler["options"].submitWorkflow({ skillId: "rss-to-summary-workflow", inputs: {}, providerBindings: {}, rootGeneration: 1 });
+    const run = harness.scheduler["options"].repository.createRun({ ruleId: "rss-capture", target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }, state: "running", attempt: 1, retryAt: null, childRunId: childWorkflow.id, triggerReason: "manual", scheduledFor: null, createdAt: new Date().toISOString(), completedAt: null, error: null });
     harness.children.set("workflow-child", child("workflow-child", "cancelling", "rss-article-saver"));
     harness.workflows.get(run.childRunId!)!.stepRuns.push({ runId: "workflow-child", state: "running" } as never);
     let stopped = false;
@@ -118,14 +122,16 @@ describe("AutomationScheduler", () => {
   it("leaves defaults disabled and the switch retryable if a child does not stop", async () => {
     const harness = createHarness(new Date("2026-08-05T09:00:00.000Z"), { cancelSkill: async () => true });
     harness.scheduler.setDefaultSkillsEnabled(true);
-    const run = await harness.scheduler.runNow("rss-capture");
+    for (const rule of DEFAULT_AUTOMATION_RULES) harness.scheduler.saveRule({ ...rule, enabled: true });
+    const childWorkflow = harness.scheduler["options"].submitWorkflow({ skillId: "rss-to-summary-workflow", inputs: {}, providerBindings: {}, rootGeneration: 1 });
+    const run = harness.scheduler["options"].repository.createRun({ ruleId: "rss-capture", target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" }, state: "running", attempt: 1, retryAt: null, childRunId: childWorkflow.id, triggerReason: "manual", scheduledFor: null, createdAt: new Date().toISOString(), completedAt: null, error: null });
     harness.children.set("stuck", child("stuck", "running", "rss-article-saver"));
     harness.workflows.get(run.childRunId!)!.stepRuns.push({ runId: "stuck", state: "running" } as never);
     const now = vi.spyOn(Date, "now").mockReturnValueOnce(0).mockReturnValue(10_001);
     try {
       await expect(harness.scheduler.stopDefaultSkills()).rejects.toThrow("内置任务尚未停止");
       expect(harness.scheduler.getDefaultSkillsEnabled()).toBe(true);
-      expect(harness.scheduler.listRules().every((rule) => !rule.enabled)).toBe(true);
+      expect(harness.scheduler.listRules().every((rule) => rule.enabled)).toBe(true);
       await harness.scheduler.tick();
       expect(harness.scheduler.listRuns("rss-capture")[0].state).toBe("cancelled");
       now.mockReturnValueOnce(0).mockReturnValue(10_001);

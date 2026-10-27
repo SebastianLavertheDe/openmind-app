@@ -1,0 +1,110 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "daily-writing-orchestrator",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "process",
+  "display": {
+    "name": "写作素材包",
+    "description": "从每日选题中选择主题并生成标准创作素材包。",
+    "group": "创作"
+  },
+  "entrypoint": {
+    "runtime": "python",
+    "script": "scripts/create_writing_package.py",
+    "args": [
+      "--date",
+      "{{ inputs.date }}",
+      "--topic",
+      "{{ inputs.topic }}",
+      "--platform",
+      "{{ inputs.platform }}"
+    ]
+  },
+  "runtime": {
+    "version": ">=3.11,<3.13",
+    "dependencyFile": "pyproject.toml",
+    "lockFile": "uv.lock",
+    "packs": [
+      "python-core"
+    ]
+  },
+  "inputs": {
+    "type": "object",
+    "required": [
+      "date"
+    ],
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "compact-date"
+      },
+      "topic": {
+        "type": "string",
+        "default": "auto"
+      },
+      "platform": {
+        "type": "string",
+        "enum": [
+          "xiaohongshu",
+          "wechat",
+          "twitter",
+          "all"
+        ],
+        "default": "all"
+      }
+    }
+  },
+  "config": {},
+  "capabilities": {
+    "openmind": {
+      "read": [
+        "daily-topic/**",
+        "creative/**"
+      ],
+      "write": [
+        "creative/**"
+      ]
+    },
+    "network": {
+      "required": false,
+      "hosts": []
+    },
+    "subprocess": {
+      "allowed": false
+    }
+  },
+  "artifacts": [
+    {
+      "id": "writing-package",
+      "type": "directory",
+      "path": "creative/**"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:creative"
+      ]
+    },
+    "timeoutSeconds": 1800,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

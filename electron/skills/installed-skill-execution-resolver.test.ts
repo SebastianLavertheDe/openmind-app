@@ -18,12 +18,9 @@ import { SkillPackageService } from "./skill-package-service";
 import { InstalledSkillExecutionResolver } from "./installed-skill-execution-resolver";
 
 const roots: string[] = [];
-const EXTERNAL_SKILLS_ROOT = path.resolve(
-  process.env.OPENMIND_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../cctools-skills")
-);
-const HAS_EXTERNAL_SKILLS = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "cctools.skill.yaml"));
-const realSkillIt = HAS_EXTERNAL_SKILLS ? it : it.skip;
-const linuxRealSkillIt = it.skipIf(process.platform !== "linux" || !HAS_EXTERNAL_SKILLS);
+const INTERNAL_SKILLS_ROOT = path.resolve(__dirname, "../../.build/skill-library");
+const realSkillIt = it;
+const linuxRealSkillIt = it.skipIf(process.platform !== "linux");
 const ORIGINAL_WORKSPACE_ROOT = process.env.OPENMIND_WORKSPACE_ROOT;
 
 afterEach(() => {
@@ -859,7 +856,7 @@ describe("InstalledSkillExecutionResolver", () => {
       expect(completed.runtime?.packId).toBe("python-core");
       expect(fs.existsSync(path.join(openmindRoot, ".agent", "skills"))).toBe(true);
       expect(fs.readFileSync(
-        path.join(openmindRoot, ".agent", "skill-data", "rss-article-saver", "subscriptions.opml"),
+        path.join(openmindRoot, ".agent", "skill-data", "rss-article-saver", "sources.json"),
         "utf8"
       )).toContain(`http://127.0.0.1:${port}/feed.xml`);
     } finally {
@@ -867,115 +864,9 @@ describe("InstalledSkillExecutionResolver", () => {
     }
   }, 120_000);
 
-  linuxRealSkillIt("executes the real Batch B knowledge-wiki-compiler package under the bound root", async () => {
-    // Production uses the app-wide shared interpreter; this resolver contract
-    // test must not require the Skill source to own a private .venv.
-    const python = resolveSkillPython("knowledge-wiki-compiler") || resolvePythonExecutable();
-    expect(python).toBeTruthy();
-
-    const providerRequests: Array<{ authorization: string; body: string }> = [];
-    const server = http.createServer((req, res) => {
-      if (req.method !== "POST") {
-        res.writeHead(404);
-        res.end();
-        return;
-      }
-      const chunks: Buffer[] = [];
-      req.on("data", (chunk: Buffer) => chunks.push(chunk));
-      req.on("end", () => {
-        providerRequests.push({
-          authorization: String(req.headers.authorization || ""),
-          body: Buffer.concat(chunks).toString("utf8")
-        });
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ choices: [{ message: { content: "{}" } }] }));
-      });
-    });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address();
-    const port = typeof address === "object" && address ? address.port : 0;
-    expect(port).toBeGreaterThan(0);
-
-    try {
-      const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-wiki-installed-"));
-      roots.push(fixtureRoot);
-      const paths = buildAppPaths(path.join(fixtureRoot, "user-data"), resolveSkillStoreRoot(path.join(fixtureRoot, "openmind")));
-      ensureAppPaths(paths);
-      const openmindRoot = path.join(fixtureRoot, "openmind");
-      const articleDir = path.join(openmindRoot, "article", "20260805");
-      bindTestProvider(openmindRoot, port, "wiki-test-credential");
-      fs.mkdirSync(articleDir, { recursive: true });
-      fs.writeFileSync(
-        path.join(articleDir, "wiki-test.md"),
-        [
-          "# Wiki chain article",
-          "",
-          "## 元数据",
-          "",
-          "- **链接**: https://example.test/wiki-chain",
-          "- **发布时间**: 2026-08-05",
-          "",
-          "## 正文",
-          "",
-          "AI agent workflow uses explicit context and repeatable evaluation steps.",
-          "The article is seeded to verify source scanning, private compiler state, and wiki output placement."
-        ].join("\n")
-      );
-      const packages = new SkillPackageService(paths);
-      const runtimePacks = installSignedRuntimePack(paths, "python-core", "3.12.1");
-      const pythonWrapper = path.join(paths.staging, "wiki-python-wrapper");
-      fs.writeFileSync(pythonWrapper, `#!/bin/sh\nexec ${JSON.stringify(python)} "$@"\n`);
-      fs.chmodSync(pythonWrapper, 0o755);
-      const runtime = new RuntimeManager(paths, {
-        target: "linux-x64",
-        getActivePack: (packId, target) => runtimePacks.getActive(packId, target),
-        resolveExecutable: () => pythonWrapper,
-        prepareEnvironment: async () => undefined
-      });
-      const resolver = new InstalledSkillExecutionResolver(packages, runtime, openmindRoot, 1);
-      const installed = packages.install(skillSourcePath("knowledge-wiki-compiler"));
-
-      const broker = new ExecutionBroker(
-        paths,
-        (request, runId) => resolver.resolve(request, runId),
-        undefined,
-        { maxConcurrentRuns: 1 }
-      );
-      const run = broker.submit(SkillRunRequestSchema.parse({
-        skillId: "knowledge-wiki-compiler",
-        version: "1.0.0",
-        digest: installed.digest,
-        inputs: { date: "20260805" },
-        providerBindings: { default: "default" },
-        trigger: { type: "manual" },
-        externalExportBindingIds: [],
-        rootGeneration: 1
-      }));
-      await waitFor(
-        () => ["succeeded", "failed", "cancelled", "timed_out"].includes(broker.get(run.id).state),
-        60_000
-      );
-      const completed = broker.get(run.id);
-      if (completed.state !== "succeeded") {
-        throw new Error([
-          `knowledge-wiki-compiler ended in ${completed.state}`,
-          ...broker.events(run.id).map((event) => `${event.stream || event.state || "event"}: ${event.text || ""}`)
-        ].join("\n"));
-      }
-      expect(findMarkdownFiles(path.join(openmindRoot, "wiki")).length).toBeGreaterThan(0);
-      expect(fs.existsSync(path.join(openmindRoot, "wiki-state"))).toBe(false);
-      expect(fs.existsSync(path.join(openmindRoot, ".agent", "skill-data", "knowledge-wiki-compiler", "wiki-state"))).toBe(true);
-      // AI generation is optional in the current Skill config. If enabled,
-      // every request must still receive the scoped credential.
-      expect(providerRequests.every((request) => request.authorization === "Bearer wiki-test-credential")).toBe(true);
-      expect(completed.artifacts.some(
-        (artifact) => artifact.declared && (artifact.logicalPath || "").startsWith("openmind/wiki/")
-      )).toBe(true);
-      expect(completed.runtime?.packId).toBe("python-core");
-    } finally {
-      server.close();
-    }
-  }, 120_000);
+  it("does not distribute the retired knowledge wiki generator", () => {
+    expect(fs.existsSync(path.join(INTERNAL_SKILLS_ROOT, "knowledge-wiki-compiler"))).toBe(false);
+  });
 
   linuxRealSkillIt("executes the real x-following-fetcher package with Skill-data credentials", async () => {
     const python = resolveSkillPython("x-following-fetcher");
@@ -1093,7 +984,7 @@ describe("InstalledSkillExecutionResolver", () => {
       );
       const run = broker.submit(SkillRunRequestSchema.parse({
         skillId: "x-following-fetcher",
-        version: "1.0.0",
+        version: installed.version,
         digest: installed.digest,
         inputs: {},
         providerBindings: {},
@@ -1160,6 +1051,7 @@ describe("InstalledSkillExecutionResolver", () => {
             body: Buffer.concat(chunks).toString("utf8")
           });
           const response = {
+            keep: true, items: [{ index: 1, reason: "Useful content" }],
             translated_title: "链路测试文章",
             summary: "本地 Provider 用固定 JSON 响应验证 RSS、总结和选题之间的运行时交接。",
             key_points: ["三个 Skill 共享同一个 openmindRoot 和 rootGeneration"],
@@ -1533,17 +1425,12 @@ function resolvePythonExecutable(): string | undefined {
   return undefined;
 }
 
-function resolveSkillPython(skillId: string): string | undefined {
-  const candidate = path.join(skillSourcePath(skillId), ".venv", "bin", "python");
-  try {
-    return fs.statSync(candidate).isFile() ? candidate : undefined;
-  } catch {
-    return undefined;
-  }
+function resolveSkillPython(_skillId: string): string | undefined {
+  return resolvePythonExecutable();
 }
 
 function skillSourcePath(skillId: string): string {
-  return path.join(EXTERNAL_SKILLS_ROOT, skillId);
+  return path.join(INTERNAL_SKILLS_ROOT, skillId);
 }
 
 function bindEmptyProviderWorkspace(workspaceRoot: string): void {

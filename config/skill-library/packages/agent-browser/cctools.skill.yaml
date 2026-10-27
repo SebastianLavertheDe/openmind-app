@@ -1,0 +1,74 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "agent-browser",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "agent",
+  "display": {
+    "name": "浏览器自动化 Agent",
+    "description": "在 AI 控制台中由 Claude Code 或 Codex CLI 驱动 agent-browser，完成导航、点击、填表、截图、数据抓取与 Web 测试。",
+    "group": "浏览器"
+  },
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "task": {
+        "type": "string",
+        "description": "要完成的浏览器任务自然语言描述。"
+      },
+      "url": {
+        "type": "string",
+        "description": "起始页面 URL（可选）。"
+      }
+    }
+  },
+  "capabilities": {
+    "openmind": {
+      "read": [],
+      "write": []
+    },
+    "network": {
+      "required": true,
+      "hosts": [
+        "*"
+      ]
+    },
+    "subprocess": {
+      "allowed": true
+    },
+    "browser": true
+  },
+  "artifacts": [
+    {
+      "id": "browser-evidence",
+      "type": "directory",
+      "externalExportId": "browserEvidenceDir"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "browser:agent-browser"
+      ]
+    },
+    "timeoutSeconds": 1800,
+    "gracefulStopSeconds": 15,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

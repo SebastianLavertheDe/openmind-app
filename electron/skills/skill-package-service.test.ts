@@ -9,10 +9,8 @@ import {
   SkillPackageService
 } from "./skill-package-service";
 
-const EXTERNAL_SKILLS_ROOT = path.resolve(
-  process.env.OPENMIND_SKILLS_REPO_ROOT || path.resolve(__dirname, "../../../cctools-skills")
-);
-const realSkillIt = fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, "rss-article-saver", "cctools.skill.yaml")) ? it : it.skip;
+const INTERNAL_SKILLS_ROOT = path.resolve(__dirname, "../../.build/skill-library");
+const realSkillIt = it;
 
 const MANIFEST = `apiVersion: openmind.dev/skill/v1
 id: example-skill
@@ -329,8 +327,8 @@ describe("SkillPackageService", () => {
     }
   });
 
-  realSkillIt("recognizes the formal packages from the independent Skills repository", () => {
-    const skillsRoot = EXTERNAL_SKILLS_ROOT;
+  realSkillIt("recognizes the formal packages from the bundled Skill library", () => {
+    const skillsRoot = INTERNAL_SKILLS_ROOT;
     const expected = [
       "asset-collector",
       "collect-interest-markers",
@@ -339,7 +337,6 @@ describe("SkillPackageService", () => {
       "reddit-fetcher",
       "daily-article-summarizer",
       "daily-topic-selector",
-      "knowledge-wiki-compiler",
       "rss-article-saver",
       "x-following-fetcher",
       "rss-to-summary-workflow",
@@ -355,12 +352,11 @@ describe("SkillPackageService", () => {
     const xInspection = inspections.find((inspection) => inspection.manifest?.id === "x-following-fetcher");
     // Runtime droppings committed in the skills repository must never enter an
     // installed package (the file names track the current repo contents).
-    expect(xInspection?.excludedPaths).toEqual(expect.arrayContaining(["external_article_fetch.log", "posted_ids.json"]));
+    expect(xInspection?.files.some(file => file.path.endsWith(".log"))).toBe(false);
     expect(xInspection?.files.some((file) => ["external_article_fetch.log", "posted_ids.json"].includes(file.path))).toBe(false);
     const packagedAiFiles: Record<string, string> = {
       "daily-article-summarizer": "src/ai_client.py",
       "rss-article-saver": "src/ai_client.py",
-      "knowledge-wiki-compiler": "src/knowledge_wiki_compiler/ai_client.py",
       "daily-topic-selector": "scripts/ai_client.py"
     };
     for (const [id, file] of Object.entries(packagedAiFiles)) {
@@ -388,7 +384,7 @@ describe("SkillPackageService", () => {
     expect(videoScript).not.toContain("load_dotenv");
     expect(videoScript).not.toContain("--env-file");
 
-    const videoDownload = service.inspect(path.join(skillsRoot, "VideoDownload"));
+    const videoDownload = service.inspect(path.join(skillsRoot, "video-download"));
     expect(videoDownload?.manifest?.entrypoint.args).toEqual([
       "{{ inputs.url }}",
       "--output",
@@ -396,7 +392,7 @@ describe("SkillPackageService", () => {
       "--output-name",
       "{{ inputs.outputName }}"
     ]);
-    const videoDownloadScript = fs.readFileSync(path.join(skillsRoot, "VideoDownload", "main.py"), "utf8");
+    const videoDownloadScript = fs.readFileSync(path.join(skillsRoot, "video-download", "main.py"), "utf8");
     expect(videoDownloadScript).not.toContain("Path.cwd()");
     expect(videoDownloadScript).toContain("--output must be an absolute Export Location path");
 
@@ -404,20 +400,19 @@ describe("SkillPackageService", () => {
     expect(workflow?.manifest?.kind).toBe("workflow");
     expect(workflow?.manifest?.workflow.steps.map((step) => [step.id, step.skill, step.version])).toEqual([
       ["fetch", "rss-article-saver", "^1.0.0"],
-      ["summarize", "daily-article-summarizer", "^1.0.0"],
-      ["select-topic", "daily-topic-selector", "^1.0.0"]
+      ["summarize", "daily-article-summarizer", "^1.0.0"]
     ]);
     // Local/cron launcher coexists with the desktop Workflow Engine manifest.
     // Desktop scheduling comes from the preferred cctools.skill.yaml above.
     expect(workflow?.files.map((file) => file.path)).toContain("scripts/run_workflow.py");
-    expect(workflow?.files.map((file) => file.path)).toContain("workflows.yaml");
-    expect(workflow?.files.map((file) => file.path)).toContain("cctools.skill.yaml");
+    expect(workflow?.files.map((file) => file.path)).not.toContain("workflows.yaml");
+    expect(workflow?.files.map((file) => file.path)).toContain("openmind.skill.yaml");
   });
 
-  realSkillIt("installs all formal packages from the independent Skills repository", () => {
-    const packageDirectories = fs.readdirSync(EXTERNAL_SKILLS_ROOT, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(EXTERNAL_SKILLS_ROOT, entry.name, "cctools.skill.yaml")))
-      .map((entry) => path.join(EXTERNAL_SKILLS_ROOT, entry.name));
+  realSkillIt("installs all formal packages from the bundled Skill library", () => {
+    const packageDirectories = fs.readdirSync(INTERNAL_SKILLS_ROOT, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("om-") && fs.existsSync(path.join(INTERNAL_SKILLS_ROOT, entry.name, "openmind.skill.yaml")))
+      .map((entry) => path.join(INTERNAL_SKILLS_ROOT, entry.name));
     const installed = packageDirectories.map((source) => service.install(source));
 
     // GitHub packages are independent from the App-owned skill library.
@@ -431,7 +426,6 @@ describe("SkillPackageService", () => {
       "daily-article-summarizer",
       "daily-topic-selector",
       "daily-writing-orchestrator",
-      "knowledge-wiki-compiler",
       "reddit-fetcher",
       "rss-article-saver",
       "rss-to-summary-workflow",
@@ -440,10 +434,10 @@ describe("SkillPackageService", () => {
       "video-download",
       "x-following-fetcher"
     ].sort());
-    expect(installed.length).toBe(16);
+    expect(installed.length).toBe(15);
     expect(installed.every((record) => service.isInstalledCopyUsable(record))).toBe(true);
 
-    const sharedRoot = path.join(EXTERNAL_SKILLS_ROOT, "_shared");
+    const sharedRoot = path.join(INTERNAL_SKILLS_ROOT, "rss-article-saver", "_shared");
     const sharedProject = fs.readFileSync(path.join(sharedRoot, "pyproject.toml"), "utf8");
     expect(sharedProject).toContain('name = "cctools-skill-shared"');
     expect(sharedProject).toContain('version = "1.0.0"');

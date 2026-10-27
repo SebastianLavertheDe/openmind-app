@@ -128,7 +128,7 @@ export class SharedPythonRuntimeService {
     const state = this.readState();
     if (!state.enabled || state.phase !== "ready" || !state.currentFingerprint) return null;
     const executable = environmentPython(this.generationRoot(state.currentFingerprint));
-    return fs.existsSync(executable) ? fs.realpathSync(executable) : null;
+    return fs.existsSync(executable) ? path.resolve(executable) : null;
   }
 
   async setEnabled(enabled: boolean): Promise<SharedPythonRuntimeStatus> {
@@ -170,7 +170,9 @@ export class SharedPythonRuntimeService {
       packId: "python-core",
       packDigest: asset.filesDigest,
       fingerprint,
-      executable: fs.realpathSync(executable),
+      // Preserve the venv entry path: realpath would start base Python and
+      // silently lose every dependency installed into this generation.
+      executable: path.resolve(executable),
       env: sharedEnvironment(this.root, fingerprint),
       prepare: async () => {
         await this.ensurePrepared([{ id: manifest.id, version: manifest.version, digest: packageDigest, packageRoot }]);
@@ -179,7 +181,7 @@ export class SharedPythonRuntimeService {
         const python = environmentPython(this.generationRoot(latest.currentFingerprint));
         if (!fs.existsSync(python)) throw new Error("共享 Python 环境缺少解释器。");
         preparation.fingerprint = latest.currentFingerprint;
-        preparation.executable = fs.realpathSync(python);
+        preparation.executable = path.resolve(python);
         preparation.env = sharedEnvironment(this.root, latest.currentFingerprint);
       }
     };
@@ -461,7 +463,7 @@ function digestTree(root: string, excludedRelativePaths = new Set<string>()): st
 
 function findPythonExecutable(root: string): string | undefined {
   if (!fs.existsSync(root)) return undefined;
-  const preferred = process.platform === "win32" ? ["python.exe"] : ["python3", "python"];
+  const preferred = process.platform === "win32" ? ["python.exe"] : ["python3", "python", "python3.11", "python3.12"];
   return findNamedFile(root, preferred, (relative) => process.platform === "win32" || relative.includes("/bin/"));
 }
 

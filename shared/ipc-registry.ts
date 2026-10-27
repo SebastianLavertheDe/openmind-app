@@ -3,6 +3,16 @@ import { IPC, PROJECT_IPC } from "./ipc-channels";
 
 /** renderer invoke 方法 → main 通道。preload 桥与 main handler 注册表的单一来源（E3 完整表）。 */
 export const IPC_INVOKE_REGISTRY = [
+  { method: "getRssSources", channel: IPC.RSS_LIST },
+  { method: "detectRssSource", channel: IPC.RSS_DETECT },
+  { method: "createRssSource", channel: IPC.RSS_ADD },
+  { method: "editRssSource", channel: IPC.RSS_EDIT },
+  { method: "removeRssSource", channel: IPC.RSS_REMOVE },
+  { method: "importRssOpml", channel: IPC.RSS_IMPORT },
+  { method: "runRss", channel: IPC.RSS_RUN },
+  { method: "getDailyBriefPreferences", channel: IPC.BRIEF_PREFERENCES_GET },
+  { method: "saveDailyBriefPreferences", channel: IPC.BRIEF_PREFERENCES_SAVE },
+  { method: "generateDailyBrief", channel: IPC.BRIEF_GENERATE },
   { method: "listSkillLibrary", channel: IPC.SKILL_LIBRARY_LIST },
   { method: "installLibraryPreset", channel: IPC.SKILL_LIBRARY_INSTALL },
   { method: "getSkillEditor", channel: IPC.SKILL_LIBRARY_EDITOR },

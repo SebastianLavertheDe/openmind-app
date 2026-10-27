@@ -18,6 +18,7 @@ export type WorkflowRunReader = (runId: string) => BrokerRunRecord;
 export type WorkflowRunEventHandler = (event: WorkflowRunRecord) => void;
 
 export type WorkflowStepAdmission = {
+  dailyBriefPreferences?: import("../../shared/daily-brief-preferences").DailyBriefPreferences;
   stepId: string;
   skillId: string;
   version: string;
@@ -265,6 +266,7 @@ export class WorkflowEngine {
           skillId: definition.skill,
           version: admitted.version,
           digest: admitted.digest,
+          dailyBriefPreferences: admitted.dailyBriefPreferences,
           providerBindings,
           inputs: resolveStepInputs(definition.with, inputs, updates, new Set(definition.needs)),
           trigger: { type: "workflow", parentRunId: id, stepId: definition.id },

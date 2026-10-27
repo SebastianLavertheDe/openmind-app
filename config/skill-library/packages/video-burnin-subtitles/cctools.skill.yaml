@@ -1,0 +1,117 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "video-burnin-subtitles",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "process",
+  "display": {
+    "name": "视频烧录字幕",
+    "description": "下载或使用本地视频，检测/生成/翻译字幕，并用 ffmpeg 把字幕硬烧进输出视频，产物固定写入绑定根的 video/<job>/。",
+    "group": "媒体"
+  },
+  "entrypoint": {
+    "runtime": "python",
+    "script": "scripts/burnin_subtitles.py",
+    "args": [
+      "--input",
+      "{{ inputs.source }}",
+      "--lang",
+      "{{ inputs.language }}",
+      "--subtitle",
+      "{{ inputs.subtitleFile }}",
+      "--output-name",
+      "{{ inputs.outputName }}"
+    ]
+  },
+  "runtime": {
+    "version": ">=3.11,<3.13",
+    "dependencyFile": "pyproject.toml",
+    "lockFile": "uv.lock",
+    "packs": [
+      "python-core",
+      "media-core",
+      "speech-whisper",
+      "cjk-subtitle-fonts"
+    ]
+  },
+  "inputs": {
+    "type": "object",
+    "required": [
+      "source",
+      "language"
+    ],
+    "properties": {
+      "source": {
+        "type": "string",
+        "description": "视频来源（YouTube 等 URL 或本地视频绝对路径）。"
+      },
+      "language": {
+        "type": "string",
+        "description": "目标字幕语言代码，如 en、zh、ja。"
+      },
+      "outputName": {
+        "type": "string",
+        "description": "可选输出名称（默认 video）。",
+        "default": "video"
+      },
+      "subtitleFile": {
+        "type": "string",
+        "description": "可选现有 .srt/.vtt 字幕文件绝对路径。",
+        "default": ""
+      }
+    }
+  },
+  "capabilities": {
+    "openmind": {
+      "read": [
+        "video/**"
+      ],
+      "write": [
+        "video/**"
+      ]
+    },
+    "network": {
+      "required": true,
+      "hosts": [
+        "*"
+      ]
+    },
+    "subprocess": {
+      "allowed": true
+    }
+  },
+  "artifacts": [
+    {
+      "id": "video-job",
+      "type": "directory",
+      "path": "video/**"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:video"
+      ]
+    },
+    "timeoutSeconds": 7200,
+    "gracefulStopSeconds": 15,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0",
+    "minRuntimeVersion": "1.0.0"
+  }
+}

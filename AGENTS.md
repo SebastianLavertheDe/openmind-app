@@ -8,17 +8,19 @@ committed here.
 
 - App source: this repository.
 - Private content/runtime data: the separately selected OpenMind data repository.
-- External GitHub Skill source: the independent `cctools-skills` repository.
-- App Skill library source: `config/skill-library/`, maintained independently.
-  Generate its installable packages into ignored build output; do not read or
-  add these definitions to `cctools-skills`.
+- App Skill sources: `config/skill-library/`, including the migrated packages
+  under `packages/`. RSS adapters and public source definitions are maintained
+  here; builds and runtime must not depend on adjacent repositories.
+  Generate installable packages into ignored build output. Keep third-party
+  Git/directory/ZIP imports distinct from App-owned packages.
 - Installed Skills: `<openmindRoot>/.agent/skills/`.
 - Persistent per-Skill runtime state: `<openmindRoot>/.agent/skill-data/<skill>/`.
 - App-private state: Electron `userData`, optionally selected with the absolute
   `OPENMIND_USER_DATA_DIR` environment variable before startup.
 
 Do not add real provider keys, browser profiles, cookies, tokens, fetched content,
-or a copied Skill source tree to this repository.
+or installed/runtime Skill trees to this repository. Reviewed migrated source
+belongs under `config/skill-library/packages/`; exclude knowledge-wiki-compiler.
 
 ## Common commands
 
@@ -32,8 +34,9 @@ npm run test:e2e
 npm run verify
 ```
 
-Node.js 22.12 or newer is required. Tests that validate the independent Skill
-repository can opt in with `OPENMIND_SKILLS_REPO_ROOT=/absolute/path/to/cctools-skills`.
+Node.js 22.12 or newer is required. Core Skill tests and manifest validation use
+the repository's own packages. Optional external compatibility checks may set
+`OPENMIND_SKILLS_REPO_ROOT`, but must not replace internal package validation.
 
 ## Development rules
 

@@ -1,0 +1,13 @@
+[project]
+name = "cctools-skill-shared"
+version = "1.0.0"
+description = "Versioned compatibility helpers for local cctools Skill development"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["ai_client", "log_rotate"]

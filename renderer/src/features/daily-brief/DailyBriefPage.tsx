@@ -1,3 +1,4 @@
+import { DailyPreferences } from "../sources/DailyPreferences";
 import { isMissingFileError } from "../file-preview/missing-file";
 import { useBeforeSessionNavigation } from "../../app/session-navigation";
 import { useSessionOrigin } from "../../app/session-origin-context";
@@ -19,12 +20,14 @@ export function DailyBriefPage({
   initialDate,
   initialFilePath,
   embeddedFilePreviewPath = null,
-  onCloseEmbeddedFilePreview
+  onCloseEmbeddedFilePreview,
+  onManageSources
 }: {
   initialDate?: string;
   initialFilePath?: string | null;
   embeddedFilePreviewPath?: string | null;
   onCloseEmbeddedFilePreview?(): void;
+  onManageSources?(): void;
 }) {
   const locale = useLocale();
   const layoutRef = useRef<HTMLDivElement>(null);
@@ -194,6 +197,10 @@ export function DailyBriefPage({
           <div><span className="eyebrow">{m.brief.library.eyebrow}</span><h1>{m.brief.library.title}</h1></div>
           <IconButton label={m.brief.library.refresh} aria-busy={loading || undefined} disabled={loading} data-motion="icon" onClick={() => void load()}><RefreshCw size={15} className={loading ? "spin" : ""} /></IconButton>
         </header>
+          <div className="brief-preference-actions">
+            <DailyPreferences />
+            {onManageSources ? <Button variant="secondary" size="sm" onClick={onManageSources}>{m.rss.manage}</Button> : null}
+          </div>
           <SearchInput className="document-library-search" variant="quiet" value={query} onChange={(event) => setQuery(event.target.value)} aria-label={m.brief.library.search} placeholder={m.brief.library.search} />
         <div className="document-library-count">{m.brief.library.allFiles} <span>{filteredFiles.length}</span></div>
         <div className="document-file-list entrance-stagger" aria-busy={loading || undefined}>

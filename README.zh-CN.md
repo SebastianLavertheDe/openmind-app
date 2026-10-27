@@ -6,7 +6,7 @@ OpenMind Desktop 是一个面向信息收集、知识整理和 AI 内容创作�
 
 ## 项目亮点
 
-- **203 个精选 RSS 源。** 官方 [Skill 库](https://github.com/SebastianLavertheDe/cctools-skills) 包含 122 个普通订阅和 81 个公众号订阅，覆盖 AI、科技、工程等领域。首次安装后即可使用，也可以调整自己的订阅。
+- **管理自己的 RSS 源。** 展示 227 个公共建议源，支持添加网站或 RSS、编辑、删除、启用和停用。RSS 更新、文章采集、每日总结与选题分别设置任务，用户偏好决定关注领域、排除项、语言和推荐条数。
 - **手动添加资料。** 支持将网页 URL、PDF 文件和 YouTube 视频链接添加到项目中，集中整理资料并用于阅读和写作。
 - **从阅读到写作。** 把文章保存为 Markdown，生成每日摘要和选题，再用收集的资料撰写草稿、推进创作项目。
 - **自由配置 AI。** 使用自己的 AI Provider 完成摘要和写作，也可以连接 Claude Code 或 Codex CLI 开始 AI 会话。
@@ -46,7 +46,7 @@ OpenMind Desktop 是一个面向信息收集、知识整理和 AI 内容创作�
 
 1. **选择数据目录。** 选择保存 OpenMind 内容和个人配置的文件夹。
 2. **配置 AI（可选）。** 在 **设置 → AI 与模型** 中添加 AI Provider，填写 Base URL、API Key 和文本模型，并选择默认 Provider。使用 AI 会话时，还需要安装或连接 Claude Code / Codex CLI，并按应用提示完成连接配置。首启时也可以选择 **稍后配置**，需要 AI 功能时再补充。
-3. **按需开启默认 Skills。** 启动时不检查或要求安装官方 Skill 库。在 **设置 → Skills** 中开启 **默认 Skills 与内置定时任务**，即可自动安装 [cctools-skills](https://github.com/SebastianLavertheDe/cctools-skills)，并启用 RSS、X、Reddit 采集和每日选题任务。新安装时开关默认关闭，安装需要联网。关闭后停止这些任务并删除官方 Skills，保留已生成内容、个人配置、其他来源的 Skills 和自定义定时任务。
+3. **选择订阅和任务。** 其余 15 个 Skill 与 Feed 转换器已随 App 内置，无需克隆 `cctools-skills` 或 `blog-rss-feed`。在 **RSS 源** 管理订阅，通过 **定时任务** 设置周期和时区；新用户的建议源与新建任务默认停用。Python Skill 执行前需在设置开启内置 Python；总结和选题另需配置 Process Provider。关闭内置集合开关保留包、内容、订阅及各任务设置。
 4. **开始采集和创作。** 在设置中调整订阅，在技能中心运行 RSS 采集或 RSS 到摘要工作流，再到资料库阅读结果，并用于写作项目。
 
 AI 功能会向你配置的 Provider 发送请求。请使用自己的凭据，并将数据目录和 Provider 配置保留为私人数据。
@@ -74,7 +74,7 @@ npm run dev:electron
 
 运行时准备步骤会下载 Skill 使用的 Python 运行时。应用打开后，按上面的首次启动流程完成设置。
 
-App 技能库独立维护在 [`config/skill-library/catalog.json`](config/skill-library/catalog.json)，包含展示文案、执行指令、分类和运行环境要求。新增技能只需添加一条配置，再运行 `npm run prepare:skill-library`；可选辅助脚本放在同目录的 `assets/` 下。App 构建无需 `cctools-skills` 源码目录，`build` 和 `dev:electron` 会自动准备独立的应用技能包。`cctools-skills` 仍是通过来源管理安装的外部 GitHub 技能来源。详见[配置说明](config/skill-library/README.md)。
+App 技能库统一维护在 [`config/skill-library/`](config/skill-library/README.md)：21 个配置式 Agent 预设，以及 `packages/` 下迁入的 15 个原生 Agent、Process 和 Workflow 包。构建包含共享 Python 模块及 RSS 转换器，不依赖相邻仓库。外部 Git 导入和用户编写的 Skill 仍保留独立身份。安装、CLI/crontab、迁移与验证说明见 [RSS 与 Skills 使用指南](docs/RSS_AND_SKILLS_GUIDE.md)。
 
 开发约定见 [AGENTS.md](AGENTS.md)。更多说明：[AI 工作台](docs/AI_WORKSPACE.md)、[公众号导出](docs/wechat-export.md)、[支持与恢复](docs/SUPPORT_AND_RECOVERY.md)。
 

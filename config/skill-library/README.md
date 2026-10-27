@@ -1,6 +1,6 @@
 # 应用技能库配置
 
-这里维护 App「探索」页面中的技能，与从 GitHub 导入的 `cctools-skills` 是两个独立来源。
+这里维护全部 App 内置技能：配置式 Agent 预设和 `packages/` 下迁入的 15 个原生包。Agent、Process、Workflow 保留原执行类型；外部 Git 导入与用户编写的技能继续使用独立来源身份。
 `catalog.json` 包含技能清单、执行指令及中英文展示信息；App 构建不读取外部技能仓库。
 
 ## 添加技能
@@ -126,7 +126,7 @@ App 中创建的技能保存在本地「我的」，不会自动投稿。公开�
 开关相互独立。GitHub 包即使使用相同 ID，也不会被认作应用技能或被其安装操作覆盖。
 
 只有早期从 App 自带资源安装、且有绑定记录的旧包，才允许在明确重新安装时迁移发布者；
-不会迁移或删除用户从 GitHub 导入的包。关闭 `cctools-skills` 默认技能不影响应用技能。
+只迁移具有官方默认来源记录、未被用户保留且内容完整的旧包。第三方、用户主动导入和修改过的副本不会被覆盖。关闭内置集合开关不删除任何已安装包或历史内容。
 
 运行时重新读取配置；新增条目不会自动安装，仍由用户点击使用。移出清单的已安装技能
 保留在「我的」，不再出现在「探索」。
@@ -180,3 +180,11 @@ npm run test:image-composition
 
 最后一项使用临时图片和真实 Electron 验证尺寸、双拼顺序、原图保留与覆盖保护，
 不连接图片模型，也不读取用户的内容库。
+
+## 原生包与 RSS 转换器
+
+`catalog.json` 的 `packageDirectory` 指向 `packages/` 下源码，`executionKind` 保留 agent/process/workflow，`discoverable` 决定是否展示在探索中。`prepare:skill-library` 将包、共享 `_shared` 和 RSS 源目录复制到忽略的 `.build/skill-library/`，验证并统一生成 `openmind-library` 身份及内容摘要。安装器继续识别两种历史 manifest 文件名。
+
+`migration.json` 记录原仓库修订和文件去向。`../rss-sources/catalog.json` 是公开建议清单，不是用户订阅；用户初始化后不会自动追加新版建议。带用户身份的订阅只在用户本地迁移，不能加入公共清单。
+
+Knowledge Wiki 生成器不打包、不列入默认集合，也不进入运行报告。确认归属的官方旧包可卸载；已有 Wiki 文件与用户主动导入的副本保留。RSS/偏好数据格式、调度和安装包验收见 [使用指南](../../docs/RSS_AND_SKILLS_GUIDE.md)。

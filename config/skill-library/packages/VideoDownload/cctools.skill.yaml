@@ -1,0 +1,99 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "video-download",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "process",
+  "display": {
+    "name": "视频下载",
+    "description": "从 URL 下载视频、抽取字幕/文本，并按结构化目录组织；产物通过 Export Location Binding 导出到内容根之外。",
+    "group": "媒体"
+  },
+  "entrypoint": {
+    "runtime": "python",
+    "script": "main.py",
+    "args": [
+      "{{ inputs.url }}",
+      "--output",
+      "{{ exports.videoExportDir }}",
+      "--output-name",
+      "{{ inputs.outputName }}"
+    ]
+  },
+  "runtime": {
+    "version": ">=3.12,<3.13",
+    "dependencyFile": "pyproject.toml",
+    "lockFile": "uv.lock",
+    "packs": [
+      "python-core",
+      "media-core",
+      "speech-whisper"
+    ]
+  },
+  "inputs": {
+    "type": "object",
+    "required": [
+      "url"
+    ],
+    "properties": {
+      "url": {
+        "type": "string",
+        "description": "要下载的视频 URL。"
+      },
+      "outputName": {
+        "type": "string",
+        "description": "可选输出目录名。",
+        "default": ""
+      }
+    }
+  },
+  "capabilities": {
+    "openmind": {
+      "read": [],
+      "write": []
+    },
+    "network": {
+      "required": true,
+      "hosts": [
+        "*"
+      ]
+    },
+    "subprocess": {
+      "allowed": true
+    }
+  },
+  "artifacts": [
+    {
+      "id": "video-export",
+      "type": "directory",
+      "externalExportId": "videoExportDir"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "export:video-download"
+      ]
+    },
+    "timeoutSeconds": 7200,
+    "gracefulStopSeconds": 15,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0",
+    "minRuntimeVersion": "1.0.0"
+  }
+}

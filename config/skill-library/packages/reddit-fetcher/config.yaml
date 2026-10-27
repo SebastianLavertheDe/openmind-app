@@ -1,0 +1,36 @@
+fetch:
+  timeout_seconds: 30
+  user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+  fetch_comments: false
+  comment_timeout_seconds: 20
+  top_level_comment_limit: 20
+  reply_limit: 3
+  max_comment_depth: 2
+  listing_retry_count: 3
+  comment_retry_count: 2
+  request_delay_seconds: 5
+  # Skip the .json endpoint (currently 403-blocked by Reddit) and fetch RSS
+  # directly. Source URLs below stay as .json so flipping this back to false
+  # restores the richer JSON path (score, num_comments, etc.) when unblocked.
+  rss_only: true
+  sources:
+    - "https://www.reddit.com/r/artificial/hot/.json?limit=25"
+    - "https://www.reddit.com/r/singularity/hot/.json?limit=25"
+    - "https://www.reddit.com/r/MachineLearning/hot/.json?limit=25"
+    - "https://www.reddit.com/r/LocalLLaMA/hot/.json?limit=25"
+    - "https://www.reddit.com/r/OpenAI/hot/.json?limit=25"
+    - "https://www.reddit.com/r/ChatGPT/hot/.json?limit=25"
+    - "https://www.reddit.com/r/ClaudeAI/hot/.json?limit=25"
+    - "https://www.reddit.com/r/PromptEngineering/hot/.json?limit=25"
+    - "https://www.reddit.com/r/AI_Agents/hot/.json?limit=25"
+    - "https://www.reddit.com/r/StableDiffusion/hot/.json?limit=25"
+    - "https://www.reddit.com/r/comfyui/hot/.json?limit=25"
+    - "https://www.reddit.com/r/codex/hot/.json?limit=25"
+    - "https://www.reddit.com/r/NoContract/hot/.json?limit=25"
+    - "https://www.reddit.com/r/eSIMs/hot/.json?limit=25"
+
+storage:
+  # Relative output paths are resolved below the explicitly bound content root.
+  output_dir: ""
+  # Relative cache paths are resolved below OPENMIND_SKILL_DATA_DIR.
+  cache_file: ""

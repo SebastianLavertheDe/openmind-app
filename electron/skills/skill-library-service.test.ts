@@ -162,7 +162,7 @@ describe("Skill library and authoring", () => {
     expect(filterSkillLibrary(f.service.list(), "mine", "github-installed").map(entry => entry.key)).toEqual([imported.key]);
     const defaults = new DefaultSkillsService(f.packages, {} as SkillSourceService, { stop: vi.fn(), refresh: vi.fn(), setEnabled: vi.fn() });
     await defaults.setEnabled(false);
-    expect(f.packages.getInstalled(imported.key)).toBeUndefined();
+    expect(f.packages.getInstalled(imported.key)).toBeTruthy();
     expect(f.packages.getInstalled(preset.key!)).toBeTruthy();
   });
 

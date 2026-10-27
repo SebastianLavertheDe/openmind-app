@@ -10,7 +10,7 @@ const { listIncompatibleWindowsDistlibLaunchers, pruneIncompatibleWindowsDistlib
 
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(scriptRoot, "..");
-const resourcesRoot = path.join(appRoot, "resources", "python-runtime");
+const resourcesRoot = path.resolve(argument("resources-root") || path.join(appRoot, "resources", "python-runtime"));
 const pythonVersion = process.env.OPENMIND_BUNDLED_PYTHON_VERSION || "3.12.8";
 const target = argument("target") || currentTarget();
 const expectedTarget = currentTarget();
@@ -45,12 +45,13 @@ try {
   fs.copyFileSync(uvExecutable, path.join(preparedRoot, "bin", uvName));
   if (process.platform !== "win32") fs.chmodSync(path.join(preparedRoot, "bin", uvName), 0o755);
 
-  const pythonExecutable = findNamedFile(distributionRoot, process.platform === "win32" ? ["python.exe"] : ["python3", "python"]);
+  const pythonExecutable = findNamedFile(distributionRoot, process.platform === "win32" ? ["python.exe"] : ["python3", "python", `python${pythonVersion.split(".").slice(0, 2).join(".")}`]);
   if (!pythonExecutable) throw new Error("uv installed Python but no interpreter was found in the staged distribution.");
   const resolvedPythonVersion = execFileSync(pythonExecutable, ["--version"], { encoding: "utf8", windowsHide: true }).trim().replace(/^Python\s+/i, "");
   const resolvedUvVersion = execFileSync(uvExecutable, ["--version"], { encoding: "utf8", windowsHide: true }).trim().replace(/^uv\s+/i, "").split(/\s+/)[0];
   const prunedLaunchers = pruneIncompatibleWindowsDistlibLaunchers(preparedRoot, target);
   if (prunedLaunchers.length) console.log(`Pruned ${prunedLaunchers.length} incompatible distlib launcher(s) for ${target}.`);
+  materializeInternalLinks(preparedRoot);
   const filesDigest = digestTree(preparedRoot, new Set(["manifest.json"]));
 
   fs.writeFileSync(path.join(preparedRoot, "manifest.json"), `${JSON.stringify({ schemaVersion: 2, target, pythonVersion: resolvedPythonVersion, uvVersion: resolvedUvVersion, filesDigest }, null, 2)}\n`, "utf8");
@@ -81,7 +82,7 @@ function preparedRuntimeExists(root, expectedTargetName) {
       || listIncompatibleWindowsDistlibLaunchers(root, expectedTargetName).length
     ) return false;
     const hasRequiredBinaries = Boolean(
-      findNamedFile(path.join(root, "distribution"), process.platform === "win32" ? ["python.exe"] : ["python3", "python"])
+      findNamedFile(path.join(root, "distribution"), process.platform === "win32" ? ["python.exe"] : ["python3", "python", `python${pythonVersion.split(".").slice(0, 2).join(".")}`])
       && findNamedFile(path.join(root, "bin"), process.platform === "win32" ? ["uv.exe"] : ["uv"])
     );
     return hasRequiredBinaries
@@ -168,4 +169,24 @@ function digestTree(root, excluded) {
   };
   walk(root);
   return hash.digest("hex");
+}
+
+// Standalone CPython contains interpreter and library aliases. Materialize only
+// aliases inside the verified staging tree so runtime integrity stays file based.
+function materializeInternalLinks(root) {
+  const walk = directory => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const file = path.join(directory, entry.name);
+      if (entry.isSymbolicLink()) {
+        const resolved = fs.realpathSync(file);
+        assertInside(root, resolved);
+        if (fs.statSync(resolved).isDirectory()) walk(resolved);
+        const temporary = `${file}.materialized`;
+        fs.cpSync(resolved, temporary, { recursive: true, dereference: true, preserveTimestamps: true });
+        fs.unlinkSync(file);
+        fs.renameSync(temporary, file);
+      } else if (entry.isDirectory()) walk(file);
+    }
+  };
+  walk(root);
 }

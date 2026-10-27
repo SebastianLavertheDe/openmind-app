@@ -1,3 +1,4 @@
+import { RssSourceSchema, type RssDocument } from "@shared/rss-contracts";
 import { messages } from "@shared/messages";
 import type {
   AiEvent,
@@ -370,7 +371,23 @@ export function installBrowserPreviewApi(): boolean {
     "  -H 'content-type: application/json' \\",
     "  --data-raw '{\"variables\":{\"count\":20}}'"
   ].join("\n")];
+  let rssDocument: RssDocument = { schemaVersion: 1, initialized: true, revision: 1, deletedPresetIds: [], migrationWarnings: [], sources: [
+    RssSourceSchema.parse({ id: "preview-design", name: "Design Research", inputUrl: "https://example.com/design", kind: "website", enabled: true, revision: 1, itemCount: 12, lastSuccessAt: "2026-10-27T08:00:00Z" }),
+    RssSourceSchema.parse({ id: "preview-science", name: "Science RSS", inputUrl: "https://example.org/feed.xml", kind: "feed", enabled: false, revision: 1 }),
+    RssSourceSchema.parse({ id: "preview-error", name: "Research Notes", inputUrl: "https://example.net/notes", kind: "website", enabled: true, revision: 1, lastError: { stage: "sync", code: "network-error", message: "Unable to connect to the site.", retryable: true } })
+  ] };
+  let briefPreferences = { schemaVersion: 1 as const, revision: 0, text: "", updatedAt: null as string | null };
   const api: DesktopApi = {
+    getRssSources: async () => structuredClone(rssDocument),
+    detectRssSource: async input => ({ kind: "feed", inputUrl: input.inputUrl, resolvedFeedUrl: input.inputUrl, adapterId: "feed", candidates: [] }),
+    createRssSource: async input => { rssDocument.sources.push(RssSourceSchema.parse({ ...input, id: crypto.randomUUID(), kind: "feed", revision: 1 })); rssDocument.revision++; return structuredClone(rssDocument); },
+    editRssSource: async input => { const row = rssDocument.sources.find(source => source.id === input.id); if (!row || row.revision !== input.revision) throw new Error("Source changed"); Object.assign(row, input, { revision: row.revision + 1 }); return structuredClone(rssDocument); },
+    removeRssSource: async input => { rssDocument.sources = rssDocument.sources.filter(row => row.id !== input.id); return structuredClone(rssDocument); },
+    importRssOpml: async () => null,
+    runRss: async () => { throw new Error(messages.browserPreview.sourceMissing); },
+    getDailyBriefPreferences: async () => ({ ...briefPreferences }),
+    saveDailyBriefPreferences: async input => { if (input.revision !== briefPreferences.revision) throw new Error("Preferences changed"); briefPreferences = { ...briefPreferences, text: input.text, revision: input.revision + 1, updatedAt: new Date().toISOString() }; return { ...briefPreferences }; },
+    generateDailyBrief: async () => { throw new Error(messages.browserPreview.sourceMissing); },
     getBootstrap: async () => ({
       repoRoot: snapshot.projectRoot,
       openmindRoot: previewRootReady ? previewOpenmindRoot : "",

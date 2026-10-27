@@ -1,0 +1,10 @@
+[project]
+name = "skill-run-reporter"
+version = "1.0.0"
+description = "Report cctools skill run status"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

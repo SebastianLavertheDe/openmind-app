@@ -1,0 +1,83 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "ai-media-topic-selector",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "agent",
+  "display": {
+    "name": "选题助手",
+    "description": "根据用户偏好筛选、排序并说明推荐理由。",
+    "group": "内容生产"
+  },
+  "inputs": {
+    "type": "object",
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "compact-date"
+      },
+      "platform": {
+        "type": "string",
+        "enum": [
+          "wechat",
+          "xiaohongshu",
+          "short-video"
+        ]
+      }
+    }
+  },
+  "capabilities": {
+    "openmind": {
+      "read": [
+        "daily-summary/**",
+        "post/**",
+        "reddit/**",
+        "creative/**"
+      ],
+      "write": [
+        "creative/01-内容生产/选题管理/**"
+      ]
+    },
+    "network": {
+      "required": false,
+      "hosts": []
+    },
+    "subprocess": {
+      "allowed": false
+    },
+    "browser": false
+  },
+  "artifacts": [
+    {
+      "id": "ai-topic",
+      "type": "markdown",
+      "path": "creative/01-内容生产/选题管理/ai_topic_{{ inputs.date }}.md"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:creative-topic-selection"
+      ]
+    },
+    "timeoutSeconds": 1800,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

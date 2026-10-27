@@ -1,19 +1,6 @@
-/**
- * 16-skill compatibility matrix — Phase 0 deliverable #12.
- *
- * Machine-readable record of the audited classification of the 16 current
- * skills (refactor plan §17.1, §17.2). Frozen as a baseline so the Phase 6
- * migration can be验收 against it:
- *   - 12 process skills
- *   - 1 workflow skill
- *   - 3 agent skills
- *   - `_shared` is NOT a runnable skill; it becomes a versioned shared package.
- *
- * Audited 2026-08-05 against `.claude/skills/`. Each row records the facts
- * that drive the migration: kind, runtime packs needed, openmind read/write
- * patterns, external-export binding, the legacy `.env`/ancestor-walk issues
- * to fix, and the migration batch (A/B/C, §17.6).
- */
+/** The 15 retained native Skills shipped from config/skill-library/packages.
+ * Original migration batch/issue fields document provenance; executable
+ * contracts are validated from the current manifests during every build. */
 
 import type { SkillKind } from "./skill-manifest-schema";
 
@@ -21,7 +8,7 @@ export type MigrationBatch = "A" | "B" | "C";
 
 export interface SkillCompatibilityEntry {
   readonly id: string;
-  /** Directory name under `.claude/skills/` (case-sensitive on disk). */
+  /** Directory name under `config/skill-library/packages/` (case-sensitive on disk). */
   readonly sourceDir: string;
   readonly targetKind: SkillKind;
   readonly runtimePacks: readonly string[];
@@ -142,19 +129,6 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     notes: "Remove direct dependency on other skills' .env; unified Provider."
   },
   {
-    id: "knowledge-wiki-compiler",
-    sourceDir: "knowledge-wiki-compiler",
-    targetKind: "process",
-    runtimePacks: ["python-core"],
-    externalExport: false,
-    openmindRead: ["article/**", "post/**"],
-    openmindWrite: ["wiki/**"],
-    legacyIssues: ["ancestor-repo-walk", "shared-ai-client-relative"],
-    batch: "B",
-    primaryArtifact: "wiki/",
-    notes: "Remove ancestor-based `.claude` discovery; config overlay."
-  },
-  {
     id: "rss-article-saver",
     sourceDir: "rss-article-saver",
     targetKind: "process",
@@ -262,7 +236,7 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
   }
 ] as const;
 
-/** All 16 skill IDs. */
+/** All 15 skill IDs. */
 export const ALL_SKILL_IDS: readonly string[] = SKILL_COMPATIBILITY_MATRIX.map((e) => e.id);
 
 /** Count by kind — used by the §17.7 acceptance gate. */

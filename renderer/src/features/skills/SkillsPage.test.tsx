@@ -5,6 +5,8 @@ import { BrokerRunRecordSchema, EXECUTION_SCHEMA_VERSION } from "@shared/executi
 import { SkillsPage } from "./SkillsPage";
 import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
 
+vi.mock("../../feedback-context", () => ({ useFeedback: () => ({ confirm: async () => true, notify: vi.fn() }) }));
+
 const digest = "a".repeat(64);
 const sourcePath = "/workspace/.claude/skills/demo-skill";
 const manifest = {
@@ -173,30 +175,19 @@ describe("SkillsPage", () => {
       recentError: null,
       itemCount: 0
     };
-    const listSources = vi.fn(async () => [source]);
-    const updateSource = vi.fn(async (_id: string, patch: { enabled?: boolean }) => ({ ...source, enabled: patch.enabled ?? source.enabled }));
-    const importOpml = vi.fn(async () => 2);
-    renderPage({
-      listInstalledSkills: async () => [rssInstalled],
-      inspectInstalledSkill: async () => rssInspection,
-      listSources,
-      updateSource,
-      importOpml
-    });
-
+    const row = { id: source.id, name: source.name, inputUrl: source.url!, kind: "feed" as const, enabled: true, revision: 1, adapterId: "feed", resolvedFeedUrl: null, presetId: null, group: "", tags: [], lastAttemptAt: null, lastSuccessAt: null, lastError: null, itemCount: 0, feedRevision: 0 };
+    const document = { schemaVersion: 1 as const, initialized: true as const, revision: 1, sources: [row], deletedPresetIds: [], migrationWarnings: [] };
+    const editRssSource = vi.fn(async () => document);
+    const importRssOpml = vi.fn(async () => document);
+    renderPage({ listInstalledSkills: async () => [rssInstalled], inspectInstalledSkill: async () => rssInspection, listSources: async () => [source], getRssSources: async () => document, editRssSource, importRssOpml });
     expect(await screen.findByRole("heading", { name: "RSS 文章采集" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "订阅源 1" }));
-    expect(screen.getByRole("heading", { name: "RSS 文章采集的订阅源" })).toBeTruthy();
-    expect(screen.getByText("这些订阅只属于当前 Skill，仓库整体更新不会覆盖。", { exact: false })).toBeTruthy();
-    expect(screen.getByText("https://sspai.com/feed")).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("switch", { name: "停用 少数派" }));
-    await waitFor(() => expect(updateSource).toHaveBeenCalledWith("rss-1", { enabled: false }));
-
+    expect(await screen.findByText("https://sspai.com/feed")).toBeTruthy();
+    fireEvent.click(screen.getByRole("switch", { name: /少数派/ }));
+    await waitFor(() => expect(editRssSource).toHaveBeenCalledWith({ id: "rss-1", revision: 1, enabled: false }));
+    await waitFor(() => expect((screen.getByRole("button", { name: "导入 OPML" }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "导入 OPML" }));
-    await waitFor(() => expect(importOpml).toHaveBeenCalled());
-    expect(await screen.findByText("已导入 2 个订阅。")).toBeTruthy();
-    expect(listSources).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(importRssOpml).toHaveBeenCalled());
   });
 
   it("shows and manages the actual Reddit community list", async () => {
@@ -494,7 +485,7 @@ describe("SkillsPage", () => {
     renderPage({ listInstalledSkills: async () => [] });
 
     expect(await screen.findByText("还没有可管理的 Skill")).toBeTruthy();
-    expect(screen.getAllByRole("switch")).toEqual([screen.getByRole("switch", { name: "默认 Skills 与内置定时任务" })]);
+    expect(screen.getAllByRole("switch")).toEqual([screen.getByRole("switch", { name: "准备内置 Skills" })]);
     expect(screen.queryByText("后续可用性")).toBeNull();
   });
 

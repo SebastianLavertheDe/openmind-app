@@ -77,7 +77,7 @@ export class RunScheduler {
     resolveProviderModel?: (kind: ProviderKind) => string,
     stateRoot?: string,
     openmindRoot?: string,
-    rootGeneration = 1,
+    private readonly rootGeneration = 1,
     trustedProjectsRoot?: string
   ) {
     this.resolveProviderModel = resolveProviderModel ?? (() => AUTO_MODEL);
@@ -253,6 +253,12 @@ export class RunScheduler {
   }
 
   listSkillRuns(): BrokerRunRecord[] { return this.skillTools.listRuns(); }
+  runRss(input: import("../../shared/rss-contracts").RssRunInput): BrokerRunRecord {
+    return this.skillTools.submitRun({ skillId: "rss-article-saver", inputs: { date: input.date || new Date().toLocaleDateString("sv-SE").replace(/-/g, ""), mode: input.mode, sourceId: input.sourceId || "" }, trigger: { type: "manual" }, providerBindings: {}, externalExportBindingIds: [], rootGeneration: this.rootGeneration });
+  }
+  runDailyBrief(input: { date: string; topics?: boolean }): BrokerRunRecord {
+    return this.skillTools.submitRun({ skillId: input.topics ? "daily-topic-selector" : "daily-article-summarizer", inputs: { date: input.date }, trigger: { type: "manual" }, providerBindings: {}, externalExportBindingIds: [], rootGeneration: this.rootGeneration });
+  }
   getSkillRun(runId: string): BrokerRunRecord { return this.skillTools.getRun(runId); }
   getSkillRunEvents(runId: string): BrokerRunEvent[] { return this.skillTools.getRunEvents(runId); }
   listRunArtifacts(runId?: string): BrokerRunRecord["artifacts"] { return this.skillTools.listRunArtifacts(runId); }

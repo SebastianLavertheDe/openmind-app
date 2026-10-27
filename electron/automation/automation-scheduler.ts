@@ -99,7 +99,7 @@ export class AutomationScheduler {
       if (record.childRunId) {
         const rule = { target: record.target };
         let child: BrokerRunRecord | WorkflowRunRecord;
-        try { child = this.readChild(rule, record.childRunId); }
+        try { child = this.readChild({ target: record.target }, record.childRunId); }
         catch (error) {
           if (!active) continue; // Previously removed terminal history.
           throw error;
@@ -144,7 +144,7 @@ export class AutomationScheduler {
   saveRule(rawInput: AutomationRuleInput): AutomationRule {
     const input = AutomationRuleInputSchema.parse(rawInput);
     if (isDefaultAutomationRule(input) && input.enabled
-      && (this.defaultSkillsStopping || !this.getDefaultSkillsEnabled())) {
+      && (this.defaultSkillsStopping)) {
       throw new Error(messages.skillCenter.defaults.enableFirst);
     }
     rejectSecretLikeValues(input.inputs || {});
@@ -174,6 +174,7 @@ export class AutomationScheduler {
 
   async runNow(id: string): Promise<AutomationRunRecord> {
     const rule = this.getRule(id);
+    if (this.defaultSkillsStopping && isDefaultAutomationRule(rule)) throw new Error("Built-in package migration is in progress.");
     if (!rule.enabled) throw new Error("Automation Rule 已禁用。 ");
     const at = this.now();
     // A retry waits in `queued` until its backoff expires. It is not an
@@ -204,7 +205,7 @@ export class AutomationScheduler {
     await this.reconcile(at);
     const first = this.firstTick;
     for (const rule of this.listRules()) {
-      if (!rule.enabled) continue;
+      if (!rule.enabled || this.defaultSkillsStopping && isDefaultAutomationRule(rule)) continue;
       const due = this.due(rule, at);
       if (!due) continue;
       if (first && rule.missedRunPolicy === "skip" && due.missed) {
@@ -245,7 +246,7 @@ export class AutomationScheduler {
 
   private async triggerCompletedRules(skillId: string | null, workflowSkillId: string | null, completionId: string, at: Date): Promise<void> {
     for (const rule of this.listRules()) {
-      if (!rule.enabled || rule.trigger.type !== "run-completed") continue;
+      if (!rule.enabled || this.defaultSkillsStopping && isDefaultAutomationRule(rule) || rule.trigger.type !== "run-completed") continue;
       if (workflowSkillId === null && rule.trigger.workflowSkillId) continue;
       if (workflowSkillId !== null && rule.trigger.skillId) continue;
       if (rule.trigger.skillId && rule.trigger.skillId !== skillId) continue;
@@ -307,7 +308,7 @@ export class AutomationScheduler {
       }
       let child: BrokerRunRecord | WorkflowRunRecord;
       try {
-        child = this.readChild(rule, record.childRunId);
+        child = this.readChild({ target: record.target }, record.childRunId);
       } catch (error) {
         this.options.repository.updateRun(record.id, {
           state: "blocked",
@@ -340,7 +341,7 @@ export class AutomationScheduler {
     for (const record of this.options.repository.listRuns()) {
       if (record.state !== "queued" || (record.retryAt && new Date(record.retryAt).getTime() > at.getTime())) continue;
       const rule = this.options.repository.getRule(record.ruleId);
-      if (!rule || !rule.enabled) continue;
+      if (!rule || !rule.enabled || this.defaultSkillsStopping && isDefaultAutomationRule(rule)) continue;
       const active = this.options.repository.listRuns(rule.id).some((run) => run.id !== record.id && run.state === "running");
       if (active && rule.concurrencyPolicy === "queue") continue;
       if (active && rule.concurrencyPolicy === "skip") {

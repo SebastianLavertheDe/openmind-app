@@ -1,0 +1,67 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "creative-writing",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "agent",
+  "display": {
+    "name": "多平台内容生产助手",
+    "description": "在 AI 控制台中由 Claude Code 或 Codex CLI 读取本地素材并生成多平台内容生产包。",
+    "group": "内容生产"
+  },
+  "capabilities": {
+    "openmind": {
+      "read": [
+        "creative/**",
+        "daily-summary/**",
+        "daily-topic/**",
+        "article/**",
+        "post/**"
+      ],
+      "write": [
+        "creative/**"
+      ]
+    },
+    "network": {
+      "required": false,
+      "hosts": []
+    },
+    "subprocess": {
+      "allowed": false
+    },
+    "browser": false
+  },
+  "artifacts": [
+    {
+      "id": "creative-output",
+      "type": "directory",
+      "path": "creative/**"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:creative-writing"
+      ]
+    },
+    "timeoutSeconds": 3600,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

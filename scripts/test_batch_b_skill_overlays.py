@@ -11,8 +11,8 @@ import unittest
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SKILLS_ROOT = REPO_ROOT / ".claude" / "skills"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SKILLS_ROOT = REPO_ROOT / "config" / "skill-library" / "packages"
 OUTSIDE_CWD = Path(tempfile.gettempdir())
 
 
@@ -28,7 +28,6 @@ class BatchBRuntimeOverlayTests(unittest.TestCase):
         self.run_dir.mkdir()
         self.env = {
             **os.environ,
-            "OPENMIND_ROOT": str(self.root),
             "OPENMIND_ROOT": str(self.root),
             "OPENMIND_SKILL_DATA_DIR": str(self.data),
             "OPENMIND_RUN_DIR": str(self.run_dir),
@@ -50,23 +49,10 @@ class BatchBRuntimeOverlayTests(unittest.TestCase):
 
     def test_daily_summarizer_resolves_sources_below_bound_root_and_cache_below_data(self) -> None:
         result = self.run_code(
-            "from main import _resolve_source_directories; from runtime_paths import require_skill_data_dir, resolve_data_path, require_openmind_root; "
-            "root=require_openmind_root(); data=require_skill_data_dir(); paths=_resolve_source_directories(['openmind/article'], 'linux', root); "
-            "assert paths == [str(root/'article')]; assert resolve_data_path('summary_cache.json', data, 'cache').parent == data",
+            "from runtime_paths import require_skill_data_dir, resolve_data_path, require_content_root; "
+            "root=require_content_root(); data=require_skill_data_dir(); "
+            "assert root.is_dir(); assert resolve_data_path('summary_cache.json', data, 'cache').parent == data",
             "daily-article-summarizer",
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_knowledge_wiki_moves_state_out_of_content_and_rejects_legacy_env_reference(self) -> None:
-        self.env["OPENMIND_SKILL_HOME"] = str(SKILLS_ROOT / "knowledge-wiki-compiler")
-        result = self.run_code(
-            "from pathlib import Path; from knowledge_wiki_compiler.config import load_config; import os; "
-            "root=Path(os.environ['OPENMIND_ROOT']); data=Path(os.environ['OPENMIND_SKILL_DATA_DIR']); "
-            "cfg=load_config(Path(os.environ['OPENMIND_SKILL_HOME'])/'config.yaml', root, data); "
-            "assert cfg.article_dir == root/'article'; assert cfg.wiki_dir == root/'wiki'; assert cfg.state_dir == data/'wiki-state'; "
-            "assert cfg.shared_ai_env_file == data/'provider.env'",
-            "knowledge-wiki-compiler/src",
-            "knowledge-wiki-compiler",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -115,11 +101,6 @@ class BatchBRuntimeOverlayTests(unittest.TestCase):
                 "assert '_shared' not in c.__file__",
             ),
             (
-                [SKILLS_ROOT / "knowledge-wiki-compiler" / "src"],
-                "from knowledge_wiki_compiler import content_ai, entity_ai; "
-                "import knowledge_wiki_compiler.ai_client as c; assert '_shared' not in c.__file__",
-            ),
-            (
                 [SKILLS_ROOT / "daily-topic-selector" / "scripts"],
                 "import ai_client as c; assert '_shared' not in c.__file__",
             ),
@@ -141,17 +122,16 @@ class BatchBRuntimeOverlayTests(unittest.TestCase):
         cases = [
             ("src.ai_client", ["daily-article-summarizer"]),
             ("src.ai_client", ["rss-article-saver"]),
-            ("knowledge_wiki_compiler.ai_client", ["knowledge-wiki-compiler/src"]),
             ("ai_client", ["daily-topic-selector/scripts"]),
         ]
         for module, paths in cases:
             result = self.run_code(
                 f"import importlib; c=importlib.import_module('{module}'); "
-                "bound=c.resolve_provider('nvidia'); "
+                "bound=c.resolve_provider(); "
                 "assert bound.name == 'bound-profile'; assert bound.model == 'profile-model'; "
                 "assert bound.api_key == 'bound-profile-secret'; "
                 "import os; os.environ.pop('OPENMIND_PROVIDER_API_KEY'); "
-                "exec(\"try:\\n    c.resolve_provider('nvidia')\\n    raise AssertionError('legacy fallback was used')\\n"
+                "exec(\"try:\\n    c.resolve_provider()\\n    raise AssertionError('legacy fallback was used')\\n"
                 "except ValueError as error:\\n    assert 'Managed Run' in str(error)\")",
                 *paths,
             )

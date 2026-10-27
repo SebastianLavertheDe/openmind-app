@@ -1,0 +1,10 @@
+[project]
+name = "collect-interest-markers"
+version = "1.0.0"
+description = "Collect marked interests from daily summaries"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

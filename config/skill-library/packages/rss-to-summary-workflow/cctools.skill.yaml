@@ -1,0 +1,101 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "rss-to-summary-workflow",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "workflow",
+  "display": {
+    "name": "RSS 到每日总结",
+    "description": "按同一个内容根快照依次执行 RSS 采集、文章总结；选题可独立运行。",
+    "group": "内容链路"
+  },
+  "inputs": {
+    "type": "object",
+    "required": [
+      "date"
+    ],
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "compact-date"
+      }
+    }
+  },
+  "capabilities": {
+    "openmind": {
+      "read": [
+        "article/**",
+        "post/**",
+        "reddit/**",
+        "daily-summary/**",
+        "daily-topic/**"
+      ],
+      "write": [
+        "article/**",
+        "post/**",
+        "daily-summary/**",
+        "daily-topic/**"
+      ]
+    },
+    "network": {
+      "required": true,
+      "hosts": [
+        "*"
+      ]
+    },
+    "browser": true,
+    "subprocess": {
+      "allowed": false
+    }
+  },
+  "artifacts": [],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:rss-to-summary"
+      ]
+    },
+    "timeoutSeconds": 10800,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  },
+  "workflow": {
+    "steps": [
+      {
+        "id": "fetch",
+        "skill": "rss-article-saver",
+        "version": "^1.0.0",
+        "with": {
+          "date": "{{ inputs.date }}"
+        }
+      },
+      {
+        "id": "summarize",
+        "skill": "daily-article-summarizer",
+        "version": "^1.0.0",
+        "needs": [
+          "fetch"
+        ],
+        "with": {
+          "date": "{{ inputs.date }}"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "asset-collector",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "process",
+  "display": {
+    "name": "素材收集器",
+    "description": "从创作包中提取来源证据、截图和素材需求。",
+    "group": "创作"
+  },
+  "entrypoint": {
+    "runtime": "python",
+    "script": "scripts/collect_assets.py",
+    "args": [
+      "--draft-dir",
+      "{{ inputs.draftDir }}",
+      "--date",
+      "{{ inputs.date }}"
+    ]
+  },
+  "runtime": {
+    "version": ">=3.11,<3.13",
+    "dependencyFile": "pyproject.toml",
+    "lockFile": "uv.lock",
+    "packs": [
+      "python-core"
+    ]
+  },
+  "inputs": {
+    "type": "object",
+    "required": [
+      "draftDir"
+    ],
+    "properties": {
+      "draftDir": {
+        "type": "string",
+        "description": "creative/ 下待处理的创作包目录（相对内容根）。"
+      },
+      "date": {
+        "type": "string",
+        "format": "compact-date"
+      }
+    }
+  },
+  "config": {},
+  "capabilities": {
+    "openmind": {
+      "read": [
+        "creative/**"
+      ],
+      "write": [
+        "creative/**"
+      ]
+    },
+    "network": {
+      "required": false,
+      "hosts": []
+    },
+    "subprocess": {
+      "allowed": false
+    }
+  },
+  "artifacts": [
+    {
+      "id": "asset-manifest",
+      "type": "json",
+      "path": "creative/**/assets/manifest.json"
+    },
+    {
+      "id": "missing-assets",
+      "type": "json",
+      "path": "creative/**/assets/missing_assets.json"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:creative"
+      ]
+    },
+    "timeoutSeconds": 1800,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 0
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

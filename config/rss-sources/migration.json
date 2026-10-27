@@ -1,0 +1,1398 @@
+{
+  "schemaVersion": 1,
+  "mappings": [
+    {
+      "from": "blog-rss-feed/config.yaml:sequoia_ai_rss.xml",
+      "id": "b42aafdcff76543dd3b42a63"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:greylock_ai_rss.xml",
+      "id": "2312482d14fcdd13e6a54360"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:bessemer_ai_rss.xml",
+      "id": "2b7e99c5db34d36fdf852d3c"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:nfx_ai_rss.xml",
+      "id": "37b6332588e5d06d36e69a99"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:menlo_ai_rss.xml",
+      "id": "f4d9ed9805a68af2336ae848"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:stanford_hai_rss.xml",
+      "id": "1647adede221cf8df5bfaf0a"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:google_deepmind_rss.xml",
+      "id": "9c92f29eb29326b99ea4da7c"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:a16z_ai_rss.xml",
+      "id": "e484e1aa73e0b44fed63308c"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:anthropic_engineering_rss.xml",
+      "id": "d03e3ca2752c763a94ff8ba0"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:cursor_blog_rss.xml",
+      "id": "9c0885bdb370f69c9262b88c"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:claude_blog_rss.xml",
+      "id": "5da6410aa6fc1a3fbdf07d99"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:openai_blog_rss.xml",
+      "id": "8e5d65f13df70f229c36f902"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:langchain_blog_rss.xml",
+      "id": "1ef4c9f12f28bac97734667b"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:karpathy_blog_rss.xml",
+      "id": "9b4b5a0521aec75e59078a01"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:marktechpost_rss.xml",
+      "id": "ef3ff28c60b4cdf184d720bf"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:azure_blog_rss.xml",
+      "id": "0be246f02cb943666fd46b76"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:tldr_tech_rss.xml",
+      "id": "4871da15c06eda2d714ffdd9"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:deeplearning_batch_rss.xml",
+      "id": "fca10909c45394fb0ad60fed"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:bensbites_rss.xml",
+      "id": "96fe006ed5f7b38bfc889c7d"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:techcrunch_ai_rss.xml",
+      "id": "0e9770270556fa3fb07953ee"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:techcrunch_ai_tag_rss.xml",
+      "id": "ebf01c7ef7c9ac319b71db87"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:techcrunch_generative_ai_rss.xml",
+      "id": "89edb92b1cd7152067ffd04c"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:wired_ai_rss.xml",
+      "id": "044484a943c13d89b4111611"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:verge_ai_rss.xml",
+      "id": "30d3075711420e93e097be5b"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:importai_rss.xml",
+      "id": "0f90c142536df2544cafca35"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:venturebeat_ai_rss.xml",
+      "id": "baea8fd30110b295ef3c3fa4"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:artificial_intelligence_news_rss.xml",
+      "id": "31fd665bfa89c686675acb4c"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:arstechnica_ai_rss.xml",
+      "id": "814a5de5287ac6f8ef3c5fb9"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:leiphone_ai_rss.xml",
+      "id": "fc346149a123966d203fe198"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:david_heinemeier_hansson_rss.xml",
+      "id": "6c37d5455c563fbf7b8e0bd2"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:smashing_magazine_rss.xml",
+      "id": "9555dced3e9f34511288c5cf"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:latent_space_rss.xml",
+      "id": "a5689419c24836e7e0ce37dd"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:google_research_blog_rss.xml",
+      "id": "4e5aee58ba579e52b1c04dde"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:google_ai_rss.xml",
+      "id": "141dd720a5f171e321e2a135"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:huggingface_blog_rss.xml",
+      "id": "61d3148bc0572cab03be2891"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:nvidia_ai_blog_rss.xml",
+      "id": "219951b2c406ee4b71aae747"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:aws_machine_learning_blog_rss.xml",
+      "id": "50914fe5c60ced884554b268"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:apple_machine_learning_research_rss.xml",
+      "id": "740de9a19f7a07485ca93025"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:bair_blog_rss.xml",
+      "id": "51f8274975973f60426b72f2"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:mit_news_ai_rss.xml",
+      "id": "0274e48fefb3e2195ebd8ea0"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:lilian_weng_rss.xml",
+      "id": "c4683e6fa7178e4227aa592b"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:chip_huyen_rss.xml",
+      "id": "14c54713fb90236e8daad30b"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:eugene_yan_rss.xml",
+      "id": "e2a35dcabe116d15429f46f9"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:the_gradient_rss.xml",
+      "id": "4f833f985ed12add27e1cbef"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:fastai_rss.xml",
+      "id": "315e1eea9727356580ae2ef9"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:interconnects_rss.xml",
+      "id": "633e5ebcb8362611e9ac8d8f"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:ahead_of_ai_rss.xml",
+      "id": "8249346b6d16594c12b44b68"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:arxiv_cs_ai_rss.xml",
+      "id": "4317c649bc1b9ce76549094d"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:arxiv_cs_lg_rss.xml",
+      "id": "ff10e47e85d5bebceccfe180"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:arxiv_cs_cl_rss.xml",
+      "id": "1191d2e9306f276cf4bad80c"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:lesswrong_rss.xml",
+      "id": "7d900a497361c67b88484194"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:alignment_forum_rss.xml",
+      "id": "9f0d873e19f2c9b3acdb7260"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_simonwillisonnet_rss.xml",
+      "id": "052434531db837d632ebc483"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_jeffgeerlingcom_rss.xml",
+      "id": "99e2c21c83344ada6c1ee927"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_seangoedeckecom_rss.xml",
+      "id": "5b15950a2f66728c46b5de37"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_krebsonsecuritycom_rss.xml",
+      "id": "4359bb4a3387d403201c8827"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_daringfireballnet_rss.xml",
+      "id": "6eaf402c6927f9fbeccb7eec"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_ericmigicom_rss.xml",
+      "id": "a61777605e36445280fe4f5b"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_antirezcom_rss.xml",
+      "id": "c0f4b24763ff5326957d9509"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_idiallocom_rss.xml",
+      "id": "81f55676967cc25f9d967efe"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_maurycyzcom_rss.xml",
+      "id": "396f090452a7d3f50d2411ae"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_pluralisticnet_rss.xml",
+      "id": "0a8471bbdabcd97069225c04"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_shksprmobi_rss.xml",
+      "id": "030398bf614965dcd9d05e5f"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_lcamtufsubstackcom_rss.xml",
+      "id": "1f0f44467f804cf18fe52f07"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_mitchellhcom_rss.xml",
+      "id": "64b519bb5e5f54ea0f1d2cf0"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_dynomightnet_rss.xml",
+      "id": "d6abad9d48f6de169cc85cfd"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_utccutorontocacks_rss.xml",
+      "id": "7958ea20b06636b251e80757"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_xeiasonet_rss.xml",
+      "id": "db28536d226b8c8931991515"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_devblogsmicrosoftcomoldnewthing_rss.xml",
+      "id": "afae77b077c201ce023031ca"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_rightocom_rss.xml",
+      "id": "f07d072e1234eea47a8bf8c8"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_lucumrpocooorg_rss.xml",
+      "id": "f3dd435da7cad0eb60d6ad6c"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_skyfalldev_rss.xml",
+      "id": "b2c3b984fee3ff3d21131d90"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_garymarcussubstackcom_rss.xml",
+      "id": "ea33fa47270669b92267d019"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_rachelbythebaycom_rss.xml",
+      "id": "5286720695066d8076f21c41"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_overreactedio_rss.xml",
+      "id": "449cde1ff77e04f2cf5cee22"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_timshorg_rss.xml",
+      "id": "a3b87b58c00347514c0b7dc9"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_johndcookcom_rss.xml",
+      "id": "0befdd2bc5435e839bd2a720"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_gilesthomascom_rss.xml",
+      "id": "49fb416252053fe1b8dc8a2a"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_matkladgithubio_rss.xml",
+      "id": "541eb97207b30138020d72f8"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_derekthompsonorg_rss.xml",
+      "id": "50cc9c5544916688fdb4b74f"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_evanhahncom_rss.xml",
+      "id": "ba543586ec142b9fafb2f0e9"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_terriblesoftwareorg_rss.xml",
+      "id": "8d3f1e6f70686eb8bad4929f"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_rakhimexotextcom_rss.xml",
+      "id": "d07fb2f032f8060ea390a18f"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_joanwestenbergcom_rss.xml",
+      "id": "68efaa38fb045ffaf6a2e771"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_xaniaorg_rss.xml",
+      "id": "2b7e04e02a9bcce49d10a80e"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_micahfleecom_rss.xml",
+      "id": "5b9cd62dff86e22d5563c984"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_nesbittio_rss.xml",
+      "id": "756042742b8ac25370ce8836"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_construction_physicscom_rss.xml",
+      "id": "4855fd2d01535e9cc1aa9e08"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_tediumco_rss.xml",
+      "id": "704865dd9800d1776fe5d4cf"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_susamnet_rss.xml",
+      "id": "8e920d240c80e1efc79bc4b2"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_entropicthoughtscom_rss.xml",
+      "id": "2cd576d341685c74ce428df6"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_buttondowncomhillelwayne_rss.xml",
+      "id": "c6b8c48872665bead089dfe2"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_dwarkeshcom_rss.xml",
+      "id": "aa795f5d8bf79d790c468593"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_borrettime_rss.xml",
+      "id": "c243ca13e1c13ead42c40cd5"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_wheresyouredat_rss.xml",
+      "id": "505f02d2c421ffd057f527da"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_jaydml_rss.xml",
+      "id": "f973f90941901d7a104bbc22"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_minimaxircom_rss.xml",
+      "id": "8a16d3dbf117d8f95d419c1d"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_geohotgithubio_rss.xml",
+      "id": "68e950f671d2e5e0813e37af"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_paulgrahamcom_rss.xml",
+      "id": "b41056fdf74f32e3ad5cd32a"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_filfrenet_rss.xml",
+      "id": "3a8a2496eddb5662862a68ff"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_blogjim_nielsencom_rss.xml",
+      "id": "fafb02ce167dbe9e95f98eff"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_dfarqhomeipnet_rss.xml",
+      "id": "541f6adb32e96d7f2dc56f1e"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_jyndev_rss.xml",
+      "id": "74d858071d9fddf888adb27b"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_geoffreylittcom_rss.xml",
+      "id": "2bfabf868f69e7bbe899e1c0"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_downtowndougbrowncom_rss.xml",
+      "id": "0737dfe90fdaca7205d90afa"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_brutecatcom_rss.xml",
+      "id": "b70cec289e9788bbdce692a8"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_elithegreenplacenet_rss.xml",
+      "id": "f24ed5bab7a69bf845a0ab28"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_abortretryfail_rss.xml",
+      "id": "a84582a94d6008d01cd83e2d"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_fabiensanglardnet_rss.xml",
+      "id": "ce9ad60b092e38b0bdc69963"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_oldvcrblogspotcom_rss.xml",
+      "id": "542183fd152ee098fcfede61"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_bogdanthegeekgithubio_rss.xml",
+      "id": "10891151e6c079216d5347e5"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_hugotuniusse_rss.xml",
+      "id": "00f20348abd84aeb39eea557"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_gwernnet_rss.xml",
+      "id": "b3eec02ad0c77dbc709c3afd"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:questmobile_rss.xml",
+      "id": "772f8b58346732b3d3b06231"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_berthubeu_rss.xml",
+      "id": "3b12c0f59c06b2050137ecaa"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_chadnauseamcom_rss.xml",
+      "id": "912454e6b50aada84e29d548"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_simoneorg_rss.xml",
+      "id": "a6c4e18392bfd983682ce098"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_it_notesdragasnet_rss.xml",
+      "id": "abeb3d886027815838b6c9ee"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_beejus_rss.xml",
+      "id": "770187db2708029fb766f6f0"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_heyparis_rss.xml",
+      "id": "59ba11b41f28de541bf440d6"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_danielwirtzcom_rss.xml",
+      "id": "6741c6bee254d858d1020e21"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_matduggancom_rss.xml",
+      "id": "7fc8e6f5be9db2dde5f440bd"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_refactoringenglishcom_rss.xml",
+      "id": "7f96838ab754a049c1fb06e5"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_worksonmymachinesubstackcom_rss.xml",
+      "id": "44f8cff1b01f5f588c7d305a"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_philiplainecom_rss.xml",
+      "id": "dd4ff9dce4ffbdca18abe216"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_steveblankcom_rss.xml",
+      "id": "d542e2e615ae7150766e4cbd"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_bernsteinbearcom_rss.xml",
+      "id": "2b2c3f5ac3d2e836ccf1ea68"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_danieldelaneynet_rss.xml",
+      "id": "1f2e37993790fa1659f0cd8e"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_troyhuntcom_rss.xml",
+      "id": "2ca35d6c0a43c1c1280ded69"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_hermanbearblogdev_rss.xml",
+      "id": "59990f9eb0e3b46dafda31f9"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_tomrennercom_rss.xml",
+      "id": "942a4d2bf3a955727f3c5885"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_blogpixelmeltdev_rss.xml",
+      "id": "a5e5165c8f669a293ef23a3b"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_martinaldersoncom_rss.xml",
+      "id": "14a2e6653864d8ebfa166237"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_danielchasehoopercom_rss.xml",
+      "id": "e54b020d85845fc2b13382d3"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_chiarkgreenendorguksgtatham_rss.xml",
+      "id": "8340a4835cecaeb8db59ec47"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_grantslattoncom_rss.xml",
+      "id": "8299c27feb6c6d638cebcae1"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_experimental_historycom_rss.xml",
+      "id": "3b7b03f6ccfdb95d759945e0"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_anildashcom_rss.xml",
+      "id": "0f15fed2a48f2c915fe7c14f"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_areslunaorg_rss.xml",
+      "id": "84d542a6144d407a33edde2f"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_michaelstapelbergch_rss.xml",
+      "id": "4977f17e33d9f1aa46bb9921"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_miguelgrinbergcom_rss.xml",
+      "id": "f3104e212f9ea5fc3254c974"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_keygensh_rss.xml",
+      "id": "9dcadfa39ef000b316476762"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_mjg59dreamwidthorg_rss.xml",
+      "id": "2c8821e7f2c314a4a5fa52f7"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_computerrip_rss.xml",
+      "id": "59cab0e069ce1bec2c578d60"
+    },
+    {
+      "from": "blog-rss-feed/config.yaml:hn_tedunangstcom_rss.xml",
+      "id": "1c8b39a0a69eff34f77f9a53"
+    },
+    {
+      "from": "subscriptions.opml:Anthropic Engineering Blog",
+      "id": "d03e3ca2752c763a94ff8ba0"
+    },
+    {
+      "from": "subscriptions.opml:Cursor Blog",
+      "id": "9c0885bdb370f69c9262b88c"
+    },
+    {
+      "from": "subscriptions.opml:Claude Blog",
+      "id": "5da6410aa6fc1a3fbdf07d99"
+    },
+    {
+      "from": "subscriptions.opml:OpenAI Blog",
+      "id": "8e5d65f13df70f229c36f902"
+    },
+    {
+      "from": "subscriptions.opml:Andrej Karpathy Blog",
+      "id": "9b4b5a0521aec75e59078a01"
+    },
+    {
+      "from": "subscriptions.opml:Azure Blog",
+      "id": "0be246f02cb943666fd46b76"
+    },
+    {
+      "from": "subscriptions.opml:TLDR Tech Newsletter",
+      "id": "4871da15c06eda2d714ffdd9"
+    },
+    {
+      "from": "subscriptions.opml:Ben's Bites",
+      "id": "96fe006ed5f7b38bfc889c7d"
+    },
+    {
+      "from": "subscriptions.opml:TechCrunch AI",
+      "id": "0e9770270556fa3fb07953ee"
+    },
+    {
+      "from": "subscriptions.opml:TechCrunch AI Tag",
+      "id": "ebf01c7ef7c9ac319b71db87"
+    },
+    {
+      "from": "subscriptions.opml:TechCrunch Generative AI",
+      "id": "89edb92b1cd7152067ffd04c"
+    },
+    {
+      "from": "subscriptions.opml:Wired AI",
+      "id": "044484a943c13d89b4111611"
+    },
+    {
+      "from": "subscriptions.opml:The Verge AI",
+      "id": "30d3075711420e93e097be5b"
+    },
+    {
+      "from": "subscriptions.opml:VentureBeat AI",
+      "id": "baea8fd30110b295ef3c3fa4"
+    },
+    {
+      "from": "subscriptions.opml:Ars Technica AI",
+      "id": "814a5de5287ac6f8ef3c5fb9"
+    },
+    {
+      "from": "subscriptions.opml:雷峰网 AI",
+      "id": "fc346149a123966d203fe198"
+    },
+    {
+      "from": "subscriptions.opml:David Heinemeier Hansson",
+      "id": "6c37d5455c563fbf7b8e0bd2"
+    },
+    {
+      "from": "subscriptions.opml:Smashing Magazine",
+      "id": "9555dced3e9f34511288c5cf"
+    },
+    {
+      "from": "subscriptions.opml:Latent Space",
+      "id": "a5689419c24836e7e0ce37dd"
+    },
+    {
+      "from": "subscriptions.opml:Google Research Blog",
+      "id": "4e5aee58ba579e52b1c04dde"
+    },
+    {
+      "from": "subscriptions.opml:Google AI",
+      "id": "141dd720a5f171e321e2a135"
+    },
+    {
+      "from": "subscriptions.opml:Hugging Face Blog",
+      "id": "61d3148bc0572cab03be2891"
+    },
+    {
+      "from": "subscriptions.opml:NVIDIA AI Blog",
+      "id": "219951b2c406ee4b71aae747"
+    },
+    {
+      "from": "subscriptions.opml:AWS Machine Learning Blog",
+      "id": "50914fe5c60ced884554b268"
+    },
+    {
+      "from": "subscriptions.opml:Apple Machine Learning Research",
+      "id": "740de9a19f7a07485ca93025"
+    },
+    {
+      "from": "subscriptions.opml:BAIR Blog",
+      "id": "51f8274975973f60426b72f2"
+    },
+    {
+      "from": "subscriptions.opml:MIT News AI",
+      "id": "0274e48fefb3e2195ebd8ea0"
+    },
+    {
+      "from": "subscriptions.opml:Lilian Weng",
+      "id": "c4683e6fa7178e4227aa592b"
+    },
+    {
+      "from": "subscriptions.opml:Chip Huyen",
+      "id": "14c54713fb90236e8daad30b"
+    },
+    {
+      "from": "subscriptions.opml:Eugene Yan",
+      "id": "e2a35dcabe116d15429f46f9"
+    },
+    {
+      "from": "subscriptions.opml:The Gradient",
+      "id": "4f833f985ed12add27e1cbef"
+    },
+    {
+      "from": "subscriptions.opml:fast.ai",
+      "id": "315e1eea9727356580ae2ef9"
+    },
+    {
+      "from": "subscriptions.opml:Interconnects",
+      "id": "633e5ebcb8362611e9ac8d8f"
+    },
+    {
+      "from": "subscriptions.opml:Ahead of AI",
+      "id": "8249346b6d16594c12b44b68"
+    },
+    {
+      "from": "subscriptions.opml:LessWrong",
+      "id": "7d900a497361c67b88484194"
+    },
+    {
+      "from": "subscriptions.opml:Alignment Forum",
+      "id": "9f0d873e19f2c9b3acdb7260"
+    },
+    {
+      "from": "subscriptions.opml:simonwillison.net",
+      "id": "052434531db837d632ebc483"
+    },
+    {
+      "from": "subscriptions.opml:jeffgeerling.com",
+      "id": "99e2c21c83344ada6c1ee927"
+    },
+    {
+      "from": "subscriptions.opml:seangoedecke.com",
+      "id": "5b15950a2f66728c46b5de37"
+    },
+    {
+      "from": "subscriptions.opml:krebsonsecurity.com",
+      "id": "4359bb4a3387d403201c8827"
+    },
+    {
+      "from": "subscriptions.opml:daringfireball.net",
+      "id": "6eaf402c6927f9fbeccb7eec"
+    },
+    {
+      "from": "subscriptions.opml:ericmigi.com",
+      "id": "a61777605e36445280fe4f5b"
+    },
+    {
+      "from": "subscriptions.opml:antirez.com",
+      "id": "c0f4b24763ff5326957d9509"
+    },
+    {
+      "from": "subscriptions.opml:idiallo.com",
+      "id": "81f55676967cc25f9d967efe"
+    },
+    {
+      "from": "subscriptions.opml:maurycyz.com",
+      "id": "396f090452a7d3f50d2411ae"
+    },
+    {
+      "from": "subscriptions.opml:pluralistic.net",
+      "id": "0a8471bbdabcd97069225c04"
+    },
+    {
+      "from": "subscriptions.opml:shkspr.mobi",
+      "id": "030398bf614965dcd9d05e5f"
+    },
+    {
+      "from": "subscriptions.opml:mitchellh.com",
+      "id": "64b519bb5e5f54ea0f1d2cf0"
+    },
+    {
+      "from": "subscriptions.opml:dynomight.net",
+      "id": "d6abad9d48f6de169cc85cfd"
+    },
+    {
+      "from": "subscriptions.opml:xeiaso.net",
+      "id": "db28536d226b8c8931991515"
+    },
+    {
+      "from": "subscriptions.opml:devblogs.microsoft.com/oldnewthing",
+      "id": "afae77b077c201ce023031ca"
+    },
+    {
+      "from": "subscriptions.opml:righto.com",
+      "id": "f07d072e1234eea47a8bf8c8"
+    },
+    {
+      "from": "subscriptions.opml:lucumr.pocoo.org",
+      "id": "f3dd435da7cad0eb60d6ad6c"
+    },
+    {
+      "from": "subscriptions.opml:skyfall.dev",
+      "id": "b2c3b984fee3ff3d21131d90"
+    },
+    {
+      "from": "subscriptions.opml:overreacted.io",
+      "id": "449cde1ff77e04f2cf5cee22"
+    },
+    {
+      "from": "subscriptions.opml:timsh.org",
+      "id": "a3b87b58c00347514c0b7dc9"
+    },
+    {
+      "from": "subscriptions.opml:johndcook.com",
+      "id": "0befdd2bc5435e839bd2a720"
+    },
+    {
+      "from": "subscriptions.opml:gilesthomas.com",
+      "id": "49fb416252053fe1b8dc8a2a"
+    },
+    {
+      "from": "subscriptions.opml:matklad.github.io",
+      "id": "541eb97207b30138020d72f8"
+    },
+    {
+      "from": "subscriptions.opml:derekthompson.org",
+      "id": "50cc9c5544916688fdb4b74f"
+    },
+    {
+      "from": "subscriptions.opml:evanhahn.com",
+      "id": "ba543586ec142b9fafb2f0e9"
+    },
+    {
+      "from": "subscriptions.opml:rakhim.exotext.com",
+      "id": "d07fb2f032f8060ea390a18f"
+    },
+    {
+      "from": "subscriptions.opml:xania.org",
+      "id": "2b7e04e02a9bcce49d10a80e"
+    },
+    {
+      "from": "subscriptions.opml:micahflee.com",
+      "id": "5b9cd62dff86e22d5563c984"
+    },
+    {
+      "from": "subscriptions.opml:nesbitt.io",
+      "id": "756042742b8ac25370ce8836"
+    },
+    {
+      "from": "subscriptions.opml:construction-physics.com",
+      "id": "4855fd2d01535e9cc1aa9e08"
+    },
+    {
+      "from": "subscriptions.opml:tedium.co",
+      "id": "704865dd9800d1776fe5d4cf"
+    },
+    {
+      "from": "subscriptions.opml:susam.net",
+      "id": "8e920d240c80e1efc79bc4b2"
+    },
+    {
+      "from": "subscriptions.opml:entropicthoughts.com",
+      "id": "2cd576d341685c74ce428df6"
+    },
+    {
+      "from": "subscriptions.opml:buttondown.com/hillelwayne",
+      "id": "c6b8c48872665bead089dfe2"
+    },
+    {
+      "from": "subscriptions.opml:dwarkesh.com",
+      "id": "aa795f5d8bf79d790c468593"
+    },
+    {
+      "from": "subscriptions.opml:borretti.me",
+      "id": "c243ca13e1c13ead42c40cd5"
+    },
+    {
+      "from": "subscriptions.opml:wheresyoured.at",
+      "id": "505f02d2c421ffd057f527da"
+    },
+    {
+      "from": "subscriptions.opml:jayd.ml",
+      "id": "f973f90941901d7a104bbc22"
+    },
+    {
+      "from": "subscriptions.opml:minimaxir.com",
+      "id": "8a16d3dbf117d8f95d419c1d"
+    },
+    {
+      "from": "subscriptions.opml:geohot.github.io",
+      "id": "68e950f671d2e5e0813e37af"
+    },
+    {
+      "from": "subscriptions.opml:paulgraham.com",
+      "id": "b41056fdf74f32e3ad5cd32a"
+    },
+    {
+      "from": "subscriptions.opml:filfre.net",
+      "id": "3a8a2496eddb5662862a68ff"
+    },
+    {
+      "from": "subscriptions.opml:blog.jim-nielsen.com",
+      "id": "fafb02ce167dbe9e95f98eff"
+    },
+    {
+      "from": "subscriptions.opml:dfarq.homeip.net",
+      "id": "541f6adb32e96d7f2dc56f1e"
+    },
+    {
+      "from": "subscriptions.opml:jyn.dev",
+      "id": "74d858071d9fddf888adb27b"
+    },
+    {
+      "from": "subscriptions.opml:geoffreylitt.com",
+      "id": "2bfabf868f69e7bbe899e1c0"
+    },
+    {
+      "from": "subscriptions.opml:downtowndougbrown.com",
+      "id": "0737dfe90fdaca7205d90afa"
+    },
+    {
+      "from": "subscriptions.opml:brutecat.com",
+      "id": "b70cec289e9788bbdce692a8"
+    },
+    {
+      "from": "subscriptions.opml:eli.thegreenplace.net",
+      "id": "f24ed5bab7a69bf845a0ab28"
+    },
+    {
+      "from": "subscriptions.opml:abortretry.fail",
+      "id": "a84582a94d6008d01cd83e2d"
+    },
+    {
+      "from": "subscriptions.opml:fabiensanglard.net",
+      "id": "ce9ad60b092e38b0bdc69963"
+    },
+    {
+      "from": "subscriptions.opml:oldvcr.blogspot.com",
+      "id": "542183fd152ee098fcfede61"
+    },
+    {
+      "from": "subscriptions.opml:bogdanthegeek.github.io",
+      "id": "10891151e6c079216d5347e5"
+    },
+    {
+      "from": "subscriptions.opml:hugotunius.se",
+      "id": "00f20348abd84aeb39eea557"
+    },
+    {
+      "from": "subscriptions.opml:gwern.net",
+      "id": "b3eec02ad0c77dbc709c3afd"
+    },
+    {
+      "from": "subscriptions.opml:berthub.eu",
+      "id": "3b12c0f59c06b2050137ecaa"
+    },
+    {
+      "from": "subscriptions.opml:chadnauseam.com",
+      "id": "912454e6b50aada84e29d548"
+    },
+    {
+      "from": "subscriptions.opml:simone.org",
+      "id": "a6c4e18392bfd983682ce098"
+    },
+    {
+      "from": "subscriptions.opml:it-notes.dragas.net",
+      "id": "abeb3d886027815838b6c9ee"
+    },
+    {
+      "from": "subscriptions.opml:beej.us",
+      "id": "770187db2708029fb766f6f0"
+    },
+    {
+      "from": "subscriptions.opml:hey.paris",
+      "id": "59ba11b41f28de541bf440d6"
+    },
+    {
+      "from": "subscriptions.opml:danielwirtz.com",
+      "id": "6741c6bee254d858d1020e21"
+    },
+    {
+      "from": "subscriptions.opml:matduggan.com",
+      "id": "7fc8e6f5be9db2dde5f440bd"
+    },
+    {
+      "from": "subscriptions.opml:refactoringenglish.com",
+      "id": "7f96838ab754a049c1fb06e5"
+    },
+    {
+      "from": "subscriptions.opml:worksonmymachine.ai",
+      "id": "44f8cff1b01f5f588c7d305a"
+    },
+    {
+      "from": "subscriptions.opml:philiplaine.com",
+      "id": "dd4ff9dce4ffbdca18abe216"
+    },
+    {
+      "from": "subscriptions.opml:bernsteinbear.com",
+      "id": "2b2c3f5ac3d2e836ccf1ea68"
+    },
+    {
+      "from": "subscriptions.opml:danieldelaney.net",
+      "id": "1f2e37993790fa1659f0cd8e"
+    },
+    {
+      "from": "subscriptions.opml:troyhunt.com",
+      "id": "2ca35d6c0a43c1c1280ded69"
+    },
+    {
+      "from": "subscriptions.opml:herman.bearblog.dev",
+      "id": "59990f9eb0e3b46dafda31f9"
+    },
+    {
+      "from": "subscriptions.opml:tomrenner.com",
+      "id": "942a4d2bf3a955727f3c5885"
+    },
+    {
+      "from": "subscriptions.opml:blog.pixelmelt.dev",
+      "id": "a5e5165c8f669a293ef23a3b"
+    },
+    {
+      "from": "subscriptions.opml:martinalderson.com",
+      "id": "14a2e6653864d8ebfa166237"
+    },
+    {
+      "from": "subscriptions.opml:danielchasehooper.com",
+      "id": "e54b020d85845fc2b13382d3"
+    },
+    {
+      "from": "subscriptions.opml:chiark.greenend.org.uk/~sgtatham",
+      "id": "8340a4835cecaeb8db59ec47"
+    },
+    {
+      "from": "subscriptions.opml:grantslatton.com",
+      "id": "8299c27feb6c6d638cebcae1"
+    },
+    {
+      "from": "subscriptions.opml:experimental-history.com",
+      "id": "3b7b03f6ccfdb95d759945e0"
+    },
+    {
+      "from": "subscriptions.opml:anildash.com",
+      "id": "0f15fed2a48f2c915fe7c14f"
+    },
+    {
+      "from": "subscriptions.opml:aresluna.org",
+      "id": "84d542a6144d407a33edde2f"
+    },
+    {
+      "from": "subscriptions.opml:michael.stapelberg.ch",
+      "id": "4977f17e33d9f1aa46bb9921"
+    },
+    {
+      "from": "subscriptions.opml:miguelgrinberg.com",
+      "id": "f3104e212f9ea5fc3254c974"
+    },
+    {
+      "from": "subscriptions.opml:keygen.sh",
+      "id": "9dcadfa39ef000b316476762"
+    },
+    {
+      "from": "subscriptions.opml:mjg59.dreamwidth.org",
+      "id": "2c8821e7f2c314a4a5fa52f7"
+    },
+    {
+      "from": "subscriptions.opml:computer.rip",
+      "id": "59cab0e069ce1bec2c578d60"
+    },
+    {
+      "from": "subscriptions.opml:GitButler Blog",
+      "id": "25595e1bc7b40cd3be0e1865"
+    },
+    {
+      "from": "subscriptions.opml:AIHOT 精选",
+      "private": true,
+      "reason": "User-specific subscription retained only during local migration"
+    },
+    {
+      "from": "subscriptions.wechat.opml:腾讯技术工程",
+      "id": "78275cec01c969a49b131a7d"
+    },
+    {
+      "from": "subscriptions.wechat.opml:阿里技术",
+      "id": "1502ebfb03ffed7f56c80d83"
+    },
+    {
+      "from": "subscriptions.wechat.opml:小米技术",
+      "id": "c433391d09af025f411533bf"
+    },
+    {
+      "from": "subscriptions.wechat.opml:哔哩哔哩技术",
+      "id": "1c1efb3532c63e4e8d798bf7"
+    },
+    {
+      "from": "subscriptions.wechat.opml:阿里云开发者",
+      "id": "35d23cb43502d119d718d127"
+    },
+    {
+      "from": "subscriptions.wechat.opml:字节跳动技术团队",
+      "id": "e134a5773263ed1825aa82f4"
+    },
+    {
+      "from": "subscriptions.wechat.opml:ShowMeAI研究中心",
+      "id": "1f8b7aed866787543e986f1d"
+    },
+    {
+      "from": "subscriptions.wechat.opml:奇舞精选",
+      "id": "4700cc7552e2f34d175fa1de"
+    },
+    {
+      "from": "subscriptions.wechat.opml:京东技术",
+      "id": "9ecb54830af38fb2c6bb8c47"
+    },
+    {
+      "from": "subscriptions.wechat.opml:硅谷科技评论",
+      "id": "b3a91c9aedc3c33fb0e7d7c3"
+    },
+    {
+      "from": "subscriptions.wechat.opml:得物技术",
+      "id": "70cfbe4795db294d1e812286"
+    },
+    {
+      "from": "subscriptions.wechat.opml:百度Geek说",
+      "id": "e45bec5502dd631aca8efa35"
+    },
+    {
+      "from": "subscriptions.wechat.opml:大淘宝技术",
+      "id": "24cb68b86d84166a42d81388"
+    },
+    {
+      "from": "subscriptions.wechat.opml:51CTO技术栈",
+      "id": "31b0204e5dbd464899170bee"
+    },
+    {
+      "from": "subscriptions.wechat.opml:优设",
+      "id": "36389a9b17701aa78fac88a5"
+    },
+    {
+      "from": "subscriptions.wechat.opml:前端充电宝",
+      "id": "2f22f9c987211e54e41fceb1"
+    },
+    {
+      "from": "subscriptions.wechat.opml:稀土掘金技术社区",
+      "id": "71b64453caf2cd0d1aa48b09"
+    },
+    {
+      "from": "subscriptions.wechat.opml:腾讯云开发者",
+      "id": "2c364acefc497078934d02cc"
+    },
+    {
+      "from": "subscriptions.wechat.opml:体验进阶",
+      "id": "e309d7b29c42e962b825aee0"
+    },
+    {
+      "from": "subscriptions.wechat.opml:前端早读课",
+      "id": "654d3623d850a05ef5c57ef6"
+    },
+    {
+      "from": "subscriptions.wechat.opml:开源服务指南",
+      "id": "93fccd83db26d841bb49d763"
+    },
+    {
+      "from": "subscriptions.wechat.opml:超人的电话亭",
+      "id": "fa51b0dfeaa8c708a0a492de"
+    },
+    {
+      "from": "subscriptions.wechat.opml:Qunar技术沙龙",
+      "id": "06138593578233dbdd871a3c"
+    },
+    {
+      "from": "subscriptions.wechat.opml:42章经",
+      "id": "4c7d73b36de69f7ca4a4b515"
+    },
+    {
+      "from": "subscriptions.wechat.opml:随机小分队",
+      "id": "619f7d567a943c8646d1f2db"
+    },
+    {
+      "from": "subscriptions.wechat.opml:阿里研究院",
+      "id": "a1142ae837491291236411b8"
+    },
+    {
+      "from": "subscriptions.wechat.opml:深思圈",
+      "id": "1d1ee66517341e8d94567c35"
+    },
+    {
+      "from": "subscriptions.wechat.opml:Hugging Face",
+      "id": "f1a7e88a676d7ac77d3d15da"
+    },
+    {
+      "from": "subscriptions.wechat.opml:Founder Park",
+      "id": "90275dc83d7b56b99a190cb3"
+    },
+    {
+      "from": "subscriptions.wechat.opml:vivo互联网技术",
+      "id": "1eea54235f92cd1f936d6bd1"
+    },
+    {
+      "from": "subscriptions.wechat.opml:歸藏的AI工具箱",
+      "id": "46a02bfc0228c48fa0714c6a"
+    },
+    {
+      "from": "subscriptions.wechat.opml:Clip设计夹",
+      "id": "44761693c36a3f44b1bdddde"
+    },
+    {
+      "from": "subscriptions.wechat.opml:InfoQ 中文",
+      "id": "090a4748ee942288675d4a32"
+    },
+    {
+      "from": "subscriptions.wechat.opml:Dify",
+      "id": "a0cb50c5f61c0c42f2732f1c"
+    },
+    {
+      "from": "subscriptions.wechat.opml:海外独角兽",
+      "id": "ed9bbe6aca7da6e5eaa0639a"
+    },
+    {
+      "from": "subscriptions.wechat.opml:赛博禅心",
+      "id": "29e308e646c998de7f3226a0"
+    },
+    {
+      "from": "subscriptions.wechat.opml:小红书技术REDtech",
+      "id": "c0e9003c13a1060c7081a5e3"
+    },
+    {
+      "from": "subscriptions.wechat.opml:智谱",
+      "id": "590f6db1e6128f3fc732ce51"
+    },
+    {
+      "from": "subscriptions.wechat.opml:月之暗面 Kimi",
+      "id": "787427d3a63ff71c237272e5"
+    },
+    {
+      "from": "subscriptions.wechat.opml:HelloGitHub",
+      "id": "9459e601f79427c72127f922"
+    },
+    {
+      "from": "subscriptions.wechat.opml:经纬创投",
+      "id": "214ff3d17dd1222e91bf0ec9"
+    },
+    {
+      "from": "subscriptions.wechat.opml:腾讯混元",
+      "id": "004ab6a979abe539854d805d"
+    },
+    {
+      "from": "subscriptions.wechat.opml:腾讯研究院",
+      "id": "e64bd31a2472d30dd4951c9b"
+    },
+    {
+      "from": "subscriptions.wechat.opml:Thoughtworks洞见",
+      "id": "97617e2dcb73ac285a3f509e"
+    },
+    {
+      "from": "subscriptions.wechat.opml:浮之静",
+      "id": "6b389644cc08112f55be6c68"
+    },
+    {
+      "from": "subscriptions.wechat.opml:数字生命卡兹克",
+      "id": "2833c21610ae223dbf0191e0"
+    },
+    {
+      "from": "subscriptions.wechat.opml:AI产品黄叔",
+      "id": "275db3e14384b21c48bd2e4e"
+    },
+    {
+      "from": "subscriptions.wechat.opml:印记中文",
+      "id": "51f5f7742618bfd5ad0cb761"
+    },
+    {
+      "from": "subscriptions.wechat.opml:真格基金",
+      "id": "9ba853d007724f12687edc1d"
+    },
+    {
+      "from": "subscriptions.wechat.opml:大模型智能",
+      "id": "b4647fa8818e0fa42431a34e"
+    },
+    {
+      "from": "subscriptions.wechat.opml:深网腾讯新闻",
+      "id": "1244f0283ed07bebf456f0f5"
+    },
+    {
+      "from": "subscriptions.wechat.opml:AI炼金术",
+      "id": "e6d60e15857e7174085f3ca8"
+    },
+    {
+      "from": "subscriptions.wechat.opml:山行AI",
+      "id": "2e82a108bfea7d16ac8bcb78"
+    },
+    {
+      "from": "subscriptions.wechat.opml:魔搭ModelScope社区",
+      "id": "0e69b662d7bc2615b73fbd58"
+    },
+    {
+      "from": "subscriptions.wechat.opml:强少来了",
+      "id": "1a6933873ef67bfdbb5781f6"
+    },
+    {
+      "from": "subscriptions.wechat.opml:土猛的员外",
+      "id": "d116de0a448e6aafdf4ecd64"
+    },
+    {
+      "from": "subscriptions.wechat.opml:DeeplearningAI",
+      "id": "c5e390a8b057f7e51dd3ec66"
+    },
+    {
+      "from": "subscriptions.wechat.opml:机器之心SOTA模型",
+      "id": "2b5acb5e7f46485b5e9ca42e"
+    },
+    {
+      "from": "subscriptions.wechat.opml:阶跃星辰",
+      "id": "b951a095192c9ca2fee4564c"
+    },
+    {
+      "from": "subscriptions.wechat.opml:快手技术",
+      "id": "c0b453229f198d959e591813"
+    },
+    {
+      "from": "subscriptions.wechat.opml:DeepSeek",
+      "id": "e5fe6cb1c5f3bcea1faafbb3"
+    },
+    {
+      "from": "subscriptions.wechat.opml:字节跳动Seed",
+      "id": "2c75cee2acd66a943f9d7497"
+    },
+    {
+      "from": "subscriptions.wechat.opml:青哥谈AI",
+      "id": "d3665844412badea85535d76"
+    },
+    {
+      "from": "subscriptions.wechat.opml:AI寒武纪",
+      "id": "e181de80101b9512e9109323"
+    },
+    {
+      "from": "subscriptions.wechat.opml:MiniMax 稀宇科技",
+      "id": "4e4a648b874bb8111bb28a22"
+    },
+    {
+      "from": "subscriptions.wechat.opml:Jina AI",
+      "id": "59bdd8a03bd5cc20e9d2c145"
+    },
+    {
+      "from": "subscriptions.wechat.opml:花叔",
+      "id": "52335ed6ad387c190e57bf3b"
+    },
+    {
+      "from": "subscriptions.wechat.opml:向阳乔木推荐看",
+      "id": "a99beea9be5cdbd4b700e2c3"
+    },
+    {
+      "from": "subscriptions.wechat.opml:yikai 的摸鱼笔记",
+      "id": "67a5884ae7c5d2c0e74787b0"
+    },
+    {
+      "from": "subscriptions.wechat.opml:沃垠AI",
+      "id": "4277ce41a6500faca7268147"
+    },
+    {
+      "from": "subscriptions.wechat.opml:L先生说",
+      "id": "868967ff80b4b2320a9ea52e"
+    },
+    {
+      "from": "subscriptions.wechat.opml:有新Newin",
+      "id": "403d21374d72b372a973aade"
+    },
+    {
+      "from": "subscriptions.wechat.opml:晚点LatePost",
+      "id": "1bf50866cb41dc58c68d9004"
+    },
+    {
+      "from": "subscriptions.wechat.opml:袋鼠帝AI客栈",
+      "id": "d440ef3530b33d8c282e6b65"
+    },
+    {
+      "from": "subscriptions.wechat.opml:AI科技大本营",
+      "id": "2e3cd33f86682b874ea91814"
+    },
+    {
+      "from": "subscriptions.wechat.opml:卡尔的AI沃茨",
+      "id": "ae732b58ed4adc82f04cc6aa"
+    },
+    {
+      "from": "subscriptions.wechat.opml:逛逛GitHub",
+      "id": "18e5529b07bc9290b5d4a115"
+    },
+    {
+      "from": "subscriptions.wechat.opml:阿真Irene",
+      "id": "001a8f36d402f59144ba801e"
+    },
+    {
+      "from": "subscriptions.wechat.opml:硅谷101",
+      "id": "bf8f044c7572300b76748e6b"
+    },
+    {
+      "from": "subscriptions.wechat.opml:语言即世界language is world",
+      "id": "29dc745d30d9e3314cc97c6c"
+    },
+    {
+      "from": "subscriptions.wechat.opml:43 Talks",
+      "id": "1f977c00b55fd488050c79f9"
+    }
+  ]
+}

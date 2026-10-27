@@ -1,0 +1,10 @@
+[project]
+name = "asset-collector"
+version = "1.0.0"
+description = "Collect asset requirements from cctools writing packages"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

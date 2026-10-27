@@ -1,3 +1,4 @@
+import { migrateBuiltinPackages } from "./skills/builtin-package-migration";
 import { app, BrowserWindow, Menu, clipboard, ipcMain, nativeTheme, protocol, safeStorage, screen, shell, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from "electron";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -235,6 +236,7 @@ function ensureAiWorker(): AiWorkerClient {
   // filesystem authority and must never widen this boundary.
   const openmindRoot = settings.resolveOpenmindRoot();
   if (!openmindRoot) throw new Error("请先绑定内容目录后再使用 AI 会话。");
+  ensureSkillPackageService();
   aiWorker = new AiWorkerClient(openmindRoot, resolveAiStateRoot());
   return aiWorker;
 }
@@ -311,7 +313,10 @@ function ensureSkillPackageService(): SkillPackageService {
     ensureClaudeSkillAliases(paths.skills);
     claudeAgentLinkEnsuredRoot = openmindRoot;
   }
-  if (!skillPackageService) skillPackageService = new SkillPackageService(paths);
+  if (!skillPackageService) {
+    skillPackageService = new SkillPackageService(paths);
+    if (openmindRoot) migrateBuiltinPackages(openmindRoot, skillPackageService);
+  }
   return skillPackageService;
 }
 

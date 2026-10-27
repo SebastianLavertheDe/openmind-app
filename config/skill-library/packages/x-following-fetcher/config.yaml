@@ -1,0 +1,30 @@
+# X Following Fetcher Configuration
+fetch:
+  count: 20
+  timeout_seconds: 120
+  max_retries: 2
+  include_promoted: false
+
+render:
+  include_metrics: true
+  include_images: false
+  expand_urls: true
+  include_retweets: true
+  include_quotes: true
+  title_max_length: 120
+
+storage:
+  output_dir: "post"
+  article_output_dir: "article"
+  cache_file: "posted_ids.json"
+  daily_json_filename: "posts.json"
+  daily_html_filename: "index.html"
+  daily_markdown_filename: "timeline.md"
+  write_daily_markdown: false
+  video_subdir: "videos"
+  save_external_link_posts_to_article: true
+
+compat:
+  curl_file: "curl.txt"
+  extra_curl_files:
+    - "curl_foryou.txt"

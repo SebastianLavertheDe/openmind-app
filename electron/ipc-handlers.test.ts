@@ -1,3 +1,5 @@
+import * as builtinPackages from "./skills/builtin-default-packages";
+import { RssService } from "./rss/rss-service";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import os from "node:os";
 import path from "node:path";
@@ -51,9 +53,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks and upgrades.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(148);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(148);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(148);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(158);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(158);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(158);
   });
 
   it("does not expose or register the removed Skill copy operation", () => {
@@ -650,10 +652,11 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
       calls.push(method);
       return value;
     }) };
-    const install = vi.fn(async () => {
+    const install = vi.spyOn(builtinPackages, "installBuiltinDefault").mockImplementation(() => {
       calls.push("install");
-      return [{ key: "cctools/default", digest: "a".repeat(64) }];
+      return { key: "openmind-library/default", digest: "a".repeat(64) } as never;
     });
+    vi.spyOn(builtinPackages, "removeManagedWikiGenerator").mockReturnValue(undefined);
     const setEnabled = vi.fn();
     const ctx = makeCtx({
       ensureAiWorker: () => worker,
@@ -663,8 +666,8 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.setDefaultSkillsEnabled, "true")).toThrow();
     expect(worker.call).not.toHaveBeenCalled();
     expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.setDefaultSkillsEnabled, true)).toBe(true);
-    expect(calls).toEqual(["install", "refresh-skills", "default-skills-set"]);
-    expect(setEnabled).toHaveBeenCalledWith("cctools/default", "a".repeat(64), true);
+    expect(calls).toEqual(["default-skills-stop", ...Array(15).fill("install"), "refresh-skills", "default-skills-set"]);
+    expect(setEnabled).toHaveBeenCalledWith("openmind-library/default", "a".repeat(64), true);
     expect(ctx.restartAiWorker).not.toHaveBeenCalled();
   });
 
@@ -929,11 +932,16 @@ describe("handler forwarding — 剩余创作类 passthrough", () => {
     expect(spy).toHaveBeenCalledWith("updateSource", "src-1", expect.objectContaining({ enabled: false }));
   });
 
-  it("addRssSource 解析 AddRssSourceInput", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.addRssSource, { name: "Feed", url: "https://example.com/rss" });
-    expect(spy).toHaveBeenCalledWith("addRssSource", expect.objectContaining({ name: "Feed" }));
+  it("detects an RSS address before saving through the shared source service", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-rss-ipc-"));
+    try {
+      const settings = await import("./lib/settings");
+      vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue(root);
+      const add = vi.spyOn(RssService.prototype, "add").mockResolvedValue({} as never);
+      const ctx = makeCtx({ ensureProductService: () => ({ listSources: () => [] }) as never, ensureSharedPythonRuntimeService: () => ({}) as never });
+      await invokeHandler(ctx, IPC_METHOD_CHANNELS.addRssSource, { name: "Feed", url: "https://example.com/rss" });
+      expect(add).toHaveBeenCalledWith({ name: "Feed", inputUrl: "https://example.com/rss", enabled: true });
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
   });
 });
 

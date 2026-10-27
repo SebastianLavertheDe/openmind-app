@@ -3,7 +3,7 @@ import type { ContentKind } from "../../contracts";
 /** 导航、通用文案、content kind、creative 注册表展示文案。 */
 export const coreMessages = {
   nav: {
-    sources: "资料库",
+    sources: "RSS 源",
     skills: "Skills",
     brief: "每日简报",
     creative: "创作",

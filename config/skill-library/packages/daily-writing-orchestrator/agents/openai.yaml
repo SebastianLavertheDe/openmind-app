@@ -1,0 +1,4 @@
+model: gpt-5
+reasoning_effort: medium
+temperature: 0.2
+description: "Daily social-media topic selection and writing-package orchestration."

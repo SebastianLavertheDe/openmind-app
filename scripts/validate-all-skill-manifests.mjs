@@ -1,16 +1,12 @@
-// Validate every top-level formal manifest in the independent Skills
-// repository against the frozen internal SkillManifestSchema. The public
-// cctools.skill.yaml contract is preferred; openmind.skill.yaml remains a
-// compatibility fallback. Override the sibling checkout with
-// OPENMIND_SKILLS_REPO_ROOT. A standalone app checkout without its sibling
-// Skills repository skips this lint.
+// Validate every bundled native Skill without an adjacent repository.
+// Both manifest filenames remain supported during upgrades.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(moduleDir, "..");
-const skillsDir = path.resolve(process.env.OPENMIND_SKILLS_REPO_ROOT || path.join(appRoot, "..", "cctools-skills"));
+const skillsDir = path.join(appRoot, "config", "skill-library", "packages");
 const primaryManifestFile = "cctools.skill.yaml";
 const compatManifestFile = "openmind.skill.yaml";
 
@@ -38,8 +34,7 @@ const schemaUrl = pathToFileURL(path.join(moduleDir, "..", "shared", "skill-mani
 const { validateManifest } = await import(schemaUrl);
 
 if (!fs.existsSync(skillsDir)) {
-  console.log(`⊘ Skill manifest lint skipped: independent repository not found at ${skillsDir}`);
-  process.exit(0);
+  throw new Error(`Bundled Skill sources are missing: ${skillsDir}`);
 }
 
 const entries = fs.readdirSync(skillsDir, { withFileTypes: true })

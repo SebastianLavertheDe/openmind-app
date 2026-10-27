@@ -6,7 +6,7 @@ OpenMind Desktop is a personal workspace for collecting information, organizing 
 
 ## Highlights
 
-- **203 curated RSS feeds.** The official [Skill library](https://github.com/SebastianLavertheDe/cctools-skills) includes 122 general feeds and 81 WeChat Official Account feeds, covering AI, technology, engineering, and more. Enable default Skills in Settings and customize your subscriptions.
+- **Manage your own RSS sources.** Browse 227 public suggestions, add websites or feeds, and enable only the sources you want. Local RSS synchronization, article collection, summaries and topics have independent schedules. Daily brief preferences control focus, exclusions, language and recommendation count.
 - **Add your own materials.** Import web URLs, PDF files, and YouTube video links into your projects, and keep them together as sources for reading and writing.
 - **From reading to writing.** Collect articles as Markdown, generate daily summaries and topic ideas, and use your reading materials to develop drafts and projects.
 - **Your choice of AI.** Configure your own AI Provider for summaries and writing, and connect Claude Code or Codex CLI for AI conversations.
@@ -46,7 +46,7 @@ Desktop builds target Windows 11 and macOS. Linux is available for development a
 
 1. **Choose a data folder.** Select a folder for your OpenMind content and personal configuration.
 2. **Configure AI (optional).** In **Settings → AI & Models**, add an AI Provider, enter its Base URL, API key, and text model, and select a default provider. For AI conversations, also install or connect Claude Code or Codex CLI and complete the connection setup shown in the app. You can choose **Set up later** during onboarding and configure AI when you need it.
-3. **Enable default Skills when needed.** Startup does not require or check for the official Skill library. In **Settings → Skills**, turn on **Default Skills and built-in schedules** to install [cctools-skills](https://github.com/SebastianLavertheDe/cctools-skills) and enable RSS, X, Reddit, and daily topic jobs. This switch starts off on new installations; installation requires an internet connection. Turning it off stops these jobs and removes the official Skills, preserving generated content, personal settings, other Skill sources, and custom schedules.
+3. **Choose your sources and tasks.** The 15 retained Skills and feed converters ship with the app; cloning `cctools-skills` or `blog-rss-feed` is unnecessary. Open **RSS Sources** to configure subscriptions and **Schedules** to choose timing and timezone. Suggested sources and new schedules start disabled. Enable the bundled Python runtime in Settings before running Python Skills. Summaries and topics also need a configured Process provider. Turning off the built-in collection switch preserves packages, content, subscriptions and schedule choices.
 4. **Start collecting and creating.** Customize subscriptions in Settings, run RSS collection or the RSS-to-summary workflow in Skill Center, read the results in your library, and use them in writing projects.
 
 AI features send requests to the provider you configure. Use your own credentials and keep your data folder and provider configuration private.
@@ -74,7 +74,7 @@ npm run dev:electron
 
 The runtime preparation step downloads the Python runtime used by Skills. After the app opens, follow the same first-launch setup above.
 
-The App Skill library is maintained independently in [`config/skill-library/catalog.json`](config/skill-library/catalog.json), including display text, instructions, categories and runtime requirements. Add a configuration entry and run `npm run prepare:skill-library`; optional scripts live beside the configuration under `assets/`. App builds require no `cctools-skills` checkout. Both `build` and `dev:electron` prepare the App-owned bundle automatically. GitHub Skills such as `cctools-skills` remain separate external sources, installed through source management. See the [catalog guide](config/skill-library/README.md).
+The App Skill library is maintained in [`config/skill-library/`](config/skill-library/README.md): 21 configurable Agent presets plus 15 migrated native Agent, Process and Workflow packages under `packages/`. Builds include shared Python modules and RSS adapters without adjacent repositories. External Git imports and user-authored Skills retain their own identities. See the [RSS and Skills guide](docs/RSS_AND_SKILLS_GUIDE.md) for setup, CLI/cron commands, migration and validation.
 
 Development conventions: [AGENTS.md](AGENTS.md). More details: [AI workspace](docs/AI_WORKSPACE.md), [WeChat export](docs/wechat-export.md), and [support and recovery](docs/SUPPORT_AND_RECOVERY.md).
 

@@ -1,0 +1,92 @@
+{
+  "apiVersion": "cctools.dev/skill/v1",
+  "id": "reddit-fetcher",
+  "version": "1.0.0",
+  "publisher": {
+    "id": "cctools",
+    "displayName": "cctools"
+  },
+  "kind": "process",
+  "display": {
+    "name": "Reddit 内容抓取",
+    "description": "抓取配置的 Reddit 热门内容并保存到 reddit/（相对内容根）。",
+    "group": "采集"
+  },
+  "entrypoint": {
+    "runtime": "python",
+    "script": "main.py",
+    "args": [
+      "--date",
+      "{{ inputs.date }}"
+    ]
+  },
+  "runtime": {
+    "version": ">=3.11,<3.13",
+    "dependencyFile": "pyproject.toml",
+    "lockFile": "uv.lock",
+    "packs": [
+      "python-core"
+    ]
+  },
+  "inputs": {
+    "type": "object",
+    "required": [
+      "date"
+    ],
+    "properties": {
+      "date": {
+        "type": "string",
+        "format": "compact-date"
+      }
+    }
+  },
+  "config": {},
+  "capabilities": {
+    "openmind": {
+      "read": [],
+      "write": [
+        "reddit/**"
+      ]
+    },
+    "network": {
+      "required": true,
+      "hosts": [
+        "reddit.com",
+        "www.reddit.com"
+      ]
+    },
+    "subprocess": {
+      "allowed": false
+    }
+  },
+  "artifacts": [
+    {
+      "id": "reddit-daily",
+      "type": "directory",
+      "path": "reddit/**"
+    }
+  ],
+  "execution": {
+    "concurrency": {
+      "maxInstances": 1,
+      "mutexes": [
+        "content:reddit"
+      ]
+    },
+    "timeoutSeconds": 3600,
+    "gracefulStopSeconds": 10,
+    "retry": {
+      "maxAttempts": 1
+    }
+  },
+  "platforms": [
+    "windows-x64",
+    "macos-arm64",
+    "linux-x64",
+    "wsl-linux-x64",
+    "linux-arm64"
+  ],
+  "compatibility": {
+    "minAppVersion": "1.0.0"
+  }
+}

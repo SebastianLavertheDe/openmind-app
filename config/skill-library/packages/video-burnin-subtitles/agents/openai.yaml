@@ -1,0 +1,4 @@
+interface:
+  display_name: "Video Burn-in Subtitles"
+  short_description: "Download video, detect subs, burn into video"
+  default_prompt: "Use $video-burnin-subtitles to download a video and burn subtitles."

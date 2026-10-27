@@ -55,6 +55,8 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "refresh-skills": return scheduler.refreshSkills();
     case "prewarm": return scheduler.prewarmClaude(typeof first === "string" ? first : undefined);
     case "skill-run-list": return scheduler.listSkillRuns();
+    case "rss-run": return scheduler.runRss(first as never);
+    case "brief-run": return scheduler.runDailyBrief(first as never);
     case "skill-run-get": return scheduler.getSkillRun(String(first));
     case "skill-run-events": return scheduler.getSkillRunEvents(String(first));
     case "run-list-artifacts": return scheduler.listRunArtifacts(typeof first === "string" && first ? first : undefined);

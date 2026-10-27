@@ -1,0 +1,4 @@
+interface:
+  display_name: "RSS To Summary Workflow"
+  short_description: "Orchestrate RSS fetch + daily summary workflows"
+  default_prompt: "Prefer the desktop Workflow Engine using cctools.skill.yaml (fetch → summarize → select-topic) with one shared content root snapshot. For local/cron, use scripts/run_workflow.py --workflow rss-to-summary."
