@@ -1,3 +1,4 @@
+import { RunEventList } from "./RunEventList";
 import { FormField } from "../../design-system/components";
 import { Button } from "../../design-system/components";
 import { getLocale } from "@shared/messages";
@@ -242,7 +243,7 @@ export function RunsPage({ initialRunId, initialSkillId, confirmAction = rejectC
               <WorkflowSteps record={selected.record} onRetry={retryStep} actionBusy={selectedActionBusy} />
             </> : <>
               <section className="run-section"><h3>{m.runs.artifacts.title}</h3><ArtifactList artifacts={selectedArtifacts} /></section>
-              <section className="run-section"><h3>{m.runs.events.title}</h3><EventList events={events} loading={eventsLoading} /></section>
+              <section className="run-section"><h3>{m.runs.events.title}</h3><RunEventList events={events.slice(-80)} loading={eventsLoading} /></section>
             </>}
           </>}
         </section>
@@ -279,13 +280,6 @@ function ArtifactList({ artifacts }: { artifacts: RunArtifact[] }) {
       </div> : <small className="runs-muted">{m.runs.artifacts.external}{artifact.externalPathRef || m.runs.artifacts.unavailable}</small>}
     </div>;
   })}</div>;
-}
-
-function EventList({ events, loading }: { events: BrokerRunEvent[]; loading: boolean }) {
-  useLocale();
-  if (loading) return <p className="runs-muted run-events-loading" role="status" aria-live="polite"><LoaderCircle size={14} className="spin" />{m.runs.events.loading}</p>;
-  if (!events.length) return <p className="runs-muted">{m.runs.events.empty}</p>;
-  return <div className="run-event-list run-events-ready">{events.slice(-80).map((event) => <div key={`${event.runId}-${event.sequence}`} className="run-event-row"><time>{formatTime(event.timestamp)}</time><strong>{event.state}</strong><span>{event.text || event.reason || event.error || ""}</span></div>)}</div>;
 }
 
 function entryKey(entry: RunEntry): string { return `${entry.kind}:${entry.record.id}`; }

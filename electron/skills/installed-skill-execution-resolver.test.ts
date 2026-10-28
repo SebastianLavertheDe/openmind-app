@@ -19,6 +19,7 @@ import { InstalledSkillExecutionResolver } from "./installed-skill-execution-res
 
 const roots: string[] = [];
 const INTERNAL_SKILLS_ROOT = path.resolve(__dirname, "../../.build/skill-library");
+const BRIEF_LABELS = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../tests/rss/fixtures/brief-labels.json"), "utf8"));
 const realSkillIt = it;
 const linuxRealSkillIt = it.skipIf(process.platform !== "linux");
 const ORIGINAL_WORKSPACE_ROOT = process.env.OPENMIND_WORKSPACE_ROOT;
@@ -847,6 +848,8 @@ describe("InstalledSkillExecutionResolver", () => {
         ].join("\n"));
       }
       expect(completed.terminalState).toBe("succeeded");
+      expect(completed.rssContext).toMatchObject({ root: fs.realpathSync(openmindRoot), mode: "pipeline" });
+      expect(completed.rssContext?.sourceIds.length).toBeGreaterThan(0);
       const articleFiles = findMarkdownFiles(path.join(openmindRoot, "article"));
       expect(articleFiles).toHaveLength(1);
       expect(fs.readFileSync(articleFiles[0], "utf8")).toContain("Local RSS article");
@@ -1052,6 +1055,7 @@ describe("InstalledSkillExecutionResolver", () => {
           });
           const response = {
             keep: true, items: [{ index: 1, reason: "Useful content" }],
+            document: BRIEF_LABELS.zh,
             translated_title: "链路测试文章",
             summary: "本地 Provider 用固定 JSON 响应验证 RSS、总结和选题之间的运行时交接。",
             key_points: ["三个 Skill 共享同一个 openmindRoot 和 rootGeneration"],

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DailyBriefPreferencesSchema } from "./daily-brief-preferences";
+import { RssRunContextSchema } from "./rss-contracts";
 
 export const EXECUTION_SCHEMA_VERSION = 1 as const;
 export const WORKFLOW_INTERRUPTED_ERROR = "Workflow 在应用重启时中断，未恢复执行。";
@@ -135,6 +136,7 @@ export const BrokerRunRecordSchema = z.object({
   schemaVersion: z.literal(EXECUTION_SCHEMA_VERSION),
   id: z.string().min(1).max(120),
   request: StoredSkillRunRequestSchema,
+  rssContext: RssRunContextSchema.optional(),
   state: BrokerRunStateSchema,
   sequence: z.number().int().nonnegative(),
   attempt: z.number().int().nonnegative().default(0),

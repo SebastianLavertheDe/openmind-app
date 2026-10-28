@@ -247,7 +247,7 @@ export class InstalledSkillExecutionResolver {
     const openmindRoot = canonicalDirectory(this.openmindRoot);
     // Resolve provider state against the same frozen root snapshot as content;
     // never let a later workspace/settings change redirect an admitted run.
-    if (manifest.id === "rss-article-saver") new RssRepository(openmindRoot, readRssCatalog()).read();
+    const rssDocument = manifest.id === "rss-article-saver" ? new RssRepository(openmindRoot, readRssCatalog()).read() : null;
     const provider = manifest.id === "rss-article-saver" ? { env: {}, apiKey: "" } : readDefaultProviderEnv(openmindRoot);
     // Managed runs receive only the selected Provider fields. The full YAML
     // path is reserved for trusted cron/direct runs so a Skill cannot open
@@ -290,6 +290,7 @@ export class InstalledSkillExecutionResolver {
       rootGeneration: this.rootGeneration,
       skillHome: packageRoot,
       openmindRoot,
+      ...(rssDocument ? { rssContext: { root: openmindRoot, mode: (inputs.mode || "pipeline") as "sync" | "collect" | "pipeline", sourceIds: rssDocument.sources.filter(source => !inputs.sourceId || source.id === inputs.sourceId).map(source => source.id) } } : {}),
       capabilities: manifest.capabilities,
       runtime: {
         target: runtime.target,

@@ -29,3 +29,5 @@ body { margin: 0; overflow: auto; background: var(--app-bg); }
 .ui-catalog-queue-example { width: min(480px, 100%); margin: 40px auto; --ai-flow-width: 760px; }
 .ui-catalog-queue-example .composer { padding: 0; }
 .ui-catalog-queue-example .composer-editor-actions { justify-content: space-between; }
+.ui-catalog-rss { min-width: 0; }
+.ui-catalog-rss-embedded { width: min(390px, 100%); }

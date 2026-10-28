@@ -175,14 +175,14 @@ describe("SkillsPage", () => {
       recentError: null,
       itemCount: 0
     };
-    const row = { id: source.id, name: source.name, inputUrl: source.url!, kind: "feed" as const, enabled: true, revision: 1, adapterId: "feed", resolvedFeedUrl: null, presetId: null, group: "", tags: [], lastAttemptAt: null, lastSuccessAt: null, lastError: null, itemCount: 0, feedRevision: 0 };
+    const row = { id: source.id, name: source.name, inputUrl: source.url!, kind: "feed" as const, enabled: true, revision: 1, adapterId: "feed", resolvedFeedUrl: null, presetId: null, group: "", tags: [], lastAttemptAt: null, lastSuccessAt: null, lastSyncAt: null, lastCollectAt: null, lastAttemptStage: null, lastError: null, itemCount: 0, feedRevision: 0 };
     const document = { schemaVersion: 1 as const, initialized: true as const, revision: 1, sources: [row], deletedPresetIds: [], migrationWarnings: [] };
     const editRssSource = vi.fn(async () => document);
     const importRssOpml = vi.fn(async () => document);
     renderPage({ listInstalledSkills: async () => [rssInstalled], inspectInstalledSkill: async () => rssInspection, listSources: async () => [source], getRssSources: async () => ({ ...document, sources: [{ ...row, localFeed: { path: "/fixtures/content/.agent/skill-data/rss-article-saver/feeds/rss-1.xml", status: "missing" as const } }] }), editRssSource, importRssOpml });
     expect(await screen.findByRole("heading", { name: "RSS 文章采集" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "订阅源 1" }));
-    expect(await screen.findByText("https://sspai.com/feed")).toBeTruthy();
+    expect(await screen.findByRole("link", { name: "https://sspai.com/feed" })).toBeTruthy();
     fireEvent.click(screen.getByRole("switch", { name: /少数派/ }));
     await waitFor(() => expect(editRssSource).toHaveBeenCalledWith({ id: "rss-1", revision: 1, enabled: false }));
     await waitFor(() => expect((screen.getByRole("button", { name: "导入 OPML" }) as HTMLButtonElement).disabled).toBe(false));

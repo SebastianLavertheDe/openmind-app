@@ -55,7 +55,8 @@ import { messages, setLocale } from "../shared/messages";
 import { WorkflowResumeRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
 import { RssService } from "./rss/rss-service";
-import { RssSourceInputSchema, RssSourcePatchSchema, RssRunInputSchema, RssUrlSchema } from "../shared/rss-contracts";
+import { RssSourceReader } from "./rss/rss-source-reader";
+import { RssSourceInputSchema, RssSourcePatchSchema, RssRunInputSchema, RssUrlSchema, RssEntriesQuerySchema, RssRunsQuerySchema, RssRunEventsQuerySchema } from "../shared/rss-contracts";
 import { installBuiltinDefault } from "./skills/builtin-default-packages";
 import { SaveDailyBriefPreferencesSchema } from "../shared/daily-brief-preferences";
 import {
@@ -229,9 +230,13 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     const stateRoot = ctx.resolveAiStateRoot?.();
     return new RssService(root, skillPackages(), sharedPython(), resolveSkillLibraryBundleRoot(), stateRoot ? [path.join(stateRoot, ".openmind")] : []);
   };
+  const rssReader = () => new RssSourceReader(rss().repository, skillPackages().appPaths.runs);
 
   return [
     { channel: C.getRssSources, handler: () => rss().repository.view() },
+    { channel: C.getRssSourceEntries, handler: input => rssReader().entries(RssEntriesQuerySchema.parse(input)) },
+    { channel: C.getRssSourceRuns, handler: input => rssReader().runs(RssRunsQuerySchema.parse(input)) },
+    { channel: C.getRssSourceRunEvents, handler: input => rssReader().events(RssRunEventsQuerySchema.parse(input)) },
     { channel: C.detectRssSource, handler: input => projectAdmission.run(() => { const value = z.object({ inputUrl: RssUrlSchema, selectedFeedUrl: RssUrlSchema.optional() }).parse(input); return rss().detect(value.inputUrl, value.selectedFeedUrl); }) },
     { channel: C.createRssSource, handler: input => projectAdmission.run(() => rss().add(RssSourceInputSchema.parse(input))) },
     { channel: C.editRssSource, handler: input => projectAdmission.run(() => rss().update(RssSourcePatchSchema.parse(input))) },

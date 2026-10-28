@@ -36,7 +36,7 @@ export {
 import type { ProvidersYamlInput, ProvidersYamlView } from "./providers-yaml";
 import type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord, WorkflowResumeRequest } from "./execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
-import type { RssDocument, RssDocumentView, RssDetection, RssSourceInput, RssSourcePatch, RssRunInput } from "./rss-contracts";
+import type { RssDocument, RssDocumentView, RssDetection, RssSourceInput, RssSourcePatch, RssRunInput, RssEntriesQuery, RssEntriesPage, RssRunsQuery, RssRunsPage, RssRunEventsQuery, RssRunEventsPage } from "./rss-contracts";
 import type { DailyBriefPreferences } from "./daily-brief-preferences";
 import { RuntimeTargetSchema } from "./runtime-targets";
 
@@ -1231,6 +1231,9 @@ export interface DesktopApi {
   saveXFollowingCurls(contents: string[]): Promise<void>;
   listSources(): Promise<SourceDefinition[]>;
   getRssSources(): Promise<RssDocumentView>;
+  getRssSourceEntries(input: RssEntriesQuery): Promise<RssEntriesPage>;
+  getRssSourceRuns(input: RssRunsQuery): Promise<RssRunsPage>;
+  getRssSourceRunEvents(input: RssRunEventsQuery): Promise<RssRunEventsPage>;
   detectRssSource(input: { inputUrl: string; selectedFeedUrl?: string }): Promise<RssDetection>;
   createRssSource(input: RssSourceInput): Promise<RssDocument>;
   editRssSource(input: RssSourcePatch): Promise<RssDocument>;

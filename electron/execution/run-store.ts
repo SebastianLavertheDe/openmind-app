@@ -13,6 +13,7 @@ import {
   toStoredSkillRunRequest
 } from "../../shared/execution-contracts";
 import { writeJsonAtomic } from "../lib/fs-utils";
+import type { RssRunContext } from "../../shared/rss-contracts";
 
 const TERMINAL_STATES = new Set<BrokerRunState>(["succeeded", "failed", "timed_out", "cancelled"]);
 const ALLOWED_TRANSITIONS: Record<BrokerRunState, readonly BrokerRunState[]> = {
@@ -114,6 +115,14 @@ export class RunStore {
     this.records.set(runId, next);
     this.persist(next);
     return cloneRecord(next);
+  }
+
+  bindRssContext(runId: string, rssContext: RssRunContext): void {
+    const current = this.get(runId);
+    if (current.rssContext) throw new Error("RSS run context is already bound.");
+    const next = BrokerRunRecordSchema.parse({ ...current, rssContext });
+    this.records.set(runId, next);
+    this.persist(next);
   }
 
   bindRuntime(runId: string, runtime: NonNullable<BrokerRunRecord["runtime"]>): BrokerRunRecord {

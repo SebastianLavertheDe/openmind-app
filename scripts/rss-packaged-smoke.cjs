@@ -5,6 +5,7 @@ const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const briefLabels = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/rss/fixtures/brief-labels.json'), 'utf8')).en;
 const appRoot = path.resolve(process.argv[2] || 'dist/linux-arm64-unpacked');
 const binary = path.join(appRoot, 'openmind-desktop');
 const resources = path.join(appRoot, 'resources');
@@ -43,7 +44,7 @@ const server = http.createServer((request, response) => {
           const source = JSON.parse(prompt.split('SOURCE:\n')[1]);
           const science = source.title.toLowerCase().includes('science');
           answer = { keep: science === prompt.includes('Science only'), translated_title: source.title, summary: 'English research summary', key_points: ['Evidence'], category: science ? 'Science' : 'Design', score: 90, reason: 'Matches the saved preference' };
-        } else answer = { items: [{ index: 1, reason: 'Relevant evidence' }] };
+        } else answer = { items: [{ index: 1, reason: 'Relevant evidence' }], document: briefLabels };
         response.setHeader('content-type', 'application/json');
         response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(answer) } }] }));
       } catch (error) { response.statusCode = 400; response.end(String(error)); }
@@ -106,6 +107,8 @@ const server = http.createServer((request, response) => {
   const summaryPath = path.join(content, first.result.path);
   const initialSummary = fs.readFileSync(summaryPath, 'utf8');
   assert.match(initialSummary, /### Product design research/); assert.doesNotMatch(initialSummary, /### Science measurements/);
+  assert.match(initialSummary, /# 20261027 Daily summary/);
+  assert.doesNotMatch(initialSummary, /[\u4e00-\u9fff]/, 'English preferences apply to document labels as well as model prose');
   const callsBefore = providerCalls.length;
   outputs.push(JSON.parse((await cli('brief', 'generate')).trim()));
   assert.equal(providerCalls.length, callsBefore, 'identical inputs reuse the model cache');
@@ -115,6 +118,8 @@ const server = http.createServer((request, response) => {
   const topicText = fs.readFileSync(path.join(content, topic.result.path), 'utf8');
   assert.match(topicText, /### Science measurements/); assert.doesNotMatch(topicText, /### Product design research/);
   assert.match(topicText, /openmind-topics/);
+  assert.match(topicText, /# 20261027 Daily topics/);
+  assert.doesNotMatch(topicText, /[\u4e00-\u9fff]/);
   assert.ok(providerCalls.length > callsBefore, 'changed preferences invalidate model cache');
   outputs.push(JSON.parse((await cli('brief', 'generate')).trim()));
   assert.match(fs.readFileSync(summaryPath, 'utf8'), /### Science measurements/);

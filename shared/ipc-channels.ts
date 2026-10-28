@@ -1,6 +1,9 @@
 /** IPC invoke 通道字符串常量。method↔channel 关联见 `ipc-registry.ts`（单一注册表）。 */
 export const IPC = {
   RSS_LIST: "rss:list",
+  RSS_ENTRIES: "rss:entries",
+  RSS_RUNS: "rss:runs",
+  RSS_RUN_EVENTS: "rss:run-events",
   RSS_DETECT: "rss:detect",
   RSS_ADD: "rss:add",
   RSS_EDIT: "rss:edit",

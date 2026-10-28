@@ -1,0 +1,28 @@
+import { SourcesPage } from "../src/features/sources/SourcesPage";
+import { FeedbackProvider } from "../src/feedback-context";
+import { RssSourceSchema, type RssDocumentView } from "../../shared/rss-contracts";
+import type { DesktopApi } from "../../shared/contracts";
+
+export function installRssCatalogApi() {
+  let document: RssDocumentView = { schemaVersion: 1, initialized: true, revision: 1, rootKey: "catalog-root", deletedPresetIds: [], migrationWarnings: [], sources: [
+    { id: "design", name: "Design research", group: "blog", enabled: true, itemCount: 120, lastSyncAt: "2026-10-28T08:00:00Z", lastError: { stage: "collect", code: "access-denied", message: "HTTP 403 returned by the article endpoint. No login requirement inferred.", retryable: false } },
+    { id: "wechat", name: "WeChat publications", group: "WeChat", enabled: true },
+    { id: "custom", name: "A deliberately long research source name that remains accessible in full", group: "Custom OPML research group with a long preserved name", enabled: false },
+    { id: "ungrouped", name: "An uncategorized feed", group: "", enabled: true },
+    { id: "pending", name: "Source awaiting setup", group: "", enabled: false, inputUrl: "" }
+  ].map(row => ({ ...RssSourceSchema.parse({ kind: "feed", revision: 1, inputUrl: `https://${row.id}.example/research/long-path/with-publications.xml`, ...row }), localFeed: { path: `/fixtures/content/.agent/skill-data/rss-article-saver/feeds/${row.id}.xml`, status: row.id === "design" ? "ready" : row.id === "custom" ? "outdated" : "missing" } })) };
+  const api = {
+    getRssSources: async () => structuredClone(document),
+    getRssSourceEntries: async () => ({ entries: [{ title: "A synthetic local RSS entry", url: "https://design.example/article", publishedAt: "2026-10-28T08:00:00Z" }], total: 1, version: "catalog-1", status: "ready", nextCursor: null, reset: false }),
+    getRssSourceRuns: async () => ({ runs: [], nextCursor: null }), getRssSourceRunEvents: async () => ({ events: [], nextAfter: null }),
+    detectRssSource: async ({ inputUrl }) => ({ inputUrl, kind: "feed", resolvedFeedUrl: inputUrl, adapterId: "feed", candidates: [] }),
+    editRssSource: async input => { document = { ...document, sources: document.sources.map(row => row.id === input.id ? { ...row, ...input, revision: row.revision + 1 } : row) }; return document; },
+    removeRssSource: async ({ id }) => { document = { ...document, sources: document.sources.filter(row => row.id !== id) }; return document; },
+    importRssOpml: async () => document, openExternal: async () => true
+  } satisfies Partial<DesktopApi>;
+  Object.defineProperty(window, "openmind", { value: api });
+}
+
+export function RssCatalogExample({ embedded }: { embedded: boolean }) {
+  return <div className={embedded ? "ui-catalog-rss-embedded" : "ui-catalog-rss"}><FeedbackProvider><SourcesPage presentation={embedded ? "embedded" : "page"} /></FeedbackProvider></div>;
+}

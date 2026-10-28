@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-PROMPT_VERSION = 'openmind-brief-v2'
+PROMPT_VERSION = 'openmind-brief-v3'
 NEUTRAL = 'Faithfully summarize the selected content. Organize by information quality and recency. Do not favor a subject, author, platform or viral potential. Use the source language unless the user requests another language.'
 
 

@@ -1,0 +1,44 @@
+{
+  "en": {
+    "summary_title": "Daily summary",
+    "topics_title": "Daily topics",
+    "generated_at": "Generated at",
+    "preferences_revision": "Preferences revision",
+    "item_count": "Selected items",
+    "score": "Score",
+    "summary": "Summary",
+    "key_points": "Key points",
+    "reason": "Recommendation",
+    "author": "Author",
+    "link": "Link",
+    "source_file": "Source file"
+  },
+  "zh": {
+    "summary_title": "每日总结",
+    "topics_title": "每日选题",
+    "generated_at": "生成时间",
+    "preferences_revision": "偏好版本",
+    "item_count": "入选条数",
+    "score": "评分",
+    "summary": "摘要",
+    "key_points": "关键要点",
+    "reason": "推荐理由",
+    "author": "作者",
+    "link": "链接",
+    "source_file": "源文件"
+  },
+  "fr": {
+    "summary_title": "Résumé quotidien",
+    "topics_title": "Sujets du jour",
+    "generated_at": "Date de génération",
+    "preferences_revision": "Version des préférences",
+    "item_count": "Éléments retenus",
+    "score": "Note",
+    "summary": "Résumé",
+    "key_points": "Points clés",
+    "reason": "Recommandation",
+    "author": "Auteur",
+    "link": "Lien",
+    "source_file": "Fichier source"
+  }
+}

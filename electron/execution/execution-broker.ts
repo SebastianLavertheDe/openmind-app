@@ -13,6 +13,7 @@ import { matchesSemverRange } from "../../shared/skill-manifest-schema";
 import { ArtifactCollector, type ArtifactDeclaration, type ExternalBinding } from "./artifact-collector";
 import { ProcessHost, type ProcessResult, type ProcessSpec, validateProcessSpec } from "./process-host";
 import { RunStore } from "./run-store";
+import type { RssRunContext } from "../../shared/rss-contracts";
 
 export type ExecutionPlan = {
   skillId: string;
@@ -21,6 +22,7 @@ export type ExecutionPlan = {
   rootGeneration: number;
   skillHome: string;
   openmindRoot: string;
+  rssContext?: RssRunContext;
   capabilities: unknown;
   process: ProcessSpec;
   /** Number of retries after the first process attempt. */
@@ -206,6 +208,7 @@ export class ExecutionBroker {
         }
         if (this.store.get(runId).state === "cancelled") return;
         this.store.bindSkill(runId, plan.digest);
+        if (plan.rssContext) this.store.bindRssContext(runId, plan.rssContext);
         if (plan.runtime) this.store.bindRuntime(runId, plan.runtime);
         const queued = { request, runId, plan };
         this.store.transition(runId, "preparing_runtime", { reason: "execution-preparation-started" });

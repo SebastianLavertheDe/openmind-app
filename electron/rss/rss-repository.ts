@@ -40,12 +40,14 @@ export class RssRepository {
     return this.load();
   }
   private load(): RssDocument { return RssDocumentSchema.parse(JSON.parse(fs.readFileSync(this.file, "utf8"))); }
+  rootKey(): string { return crypto.createHash("sha256").update(fs.realpathSync(this.root)).digest("hex"); }
   view(): RssDocumentView {
     const document = this.read();
-    return { ...document, sources: document.sources.map(source => {
+    return { ...document, rootKey: this.rootKey(), sources: document.sources.map(source => {
       const file = rssPrivateDirectory(this.root, ".agent", "skill-data", "rss-article-saver", "feeds", `${source.id}.xml`);
       const status = !fs.existsSync(file) ? "missing" : source.feedRevision === source.revision ? "ready" : "outdated";
-      return { ...source, localFeed: { path: file, status } };
+      const stat = status === "missing" ? null : fs.statSync(file);
+      return { ...source, localFeed: { path: file, status, ...(stat ? { version: `${stat.mtimeMs}:${stat.ctimeMs}:${stat.size}:${stat.ino}` } : {}) } };
     }) };
   }
   mutate(work: (document: RssDocument) => void): RssDocument {
@@ -65,13 +67,14 @@ export class RssRepository {
       const row = doc.sources.find(source => source.id === input.id);
       if (!row || row.revision !== input.revision) throw new Error("RSS source changed; refresh and retry.");
       if (input.inputUrl) this.assertUnique(doc, input.inputUrl, row.id);
-      Object.assign(row, detected || {}, { ...(input.name !== undefined ? { name: input.name } : {}), ...(input.enabled !== undefined ? { enabled: input.enabled } : {}) });
+      const feedWasCurrent = row.feedRevision === row.revision;
+      Object.assign(row, detected || {}, { ...(input.name !== undefined ? { name: input.name } : {}), ...(input.group !== undefined ? { group: input.group } : {}), ...(input.enabled !== undefined ? { enabled: input.enabled } : {}) });
       row.revision++;
-      row.lastError = null;
+      if (detected) row.lastError = null;
       // A renamed/toggled source can still use its current XML, but changing
       // its URL must never collect entries from the preceding subscription.
       if (detected) row.feedRevision = 0;
-      else if (row.feedRevision) row.feedRevision = row.revision;
+      else if (feedWasCurrent) row.feedRevision = row.revision;
     });
   }
   remove(id: string, revision: number): RssDocument {
@@ -79,7 +82,20 @@ export class RssRepository {
   }
   importOpml(file: string): RssDocument {
     const entries = this.parseOpml(file); // Validate the complete import before mutation.
-    return this.mutate(doc => { for (const item of entries) { const row = this.fromUrl(item.name, item.originalUrl, true, item.group); if (!doc.sources.some(s => s.inputUrl && row.inputUrl && rssUrlIdentity(s.inputUrl) === rssUrlIdentity(row.inputUrl))) { doc.sources.push(row); doc.deletedPresetIds = doc.deletedPresetIds.filter(id => id !== row.presetId); } } });
+    return this.mutate(doc => {
+      const ids = new Set(doc.sources.map(source => source.id));
+      for (const item of entries) {
+        const row = this.fromUrl(item.name, item.originalUrl, true, item.group);
+        if (doc.sources.some(source => source.inputUrl && row.inputUrl && rssUrlIdentity(source.inputUrl) === rssUrlIdentity(row.inputUrl))) continue;
+        // Editing a preset URL keeps its subscription identity. Importing the
+        // original address creates another subscription, not another owner of
+        // the edited source's feed, revision and execution lock.
+        while (ids.has(row.id)) row.id = crypto.randomUUID();
+        ids.add(row.id);
+        doc.sources.push(row);
+        doc.deletedPresetIds = doc.deletedPresetIds.filter(id => id !== row.presetId);
+      }
+    });
   }
   preferences(): DailyBriefPreferences {
     const file = rssPrivateDirectory(this.root, ".agent", "preferences", "daily-brief.json");

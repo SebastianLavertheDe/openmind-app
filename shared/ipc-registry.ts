@@ -4,6 +4,9 @@ import { IPC, PROJECT_IPC } from "./ipc-channels";
 /** renderer invoke 方法 → main 通道。preload 桥与 main handler 注册表的单一来源（E3 完整表）。 */
 export const IPC_INVOKE_REGISTRY = [
   { method: "getRssSources", channel: IPC.RSS_LIST },
+  { method: "getRssSourceEntries", channel: IPC.RSS_ENTRIES },
+  { method: "getRssSourceRuns", channel: IPC.RSS_RUNS },
+  { method: "getRssSourceRunEvents", channel: IPC.RSS_RUN_EVENTS },
   { method: "detectRssSource", channel: IPC.RSS_DETECT },
   { method: "createRssSource", channel: IPC.RSS_ADD },
   { method: "editRssSource", channel: IPC.RSS_EDIT },

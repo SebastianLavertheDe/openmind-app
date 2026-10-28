@@ -53,9 +53,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks, upgrades and read-only Skill previews.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(159);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(159);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(159);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(162);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(162);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(162);
   });
 
   it("does not expose or register the removed Skill copy operation", () => {
@@ -73,10 +73,16 @@ describe("ipc registry", () => {
     await bridge.getBootstrap();
     await bridge.listInstalledRunnableSkills();
     await bridge.writeContent("path.md", "body");
+    await bridge.getRssSourceEntries({ sourceId: "one", limit: 30 });
+    await bridge.getRssSourceRuns({ sourceId: "one", limit: 20 });
+    await bridge.getRssSourceRunEvents({ sourceId: "one", runId: "run-one", limit: 200 });
     expect(calls).toEqual([
       { channel: IPC_METHOD_CHANNELS.getBootstrap, args: [] },
       { channel: IPC_METHOD_CHANNELS.listInstalledRunnableSkills, args: [] },
-      { channel: IPC_METHOD_CHANNELS.writeContent, args: ["path.md", "body"] }
+      { channel: IPC_METHOD_CHANNELS.writeContent, args: ["path.md", "body"] },
+      { channel: IPC_METHOD_CHANNELS.getRssSourceEntries, args: [{ sourceId: "one", limit: 30 }] },
+      { channel: IPC_METHOD_CHANNELS.getRssSourceRuns, args: [{ sourceId: "one", limit: 20 }] },
+      { channel: IPC_METHOD_CHANNELS.getRssSourceRunEvents, args: [{ sourceId: "one", runId: "run-one", limit: 200 }] }
     ]);
   });
 });

@@ -309,7 +309,8 @@ class Pipeline:
         except ET.ParseError as exc: raise FeedError("invalid-feed", "The converted RSS contains invalid XML; the previous feed was preserved.") from exc
         def save(current):
             write_atomic(self.safe(self.data / "feeds" / (source["id"] + ".xml")), raw)
-            current.update(lastAttemptAt=utc_now(), lastSuccessAt=utc_now(), lastError=None, itemCount=len(entries), feedRevision=source["revision"])
+            stamp = utc_now()
+            current.update(lastAttemptAt=stamp, lastSuccessAt=stamp, lastSyncAt=stamp, lastAttemptStage="sync", lastError=None, itemCount=len(entries), feedRevision=source["revision"])
         self.commit(source, save)
         source["feedRevision"] = source["revision"]
         return len(entries)
@@ -335,13 +336,30 @@ class Pipeline:
                 if previous:
                     target = self.safe(self.root / "article" / ".updates" / date / ("rss-" + key[:24] + "-" + fingerprint[:12] + ".md"))
                 def save(_current):
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    # Recover a successful write after a crash before indexing.
-                    if not target.exists():
-                        with target.open("x", encoding="utf-8") as output: output.write(body); output.flush(); os.fsync(output.fileno())
-                    json_write(index, {"url": entry["url"], "guid": entry["guid"], "path": str(target.relative_to(self.root)), "savedAt": utc_now(), "fingerprint": fingerprint, "previousPath": previous.get("path") if previous else None})
+                    nonlocal target
+                    encoded = body.encode("utf-8")
+                    previous_path = previous.get("path") if previous else None
+                    if target.exists() and target.read_bytes() != encoded:
+                        # An unindexed file can be a legacy partial write or a
+                        # user's edit after a successful write. Preserve it and
+                        # index a separate, complete version instead.
+                        previous_path = str(target.relative_to(self.root))
+                        target = self.safe(self.root / "article" / ".updates" / date / ("rss-" + key[:24] + "-" + hashlib.sha256(encoded).hexdigest()[:12] + ".md"))
+                        if target.exists() and target.read_bytes() != encoded:
+                            target = self.safe(target.with_name(target.stem + "-" + uuid.uuid4().hex + ".md"))
+                    # Only an atomically published complete file may advance
+                    # the index. A retry can reuse an identical published file.
+                    if not target.exists(): write_atomic(target, encoded)
+                    json_write(index, {"url": entry["url"], "guid": entry["guid"], "path": str(target.relative_to(self.root)), "savedAt": utc_now(), "fingerprint": fingerprint, "previousPath": previous_path})
                 self.commit(source, save); saved += 1
                 self.saved_paths.append(str(target.relative_to(self.root)))
+        def completed(current):
+            stamp = utc_now()
+            current.update(lastAttemptAt=stamp, lastSuccessAt=stamp, lastCollectAt=stamp, lastAttemptStage="collect")
+            # Collect may deliberately use the last valid feed after a failed
+            # sync. Its success must not hide that outstanding sync error.
+            if (current.get("lastError") or {}).get("stage") == "collect": current["lastError"] = None
+        self.commit(source, completed)
         return saved
 
     def migrate_articles(self):
@@ -381,7 +399,7 @@ class Pipeline:
                 error = {"stage": stage, "code": getattr(exc, "code", "write-failed"), "message": str(exc) if isinstance(exc, FeedError) else "The task failed while reading or saving source data.", "retryable": getattr(exc, "retryable", True)}
                 result.update(status="skipped" if error["code"] in ("busy", "source-changed") else "failed", error=error)
                 if result["status"] == "failed":
-                    try: self.commit(source, lambda row: row.update(lastAttemptAt=utc_now(), lastError=error))
+                    try: self.commit(source, lambda row: row.update(lastAttemptAt=utc_now(), lastAttemptStage=stage, lastError=error))
                     except (FeedError, OSError): pass
             results.append(result)
         if source_id and not results: results.append({"sourceId": source_id, "status": "skipped", "reason": "deleted"})

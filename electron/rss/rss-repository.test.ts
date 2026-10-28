@@ -15,6 +15,14 @@ function opml(outlines: string) { return `<opml version="2.0"><body>${outlines}<
 afterEach(() => roots.splice(0).forEach(root => fs.rmSync(root, { recursive: true, force: true })));
 
 describe("RSS persistent registry", () => {
+  it.each([true, false])("persists group-only edits without clearing errors or reviving stale feeds (current=%s)", current => {
+    const { root, repository } = fixture(); const original = repository.read().sources[0];
+    repository.mutate(doc => { doc.sources[0].feedRevision = current ? original.revision : 0; doc.sources[0].lastError = { stage: "collect", code: "access-denied", message: "403", retryable: false }; });
+    const saved = repository.update({ id: original.id, revision: original.revision, group: "My OPML group" }).sources[0];
+    expect(saved).toMatchObject({ group: "My OPML group", revision: 2, feedRevision: current ? 2 : 0, lastError: { stage: "collect", code: "access-denied" } });
+    expect(new RssRepository(root, catalog).read().sources[0]).toEqual(saved);
+    expect(() => repository.update({ id: original.id, revision: original.revision, group: "" })).toThrow(/changed/);
+  });
   it("exposes the local RSS location and current file status without persisting display metadata", () => {
     const { root, repository } = fixture();
     const initial = repository.view().sources[0];
@@ -74,6 +82,26 @@ describe("RSS persistent registry", () => {
     repository.add(input, { ...input, kind: "feed", resolvedFeedUrl: input.inputUrl, adapterId: "feed", candidates: [] });
     expect(repository.read().sources).toHaveLength(2);
     expect(() => repository.add(input, { ...input, kind: "feed", resolvedFeedUrl: input.inputUrl, adapterId: "feed", candidates: [] })).toThrow(/exists/);
+  });
+  it.each([catalog.sources[0].inputUrl, catalog.sources[0].legacyAliases[0]])("imports %s with a distinct identity after its preset URL was edited", (originalUrl) => {
+    const { root, repository } = fixture();
+    const initial = repository.read().sources[0];
+    const changedUrl = "https://example.net/custom-feed";
+    repository.update({ id: initial.id, revision: initial.revision, inputUrl: changedUrl }, {
+      inputUrl: changedUrl, kind: "feed", adapterId: "feed", resolvedFeedUrl: changedUrl, candidates: []
+    });
+    const imported = file(root, "import.opml", opml(`<outline text="Original" xmlUrl="${originalUrl}"/>`));
+    const rows = repository.importOpml(imported).sources;
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map(row => row.id)).size).toBe(2);
+    expect(rows[0]).toMatchObject({ id: initial.id, inputUrl: changedUrl, enabled: false });
+    expect(rows[1]).toMatchObject({ inputUrl: catalog.sources[0].inputUrl, presetId: initial.presetId, enabled: true, feedRevision: 0 });
+    expect(repository.importOpml(imported).sources).toEqual(rows);
+    const restarted = new RssRepository(root, catalog);
+    restarted.update({ id: rows[1].id, revision: rows[1].revision, enabled: false });
+    expect(restarted.read().sources[0]).toEqual(rows[0]);
+    restarted.remove(rows[1].id, rows[1].revision + 1);
+    expect(restarted.read().sources).toEqual([rows[0]]);
   });
   it("freezes preferences with optimistic saving and rejects escaping state symlinks", () => {
     const { root, repository } = fixture(); const saved = repository.savePreferences({ revision: 0, text: "Design research, English, at most 2 items" });

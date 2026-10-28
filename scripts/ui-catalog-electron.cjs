@@ -87,6 +87,8 @@ app.whenReady().then(async () => {
       }
     }
     if (scenario.id.startsWith("skill-library-")) await waitForSelector(".skill-library-card");
+    if (scenario.id.startsWith("rss-source-")) await waitForSelector(".rss-source-card");
+    if (scenario.id === "rss-source-details") { await click('.rss-card-subject'); await waitForSelector('.rss-detail-dialog'); }
     if (scenario.id === "new-task-home") await waitForSelector(".new-task-skill-card");
     if (scenario.id === "skill-composer-menu") { await click('.composer-skill-picker [aria-haspopup="dialog"]'); await waitForSelector(".composer-skill-options"); }
     if (scenario.id === "action-menu") await click('.ui-dropdown-trigger');
@@ -98,6 +100,21 @@ app.whenReady().then(async () => {
     const contract = await inspect(scenario.id);
     assert.ok(contract.overflow <= 1, `${name}: horizontal overflow ${contract.overflow}px`);
     assert.ok(contract.controlCount > 0, `${name}: no production UI controls rendered`);
+    if (scenario.id.startsWith("rss-source-")) {
+      const rss = await win.webContents.executeJavaScript(`(() => {
+        const page = document.querySelector('.rss-sources'), cards = [...page.querySelectorAll('.rss-source-card')];
+        const dialog = document.querySelector('.rss-detail-dialog');
+        return { cards: cards.length, pageWidth: page.clientWidth, overflow: page.scrollWidth - page.clientWidth,
+          controlsSeparate: cards.every(card => !card.querySelector('.rss-card-subject button, .rss-card-subject a')),
+          pillTabs: !!page.querySelector('[data-ui-control="tabs"][data-variant="pill"]'),
+          dialog: !!dialog, dialogContained: !dialog || dialog.getBoundingClientRect().right <= innerWidth && dialog.getBoundingClientRect().left >= 0 };
+      })()`);
+      assert.equal(rss.cards, 5, `${name}: source fixtures missing`);
+      assert.ok(rss.overflow <= 1 && rss.controlsSeparate && rss.pillTabs && rss.dialogContained, `${name}: RSS layout contract`);
+      assert.equal(rss.dialog, scenario.id === "rss-source-details");
+      if (scenario.id === "rss-source-embedded") assert.ok(rss.pageWidth <= 390);
+      report.geometry.push({ name, rss });
+    }
     if (scenario.id === "new-task-home") {
       const home = await win.webContents.executeJavaScript(`(() => {
         const grid = document.querySelector('.new-task-skill-grid');

@@ -132,5 +132,23 @@
     "height": 800,
     "navigation": false,
     "pixelPlatforms": []
+  },
+  {
+    "id": "rss-source-cards",
+    "title": "RSS source cards",
+    "height": 1400,
+    "pixelPlatforms": []
+  },
+  {
+    "id": "rss-source-details",
+    "title": "RSS source details",
+    "height": 900,
+    "pixelPlatforms": []
+  },
+  {
+    "id": "rss-source-embedded",
+    "title": "RSS embedded sources",
+    "height": 1800,
+    "pixelPlatforms": []
   }
 ]

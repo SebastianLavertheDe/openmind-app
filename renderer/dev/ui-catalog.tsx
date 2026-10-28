@@ -1,4 +1,5 @@
 import { SkillLibraryPage } from "../src/features/skills/SkillLibraryPage";
+import { installRssCatalogApi, RssCatalogExample } from "./rss-catalog";
 import { AiProvider, useAiDraft, useAiUi } from "../src/ai-context";
 import { Chat } from "../src/features/ai-console/Chat";
 import { SkillEditor } from "../src/features/skills/SkillEditor";
@@ -31,6 +32,7 @@ import "@fontsource/jetbrains-mono/latin-400.css";
 setLocale(new URLSearchParams(location.search).get("lang") === "zh-CN" ? "zh-CN" : "en");
 const query = new URLSearchParams(location.search);
 const current = query.get("case") || "actions";
+if (current.startsWith("rss-source-")) installRssCatalogApi();
 document.documentElement.dataset.theme = query.get("theme") || "light";
 document.documentElement.style.setProperty("--font-sans-default", '"OpenMind UI Fixture", sans-serif');
 document.documentElement.style.setProperty("--font-sans", '"OpenMind UI Fixture", sans-serif');
@@ -296,7 +298,7 @@ function Catalog() {
     <header className="ui-catalog-header"><h1>OpenMind UI</h1><p>Production components · supported variants and interaction states</p>
       <nav aria-label="Component examples">{scenarios.filter(item => !("navigation" in item) || item.navigation !== false).map(item => <a key={item.id} href={`?case=${item.id}&theme=${document.documentElement.dataset.theme}`}>{item.title}</a>)}</nav>
     </header>
-    {current === "new-task-home" ? <NewTaskExample /> : current.startsWith("skill-") ? <SkillLibraryExample /> : current === "actions" ? <Actions /> : current === "fields" ? <Fields /> : current === "form-dialog" ? <FormExample />
+    {current.startsWith("rss-source-") ? <RssCatalogExample embedded={current === "rss-source-embedded"} /> : current === "new-task-home" ? <NewTaskExample /> : current.startsWith("skill-") ? <SkillLibraryExample /> : current === "actions" ? <Actions /> : current === "fields" ? <Fields /> : current === "form-dialog" ? <FormExample />
       : current === "confirm-dialog" ? <ConfirmDialog open title="Remove this project?" description="The project will be moved to the archive." tone="danger" confirmLabel="Remove project" cancelLabel="Cancel" onClose={() => {}} onConfirm={() => {}} />
       : current === "long-confirmation" ? <ConfirmDialog open title={"Long confirmation title ".repeat(60)} description={Array.from({ length: 100 }, (_, index) => `Confirmation detail ${index + 1}`).join("\n")} tone="danger" confirmLabel="Confirm" cancelLabel="Cancel" onClose={() => {}} onConfirm={() => {}} />
       : current === "search-dialog" ? <SearchExample /> : current === "select-menu" || current === "action-menu" ? <MenuExample select={current === "select-menu"} />

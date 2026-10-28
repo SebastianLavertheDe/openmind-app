@@ -20,6 +20,8 @@ from src import rss_pipeline as rss
 from _shared import brief_generation as brief
 from _shared.brief_preferences import preference_digest
 
+BRIEF_LABELS = json.loads((Path(__file__).parent / 'fixtures/brief-labels.json').read_text(encoding='utf-8'))
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args): pass
     def do_GET(self):
@@ -107,12 +109,20 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(caught.exception.code, 'adapter-failed')
     def test_sync_collect_xml_guid_timezone_and_dedup(self):
         self.assertEqual(self.pipeline.run('sync', '20261027')['status'], 'succeeded')
+        synced = self.pipeline.registry()['sources'][0]
+        self.assertEqual(synced['lastAttemptStage'], 'sync')
+        self.assertEqual(synced['lastSyncAt'], synced['lastSuccessAt'])
+        self.assertIsNone(synced.get('lastCollectAt'))
         self.assertFalse((self.root / 'article').exists())
         data = (self.data / 'feeds/test-source.xml').read_bytes()
         _, entries = rss.parse_feed(data, self.url)
         self.assertEqual(entries[0]['guid'], 'stable-id'); self.assertEqual(entries[0]['url'], self.url + '/article')
         self.assertIsNotNone(entries[0]['date'].tzinfo)
         result = self.pipeline.run('collect', '20261027'); self.assertEqual(result['results'][0]['collected'], 1)
+        collected = self.pipeline.registry()['sources'][0]
+        self.assertEqual(collected['lastAttemptStage'], 'collect')
+        self.assertEqual(collected['lastCollectAt'], collected['lastSuccessAt'])
+        self.assertEqual(collected['lastSyncAt'], synced['lastSyncAt'])
         result = self.pipeline.run('pipeline', '20261027'); self.assertEqual(result['results'][0]['collected'], 0)
         self.assertEqual(len(list((self.root / 'article').rglob('*.md'))), 1)
     def test_failure_preserves_valid_feed_and_other_sources_continue(self):
@@ -151,6 +161,89 @@ class PipelineTests(unittest.TestCase):
         with patch.object(rss, 'write_atomic', side_effect=PermissionError('denied')):
             self.assertEqual(self.pipeline.run('sync', '20261027')['status'], 'failed')
 
+    def test_interrupted_article_write_does_not_publish_or_index_partial_content(self):
+        self.pipeline.run('sync', '20261027')
+        original_open = Path.open
+        interrupted = []
+
+        class InterruptedWriter:
+            def __init__(self, stream): self.stream = stream
+            def __enter__(self): return self
+            def __exit__(self, *args): self.stream.close()
+            def write(self, body):
+                self.stream.write(body[:15]); self.stream.flush()
+                raise OSError('Interrupted article write')
+
+        def open_file(file, *args, **kwargs):
+            stream = original_open(file, *args, **kwargs)
+            if args and args[0] in ('x', 'xb') and file.parent == self.root / 'article/20261027':
+                interrupted.append(file)
+                return InterruptedWriter(stream)
+            return stream
+
+        with patch.object(Path, 'open', open_file):
+            self.assertEqual(self.pipeline.run('collect', '20261027')['status'], 'failed')
+        self.assertTrue(interrupted)
+        self.assertEqual(list((self.root / 'article').rglob('*.md')), [])
+        self.assertEqual(list((self.data / 'articles').glob('*.json')), [])
+        recovered = self.pipeline.run('collect', '20261027')
+        self.assertEqual(recovered['status'], 'succeeded')
+        self.assertEqual(recovered['results'][0]['collected'], 1)
+        article = next((self.root / 'article').rglob('*.md'))
+        self.assertIn('detailed comparison of interaction methods', article.read_text())
+        self.assertEqual(self.pipeline.run('collect', '20261027')['results'][0]['collected'], 0)
+
+    def test_index_retry_reuses_complete_article_without_rewriting_it(self):
+        self.pipeline.run('sync', '20261027')
+        original_write = rss.json_write
+        def fail_index(file, value):
+            if file.parent == self.data / 'articles': raise OSError('Interrupted index write')
+            return original_write(file, value)
+        with patch.object(rss, 'json_write', fail_index):
+            self.assertEqual(self.pipeline.run('collect', '20261027')['status'], 'failed')
+        article = next((self.root / 'article').rglob('*.md'))
+        before = article.read_bytes(), article.stat().st_mtime_ns
+        self.assertEqual(self.pipeline.run('collect', '20261027')['status'], 'succeeded')
+        self.assertEqual((article.read_bytes(), article.stat().st_mtime_ns), before)
+        self.assertEqual(len(list((self.root / 'article').rglob('*.md'))), 1)
+
+    def test_index_retry_preserves_existing_edits_and_saves_complete_content_separately(self):
+        self.pipeline.run('sync', '20261027')
+        original_write = rss.json_write
+        def fail_index(file, value):
+            if file.parent == self.data / 'articles': raise OSError('Interrupted index write')
+            return original_write(file, value)
+        with patch.object(rss, 'json_write', fail_index):
+            self.assertEqual(self.pipeline.run('collect', '20261027')['status'], 'failed')
+        article = next((self.root / 'article').rglob('*.md'))
+        article.write_text('My own edited article; do not overwrite.')
+        self.assertEqual(self.pipeline.run('collect', '20261027')['status'], 'succeeded')
+        self.assertEqual(article.read_text(), 'My own edited article; do not overwrite.')
+        updated = next((self.root / 'article/.updates').rglob('*.md'))
+        self.assertIn('detailed comparison of interaction methods', updated.read_text())
+        index = json.loads(next((self.data / 'articles').glob('*.json')).read_text())
+        self.assertEqual(index['path'], updated.relative_to(self.root).as_posix())
+        self.assertEqual(index['previousPath'], article.relative_to(self.root).as_posix())
+        self.assertEqual(self.pipeline.run('collect', '20261027')['results'][0]['collected'], 0)
+
+    def test_successful_collect_retry_clears_only_recovered_collection_errors(self):
+        self.pipeline.run('sync', '20261027')
+        with patch.object(rss, 'article_text', side_effect=rss.FeedError('network-error', 'Temporary failure', True)):
+            self.assertEqual(self.pipeline.run('collect', '20261027')['status'], 'failed')
+        self.assertEqual(self.pipeline.registry()['sources'][0]['lastError']['stage'], 'collect')
+        self.assertEqual(self.pipeline.run('collect', '20261027')['status'], 'succeeded')
+        source = self.pipeline.registry()['sources'][0]
+        self.assertIsNone(source['lastError'])
+        self.assertEqual(source['lastAttemptAt'], source['lastSuccessAt'])
+        doc = self.pipeline.registry()
+        sync_error = {'stage': 'sync', 'code': 'network-error', 'message': 'Upstream is still unavailable', 'retryable': True}
+        doc['sources'][0]['lastError'] = sync_error
+        self.write(doc)
+        result = self.pipeline.run('collect', '20261027')
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['results'][0]['collected'], 0)
+        self.assertEqual(self.pipeline.registry()['sources'][0]['lastError'], sync_error)
+
 class PreferencesTests(unittest.TestCase):
     def test_non_ai_preferences_cache_content_and_model_revision(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -163,7 +256,7 @@ class PreferencesTests(unittest.TestCase):
                 if 'SOURCE:\n' in prompt:
                     source = json.loads(prompt.split('SOURCE:\n')[1]); chosen = ('design' in source['title'].lower()) == ('Design only' in prompt)
                     return json.dumps({'keep': chosen, 'translated_title': source['title'], 'summary': 'English research summary', 'key_points': ['Evidence'], 'category': source['title'], 'score': 90, 'reason': 'Matches preference'})
-                return json.dumps({'items': [{'index': 1, 'reason': 'Relevant evidence'}]})
+                return json.dumps({'items': [{'index': 1, 'reason': 'Relevant evidence'}], 'document': BRIEF_LABELS['en']})
             provider = brief.resolve_provider if False else type('Provider', (), {'name': 'fixture', 'base_url': 'http://localhost', 'model': 'fixture-v1'})()
             first = {'schemaVersion': 1, 'revision': 1, 'text': 'Design only, exclude science, English, at most 1 item', 'updatedAt': None}
             second = {**first, 'revision': 2, 'text': 'Science only, exclude design, English, at most 1 item'}
@@ -172,7 +265,7 @@ class PreferencesTests(unittest.TestCase):
                 brief.generate(root, '20261027', 'summary', first, provider=provider); self.assertEqual(len(calls), before)
                 brief.generate(root, '20261027', 'topics', second, provider=provider)
                 result = (root / 'daily-topic/20261027_daily_topic.md').read_text(); self.assertIn('### Science', result); self.assertNotIn('### Design', result)
-                self.assertIn('偏好版本**: 2', result); self.assertGreater(len(calls), before)
+                self.assertIn('Preferences revision**: 2', result); self.assertGreater(len(calls), before)
                 writing = subprocess.run([sys.executable, str(PACKAGES / 'daily-writing-orchestrator/scripts/create_writing_package.py'), '--date', '20261027', '--content-root', str(root), '--platform', 'wechat'], capture_output=True, text=True)
                 self.assertEqual(writing.returncode, 0, writing.stderr)
                 manifests = list((root / 'creative').rglob('manifest.json'))
@@ -183,6 +276,77 @@ class PreferencesTests(unittest.TestCase):
                 before = len(calls); provider.model = 'fixture-v2'; brief.generate(root, '20261027', 'summary', second, provider=provider); self.assertGreater(len(calls), before)
             self.assertTrue(list((root / 'daily-summary/.versions/20261027').glob('*.md')))
             self.assertNotEqual(preference_digest(first), preference_digest(second))
+
+    def test_document_language_covers_headings_labels_and_empty_selections(self):
+        for language, preference in [('en', 'English only'), ('zh', '只用中文'), ('fr', 'Répondre uniquement en français')]:
+            for mode in ['summary', 'topics']:
+                for keep in [True, False]:
+                    with self.subTest(language=language, mode=mode, keep=keep), tempfile.TemporaryDirectory() as temporary:
+                        root = Path(temporary); folder = root / 'post/20261027'; folder.mkdir(parents=True)
+                        (folder / 'posts.json').write_text(json.dumps([{'content': 'Research with original observations.', 'url': 'https://example.org/research', 'author_name': 'Example Author'}]))
+                        snapshot = {'schemaVersion': 1, 'revision': 1, 'text': preference, 'updatedAt': None}
+                        labels = BRIEF_LABELS[language]
+                        def model(provider, prompt, **kwargs):
+                            self.assertIn(preference, prompt)
+                            if 'SOURCE:\n' in prompt:
+                                return json.dumps({'keep': keep, 'translated_title': labels['summary'], 'summary': labels['summary'], 'key_points': [labels['key_points']], 'category': '', 'score': 90, 'reason': labels['reason']})
+                            return json.dumps({'items': [{'index': 1, 'reason': labels['reason']}] if keep else [], 'document': labels})
+                        provider = type('Provider', (), {'name': 'fixture', 'base_url': 'http://localhost', 'model': 'v1'})()
+                        with patch.object(brief, 'call_provider_text', model):
+                            result = brief.generate(root, '20261027', mode, snapshot, provider=provider)
+                        text = (root / result['path']).read_text()
+                        self.assertIn(f"# 20261027 {labels['summary_title' if mode == 'summary' else 'topics_title']}", text)
+                        self.assertIn(f"**{labels['item_count']}**: {int(keep)}", text)
+                        for key in ['generated_at', 'preferences_revision'] + (['score', 'summary', 'key_points', 'reason', 'author', 'link', 'source_file'] if keep else []):
+                            self.assertIn(f'**{labels[key]}**:', text)
+                        if language != 'zh': self.assertFalse(any('\u4e00' <= character <= '\u9fff' for character in text))
+                        if mode == 'topics' and keep:
+                            metadata = json.loads(text.split('<!-- openmind-topics ', 1)[1].split(' -->', 1)[0])
+                            self.assertEqual(metadata['items'][0]['links'][0]['url'], 'https://example.org/research')
+
+    def test_missing_document_labels_preserve_previous_output_and_can_be_retried(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); folder = root / 'article/20261027'; folder.mkdir(parents=True)
+            (folder / 'a.md').write_text('# Research\nOriginal research evidence.')
+            output = root / 'daily-summary/20261027_daily_summary.md'; output.parent.mkdir(); output.write_text('My edited summary')
+            snapshot = {'schemaVersion': 1, 'revision': 1, 'text': 'English only', 'updatedAt': None}
+            provider = type('Provider', (), {'name': 'fixture', 'base_url': 'http://localhost', 'model': 'v1'})()
+            answer = {'items': [{'index': 1, 'reason': 'Evidence'}]}
+            calls = []
+            def model(provider, prompt, **kwargs):
+                calls.append(prompt)
+                if 'SOURCE:\n' in prompt:
+                    return json.dumps({'keep': True, 'translated_title': 'Research', 'summary': 'Evidence', 'key_points': [], 'category': 'Research', 'score': 90})
+                return json.dumps(answer)
+            with patch.object(brief, 'call_provider_text', model):
+                with self.assertRaisesRegex(ValueError, 'document'):
+                    brief.generate(root, '20261027', 'summary', snapshot, provider=provider)
+                self.assertEqual(output.read_text(), 'My edited summary')
+                before = len(calls)
+                answer['document'] = BRIEF_LABELS['en']
+                brief.generate(root, '20261027', 'summary', snapshot, provider=provider)
+                self.assertEqual(len(calls), before + 1)
+            self.assertIn('Daily summary', output.read_text())
+            self.assertEqual(next((root / 'daily-summary/.versions').rglob('*.md')).read_text(), 'My edited summary')
+
+    def test_localized_summary_retains_source_links_when_originals_are_unavailable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); folder = root / 'article/20261027'; folder.mkdir(parents=True)
+            article = folder / 'a.md'
+            article.write_text('# Research\nOriginal study.\n原文: https://example.org/research')
+            snapshot = {'schemaVersion': 1, 'revision': 1, 'text': 'Répondre uniquement en français', 'updatedAt': None}
+            provider = type('Provider', (), {'name': 'fixture', 'base_url': 'http://localhost', 'model': 'v1'})()
+            def model(provider, prompt, **kwargs):
+                if 'SOURCE:\n' in prompt:
+                    return json.dumps({'keep': True, 'translated_title': 'Recherche', 'summary': 'Observations originales', 'key_points': [], 'category': 'Recherche', 'score': 90})
+                return json.dumps({'items': [{'index': 1, 'reason': 'Pertinent'}], 'document': BRIEF_LABELS['fr']})
+            with patch.object(brief, 'call_provider_text', model):
+                brief.generate(root, '20261027', 'summary', snapshot, provider=provider)
+                article.unlink()
+                candidates = brief.legacy_summary_candidates(root, '20261027')
+                self.assertEqual(candidates[0]['url'], 'https://example.org/research')
+                result = brief.generate(root, '20261027', 'topics', snapshot, provider=provider)
+            self.assertIn('https://example.org/research', (root / result['path']).read_text())
     def test_no_personal_gate_and_failures_preserve_existing_document(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); folder = root / 'article/20261027'; folder.mkdir(parents=True)
