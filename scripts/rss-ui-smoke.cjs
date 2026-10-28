@@ -80,20 +80,31 @@ app.whenReady().then(async () => {
       const listRect = list.getBoundingClientRect();
       const lastRow = list.lastElementChild.getBoundingClientRect();
       const preferenceRect = preferences.getBoundingClientRect();
-      return { preferencesAboveList: preferenceRect.bottom <= listRect.top, containsLastRow: lastRow.bottom <= listRect.bottom + 1, scrollable: scroll.scrollHeight > scroll.clientHeight };
+      return { preferencesInToolbar: page.querySelector('.rss-toolbar').contains(preferences), preferencesAboveList: preferenceRect.bottom <= listRect.top, containsLastRow: lastRow.bottom <= listRect.bottom + 1, scrollable: scroll.scrollHeight > scroll.clientHeight };
     })()`);
-    assert.ok(geometry.preferencesAboveList, 'Preferences must stay in the actions above the source list');
+    assert.ok(geometry.preferencesInToolbar && geometry.preferencesAboveList, 'Preferences must stay in the top toolbar above the source list');
     assert.ok(geometry.containsLastRow, 'The long source list must contain every row without shrinking');
     assert.ok(geometry.scrollable, 'The page must scroll through the long source list');
   }
   win.setContentSize(1280, 900);
   await js(`document.querySelector('.rss-category-scroll [data-value="group:product"]').click()`);
   assert.equal(await js("document.querySelectorAll('.rss-source-card').length"), 1);
-  assert.deepEqual(await js("[...document.querySelectorAll('.rss-sources > .rss-actions button')].map(button => button.textContent.trim())"), ['定时任务', '运行记录', '总结与选题偏好']);
+  assert.deepEqual(await js("[...document.querySelectorAll('.rss-toolbar button')].map(button => button.textContent.trim() || button.getAttribute('aria-label'))"), ['添加源', '导入 OPML', '总结与选题偏好', '刷新']);
+  assert.equal(await js("document.querySelectorAll('.rss-results-toolbar, .rss-sources > .rss-actions').length"), 0, 'The secondary management rows must be removed');
   await click('更新并采集: Design research'); await js('new Promise(resolve => setTimeout(resolve, 100))');
   const runs = await js("window.openmind.getRssFixtureCalls().then(calls => calls.filter(call => call.method === 'run'))");
   assert.deepEqual(runs.map(run => run.sourceId), ['design'], 'Manual card actions must pass sourceId');
-  assert.ok(await js("document.querySelector('.rss-source-card').textContent.includes('RSS 已就绪') && document.querySelector('.rss-source-card').textContent.includes('正文采集失败')"));
+  assert.ok(await js("document.querySelector('.rss-source-card').textContent.includes('RSS 已就绪') && !document.querySelector('.rss-source-card').textContent.includes('正文采集失败')"), 'Errors must not add a text block to the card');
+  const errorIndicator = '.rss-card-heading button[aria-label="技术详情: Design research"]';
+  await ready(errorIndicator);
+  assert.equal(await js("document.querySelectorAll('.rss-source-card .rss-source-error, .rss-card-error').length"), 0);
+  const errorBounds = await js(`(() => { const box = document.querySelector(${JSON.stringify(errorIndicator)}).getBoundingClientRect(); return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }; })()`);
+  win.webContents.sendInputEvent({ type: 'mouseMove', ...errorBounds });
+  await ready('[role="tooltip"]');
+  assert.ok(await js("document.querySelector('[role=tooltip]').textContent.includes('正文采集失败')"), 'Hover must expose the error');
+  assert.ok(await js("(() => { const message = document.querySelector('[role=tooltip] .rss-card-error-message'); return message.textContent.includes('HTTP 403') && message.getBoundingClientRect().height <= parseFloat(getComputedStyle(message).lineHeight) * 4 + 1; })()"), 'Long errors must keep the tooltip compact');
+  await capture('source-error-tooltip'); captures.push('source-error-tooltip');
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: 0, y: 0 });
   // Roving keyboard selection also keeps the final long category inside its scroll container.
   await js(`document.querySelector('.rss-category-scroll [role="tab"][aria-selected="true"]').focus()`);
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'End' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'End' });
@@ -111,23 +122,50 @@ app.whenReady().then(async () => {
   win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
   await ready('.rss-detail-dialog');
   assert.equal(await js("window.openmind.getRssFixtureCalls().then(calls => calls.filter(call => ['entries', 'runs'].includes(call.method)).length)"), 0, 'Opening overview must not read heavy tabs');
+  const detailGeometry = () => js(`(() => {
+    const dialog = document.querySelector('.rss-detail-dialog');
+    const bounds = node => { const box = node.getBoundingClientRect(); return [box.x, box.y, box.width, box.height].map(value => Math.round(value * 100) / 100); };
+    return { shell: bounds(dialog), header: bounds(dialog.querySelector('.ui-dialog-header')), tabs: bounds(dialog.querySelector('.rss-detail-tabs')), body: bounds(dialog.querySelector('.rss-detail-body')) };
+  })()`);
   for (const theme of ['light', 'dark']) for (const width of [720, 1280]) {
     win.setContentSize(width, 900); await js(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
     const name = `source-detail-${theme}-${width}`; await capture(name); captures.push(name);
-    assert.ok(await js(`(() => { const dialog = document.querySelector('.rss-detail-dialog'), footer = dialog.querySelector('.ui-dialog-footer').getBoundingClientRect(), body = dialog.querySelector('.ui-dialog-body'); return footer.bottom <= innerHeight && footer.left >= 0 && body.scrollWidth <= body.clientWidth + 1; })()`));
+    assert.ok(await js(`(() => { const dialog = document.querySelector('.rss-detail-dialog'), box = dialog.getBoundingClientRect(), body = dialog.querySelector('.ui-dialog-body'); return !dialog.querySelector('.ui-dialog-footer') && box.bottom <= innerHeight && box.left >= 0 && body.getBoundingClientRect().bottom <= box.bottom && body.scrollWidth <= body.clientWidth + 1; })()`), 'Details must have no footer or reserved footer row');
+    const overview = await detailGeometry();
+    await dialogClick('RSS 条目'); await ready('.rss-entry-list');
+    assert.deepEqual(await detailGeometry(), overview, 'RSS entries must keep the same dialog, header, tabs and body geometry');
+    assert.ok(await js(`(() => { const body = document.querySelector('.rss-detail-body'); body.scrollTop = body.scrollHeight; return getComputedStyle(body).overflowY === 'auto' && body.scrollHeight > body.clientHeight && body.scrollTop > 0; })()`), 'Long RSS entries must scroll inside the body');
+    assert.deepEqual(await detailGeometry(), overview, 'Scrolling must not move the dialog chrome');
+    const entriesName = `source-entries-${theme}-${width}`; await capture(entriesName); captures.push(entriesName);
+    await dialogClick('运行记录'); await ready('.rss-run');
+    assert.deepEqual(await detailGeometry(), overview, 'Short run history must not resize or recenter the dialog');
+    assert.equal(await js("document.querySelector('.rss-detail-body').scrollTop"), 0, 'Switching tabs must reset the body scroll position');
+    const runsName = `source-runs-${theme}-${width}`; await capture(runsName); captures.push(runsName);
+    await dialogClick('概览');
+    assert.deepEqual(await detailGeometry(), overview, 'Returning to overview must retain the dialog geometry');
   }
+  win.setContentSize(720, 540);
+  await js('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+  assert.ok(await js(`(() => { const dialog = document.querySelector('.rss-detail-dialog'), box = dialog.getBoundingClientRect(), body = dialog.querySelector('.rss-detail-body'); return box.top >= 0 && box.bottom <= innerHeight && !dialog.querySelector('.ui-dialog-footer') && body.clientHeight > 0 && body.scrollHeight > body.clientHeight; })()`), 'Short windows must retain visible chrome and a scrollable body');
+  await capture('source-detail-short-window'); captures.push('source-detail-short-window');
+  win.setContentSize(1280, 900);
   await dialogClick('RSS 条目'); await ready('.rss-entry-list');
   assert.equal(await js("document.querySelectorAll('.rss-entry-list li').length"), 30);
+  assert.equal(await js("document.querySelector('.rss-entry-list').start"), 1);
   await dialogClick('下一页'); await js('new Promise(resolve => setTimeout(resolve, 100))');
   assert.ok(await js("document.querySelector('.rss-entry-list').textContent.includes('Local RSS entry 31')"));
+  assert.equal(await js("document.querySelector('.rss-entry-list').start"), 31, 'Second-page numbering must continue from the first page');
+  await dialogClick('下一页'); await js('new Promise(resolve => setTimeout(resolve, 100))');
+  assert.equal(await js("document.querySelector('.rss-entry-list').start"), 61, 'Last-page numbering must continue across pages');
+  assert.equal(await js("document.querySelectorAll('.rss-entry-list li').length"), 5);
+  await capture('source-entries-last-page'); captures.push('source-entries-last-page');
+  await dialogClick('上一页'); await js('new Promise(resolve => setTimeout(resolve, 100))');
+  assert.equal(await js("document.querySelector('.rss-entry-list').start"), 31, 'Previous-page numbering must use that page’s offset');
   await dialogClick('运行记录'); await ready('.rss-run');
   assert.ok(await js("document.querySelector('.rss-run').textContent.includes('成功') && document.querySelector('.rss-run').textContent.includes('正文采集：4')"));
   await dialogClick('运行详情与日志'); await ready('.run-event-list');
   assert.ok(await js("document.querySelector('.run-event-list').textContent.includes('Synthetic RSS run log')"));
   await dialogClick('返回'); await ready('.rss-run'); await dialogClick('概览');
-  await js("window.rssDetailShell = document.querySelector('.rss-detail-dialog')");
-  await dialogClick('编辑源'); await ready('.rss-editor'); await dialogClick('取消'); await ready('.rss-detail-tabs');
-  assert.equal(await js("window.rssDetailShell === document.querySelector('.rss-detail-dialog')"), true, 'Edit and overview must share one dialog shell');
   await dialogClick('关闭'); await js('new Promise(resolve => setTimeout(resolve, 100))');
   assert.equal(await js("document.activeElement === document.querySelector('.rss-card-subject')"), true, 'Closing restores the card focus');
   win.setContentSize(1000, 900);
@@ -152,6 +190,8 @@ app.whenReady().then(async () => {
   assert.ok(await js(`document.body.innerText.includes('New research feed')`));
   await click('总结与选题偏好'); await ready('[role="dialog"] textarea'); await capture('preferences');
   const textarea = await js(`document.querySelector('[role="dialog"] textarea').value`); assert.match(textarea, /产品设计/);
+  assert.equal(await js(`document.querySelectorAll('[role="dialog"] input[type="date"]').length`), 0, 'Preferences must not contain a generation date');
+  assert.equal(await js(`[...document.querySelectorAll('[role="dialog"] button')].some(button => ['生成总结', '生成选题'].includes(button.textContent.trim()))`), false, 'Preferences must only edit and save preferences');
   // Keyboard Escape closes without losing saved preferences and restores focus.
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
   await js('new Promise(resolve => setTimeout(resolve, 650))'); assert.equal(await js(`!!document.querySelector('[role="dialog"]')`), false);
@@ -162,6 +202,6 @@ app.whenReady().then(async () => {
   assert.equal(await js("document.querySelector('.settings-page').dataset.settingsSection"), 'sources');
   await click('返回应用'); await ready('.app-nav');
   assert.equal(await js("!!document.querySelector('.settings-page')"), false, 'Settings must return to the original application page');
-  const report = { platform: process.platform, captures, settingsNavigation: true, convertedRssLocation: true, addErrorRetry: true, preferences: true, keyboard: true, longListLayout: true, categories: true, categoryCreation: true, catalogSources: catalog.sources.length, catalogTopics: 8, scopedTasks: true, detailTabs: true, sharedEditShell: true, sourceCount: 213, filtering, overflow: false };
+  const report = { platform: process.platform, captures, settingsNavigation: true, convertedRssLocation: true, addErrorRetry: true, preferences: true, keyboard: true, longListLayout: true, categories: true, categoryCreation: true, catalogSources: catalog.sources.length, catalogTopics: 8, scopedTasks: true, detailTabs: true, detailFooterRemoved: true, sourceCount: 213, filtering, overflow: false };
   fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report)); win.destroy();
 }).catch(error => { console.error(error); process.exitCode = 1; }).finally(() => { for (const win of BrowserWindow.getAllWindows()) win.destroy(); app.quit(); });

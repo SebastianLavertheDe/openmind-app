@@ -107,10 +107,10 @@ app.whenReady().then(async () => {
         return { cards: cards.length, pageWidth: page.clientWidth, overflow: page.scrollWidth - page.clientWidth,
           controlsSeparate: cards.every(card => !card.querySelector('.rss-card-subject button, .rss-card-subject a')),
           pillTabs: !!page.querySelector('[data-ui-control="tabs"][data-variant="pill"]'),
-          dialog: !!dialog, dialogContained: !dialog || dialog.getBoundingClientRect().right <= innerWidth && dialog.getBoundingClientRect().left >= 0 };
+          dialog: !!dialog, fixedLayout: !dialog || dialog.dataset.layout === 'fixed', dialogContained: !dialog || dialog.getBoundingClientRect().right <= innerWidth && dialog.getBoundingClientRect().left >= 0 && dialog.getBoundingClientRect().top >= 0 && dialog.getBoundingClientRect().bottom <= innerHeight };
       })()`);
       assert.equal(rss.cards, 5, `${name}: source fixtures missing`);
-      assert.ok(rss.overflow <= 1 && rss.controlsSeparate && rss.pillTabs && rss.dialogContained, `${name}: RSS layout contract`);
+      assert.ok(rss.overflow <= 1 && rss.controlsSeparate && rss.pillTabs && rss.fixedLayout && rss.dialogContained, `${name}: RSS layout contract`);
       assert.equal(rss.dialog, scenario.id === "rss-source-details");
       if (scenario.id === "rss-source-embedded") assert.ok(rss.pageWidth <= 390);
       report.geometry.push({ name, rss });

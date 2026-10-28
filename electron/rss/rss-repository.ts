@@ -20,7 +20,7 @@ export class RssRepository {
       if (fs.existsSync(this.file)) return this.load();
       const persistent = path.join(this.directory, "subscriptions.opml");
       const legacy = fs.existsSync(persistent) ? persistent : path.join(this.root, ".agent", "skills", "rss-article-saver", "subscriptions.opml");
-      const document: RssDocument = { schemaVersion: 1, initialized: true, categoryVersion: 1, revision: 1, sources: [], deletedPresetIds: [], migrationWarnings: [] };
+      const document: RssDocument = { schemaVersion: 1, initialized: true, categoryVersion: 2, revision: 1, sources: [], deletedPresetIds: [], migrationWarnings: [] };
       if (fs.existsSync(legacy)) {
         const sources = this.parseOpml(legacy, path.join(this.root, ".agent", "skills", "rss-article-saver"));
         const settings = this.legacySettings();
@@ -39,22 +39,24 @@ export class RssRepository {
       return document;
     });
     const current = this.load();
-    if (current.categoryVersion === 1) return current;
+    if (current.categoryVersion === 2) return current;
     return withRssLock(this.directory, "registry", () => {
       const document = this.load();
-      if (document.categoryVersion === 1) return document;
+      if (document.categoryVersion === 2) return document;
       for (const source of document.sources) {
         const channel = legacyRssChannel(source.group);
-        if (!channel) continue; // Preserve custom topics and explicitly uncategorized sources.
-        const preset = this.catalog.sources.find(row => row.inputUrl && source.inputUrl && rssUrlIdentity(row.inputUrl) === rssUrlIdentity(source.inputUrl));
+        if (!channel && source.group.trim()) continue; // Preserve user-owned topics.
+        const identity = source.inputUrl ? rssUrlIdentity(source.inputUrl) : null;
+        const preset = identity ? this.catalog.sources.find(row => row.inputUrl && rssUrlIdentity(row.inputUrl) === identity || row.legacyAliases.some(alias => rssUrlIdentity(alias) === identity)) : undefined;
         const group = preset && !legacyRssChannel(preset.group) ? preset.group : "";
+        if (!channel && !group) continue; // Never guess an unknown feed's topic from its name or old preset ID.
         const feedWasCurrent = source.feedRevision === source.revision;
         source.group = group;
-        source.tags = [...new Set([...source.tags, channel])].slice(0, 30);
+        if (channel) source.tags = [...new Set([...source.tags, channel])].slice(0, 30);
         source.revision++;
         if (feedWasCurrent) source.feedRevision = source.revision;
       }
-      document.categoryVersion = 1;
+      document.categoryVersion = 2;
       document.revision++;
       writeJsonAtomic(this.file, document);
       return document;

@@ -114,22 +114,18 @@ beforeEach(() => {
 afterEach(() => { cleanup(); setLocale("zh-CN"); document.documentElement.lang = "zh-CN"; });
 
 describe("SettingsPage", () => {
-  it("manages RSS sources in settings with one heading and task management actions", async () => {
+  it("manages RSS sources in settings with one heading and preferences in the toolbar", async () => {
     const getRssSources = vi.fn(async () => ({ schemaVersion: 1 as const, initialized: true as const, revision: 1, deletedPresetIds: [], migrationWarnings: [], sources: [] }));
-    const onOpenRssRuns = vi.fn();
     window.openmind = makeApi({ getRssSources });
-    render(<AiProvider initial={snapshot} skills={[]}><SettingsPage repoRoot="/repo" providers={providers} onRepo={vi.fn()} onBack={vi.fn()} onOpenRssRuns={onOpenRssRuns} initialSection="sources" /><FeedbackHost /></AiProvider>);
+    render(<AiProvider initial={snapshot} skills={[]}><SettingsPage repoRoot="/repo" providers={providers} onRepo={vi.fn()} onBack={vi.fn()} initialSection="sources" /><FeedbackHost /></AiProvider>);
 
     await screen.findByText("没有符合条件的源");
     expect(screen.getAllByRole("heading", { name: "RSS 源" })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "RSS 源" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("button", { name: "添加源" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "导入 OPML" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "定时任务" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "总结与选题偏好" })).toBeTruthy();
-    for (const name of ["更新 RSS", "采集文章", "更新并采集"]) expect(screen.queryByRole("button", { name })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "运行记录" }));
-    expect(onOpenRssRuns).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "总结与选题偏好" }).closest(".rss-toolbar")).toBeTruthy();
+    for (const name of ["定时任务", "运行记录", "更新 RSS", "采集文章", "更新并采集"]) expect(screen.queryByRole("button", { name })).toBeNull();
   });
 
   it("asks for a content folder before loading RSS sources in an unbound workspace", async () => {

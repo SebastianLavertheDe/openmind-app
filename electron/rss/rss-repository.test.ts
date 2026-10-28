@@ -22,7 +22,7 @@ describe("RSS persistent registry", () => {
     expect(new Set(bundled.sources.map(source => source.id)).size).toBe(227);
     expect(new Set(bundled.sources.map(source => source.group))).toEqual(new Set(RSS_TOPIC_IDS));
     for (const source of bundled.sources) expect(source.tags.some(tag => tag === "blog" || tag === "WeChat")).toBe(true);
-    for (const [name, group] of [["OpenAI Blog", "ai"], ["LangChain Blog", "agents"], ["向阳乔木推荐看", "prompts"], ["L先生说", "life"]]) {
+    for (const [name, group] of [["OpenAI Blog", "ai"], ["LangChain Blog", "agents"], ["向阳乔木推荐看", "prompts"], ["L先生说", "life"], ["Lilian Weng", "ai"], ["gilesthomas.com", "ai"], ["danielchasehooper.com", "engineering"], ["山行AI", "agents"], ["随机小分队", "business"], ["语言即世界language is world", "ai"]]) {
       expect(bundled.sources.find(source => source.name === name)?.group).toBe(group);
     }
   });
@@ -38,7 +38,7 @@ describe("RSS persistent registry", () => {
     fs.writeFileSync(repository.file, JSON.stringify(old));
     const feed = file(root, `.agent/skill-data/rss-article-saver/feeds/${first.id}.xml`, "<rss/>");
     const migrated = repository.read();
-    expect(migrated).toMatchObject({ categoryVersion: 1, revision: old.revision + 1, deletedPresetIds: old.deletedPresetIds });
+    expect(migrated).toMatchObject({ categoryVersion: 2, revision: old.revision + 1, deletedPresetIds: old.deletedPresetIds });
     expect(migrated.sources[0]).toEqual({ ...first, group: "Research", tags: ["reading", "blog"], revision: first.revision + 1, feedRevision: current ? first.revision + 1 : 0 });
     expect(migrated.sources[1]).toEqual(old.sources[1]); expect(migrated.sources[3]).toEqual(old.sources[3]);
     expect(migrated.sources[2]).toMatchObject({ id: "changed", inputUrl: "https://changed.test/feed", group: "", tags: ["reading", "WeChat"] });
@@ -55,6 +55,34 @@ describe("RSS persistent registry", () => {
     const document = repository.read();
     expect(document.sources[0]).toMatchObject({ group: "Research", tags: ["blog"] });
     expect(document.sources[1]).toMatchObject({ group: "My topics" });
+  });
+  it.each([true, false])("repairs version-one blank and imported channel categories once (current=%s)", current => {
+    const { root, repository } = fixture(); const old = repository.read(); old.categoryVersion = 1;
+    const first = old.sources[0]; first.group = ""; first.feedRevision = current ? first.revision : 0;
+    first.itemCount = 17; first.enabled = true; first.tags = ["reading"];
+    first.lastError = { stage: "collect", code: "access-denied", message: "403", retryable: false };
+    old.sources.push({ ...first, id: "wechat", inputUrl: catalog.sources[0].legacyAliases[0], group: "WeChat Tech and AI Feeds" },
+      { ...first, id: "custom", group: "My research" },
+      { ...first, id: "changed-url", inputUrl: "https://other.test/feed" },
+      { ...first, id: "unknown", presetId: null, inputUrl: "https://unknown.test/feed" });
+    fs.writeFileSync(repository.file, JSON.stringify(old));
+    const feed = file(root, `.agent/skill-data/rss-article-saver/feeds/${first.id}.xml`, "<rss/>");
+    const migrated = repository.read();
+    expect(migrated.categoryVersion).toBe(2);
+    expect(migrated.sources[0]).toEqual({ ...first, group: "Research", revision: first.revision + 1, feedRevision: current ? first.revision + 1 : 0 });
+    expect(migrated.sources[1]).toMatchObject({ group: "Research", tags: ["reading", "WeChat"] });
+    expect(migrated.sources.slice(2)).toEqual(old.sources.slice(2));
+    expect(fs.readFileSync(feed, "utf8")).toBe("<rss/>");
+    const bytes = fs.readFileSync(repository.file, "utf8");
+    expect(new RssRepository(root, catalog).read()).toEqual(migrated);
+    expect(fs.readFileSync(repository.file, "utf8")).toBe(bytes);
+    repository.update({ id: first.id, revision: migrated.sources[0].revision, group: "" });
+    expect(new RssRepository(root, catalog).read().sources[0].group).toBe("");
+  });
+  it("maps the shipped WeChat OPML folder to topics on first import", () => {
+    const { root, repository } = fixture();
+    file(root, ".agent/skill-data/rss-article-saver/subscriptions.opml", opml(`<outline text="WeChat Tech and AI Feeds"><outline text="Original" xmlUrl="${catalog.sources[0].legacyAliases[0]}"/></outline>`));
+    expect(repository.read().sources[0]).toMatchObject({ group: "Research", tags: ["WeChat"] });
   });
   it("reuses category names across case, whitespace and full-width input", () => {
     const { repository } = fixture();

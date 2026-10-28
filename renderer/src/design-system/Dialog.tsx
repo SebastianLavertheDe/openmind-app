@@ -2,7 +2,7 @@ import { createElement, useEffect, useRef, type HTMLAttributes, type ReactNode, 
 import { createPortal } from "react-dom";
 import { useExitPresence } from "./use-exit-presence";
 import { useModalFocusScope } from "./use-modal-focus-scope";
-import type { DialogSize } from "./control-contract";
+import type { DialogLayout, DialogSize } from "./control-contract";
 
 type Presence = ReturnType<typeof useExitPresence>;
 
@@ -26,6 +26,8 @@ export type DialogProps = Omit<HTMLAttributes<HTMLElement>, "children"> & {
   onExited?(): void;
   retainFocusDuringExit?: boolean;
   size?: DialogSize;
+  /** Fixed shells keep their geometry while their body content changes. */
+  layout?: DialogLayout;
   /** ImageViewer owns a media canvas rather than form chrome. */
   surface?: "panel" | "media";
 };
@@ -41,7 +43,7 @@ function DialogWithPresence(props: DialogProps) {
 }
 
 function DialogSurface({
-  open, onClose, children, backdropClassName = "", className = "", size = "md", surface = "panel",
+  open, onClose, children, backdropClassName = "", className = "", size = "md", layout = "content", surface = "panel",
   containerRef, triggerRef, initialFocusRef, initialFocusSelector, layer = "global", dismissDisabled = false,
   exitMs: _exitMs, presence, portal = true, as = "div", onExited, retainFocusDuringExit = false, ...attributes
 }: DialogProps & { presence: Presence }) {
@@ -65,7 +67,7 @@ function DialogSurface({
     {createElement(as, {
       ...attributes, ref, className: `${surface === "panel" ? "ui-dialog" : "ui-dialog-media"} ${className}`.trim(),
       "data-ui-control": "dialog",
-      "data-size": size, role: attributes.role || "dialog", "aria-modal": true,
+      "data-size": size, "data-layout": layout, role: attributes.role || "dialog", "aria-modal": true,
       tabIndex: attributes.tabIndex ?? -1,
       onMouseDown: (event: React.MouseEvent<HTMLElement>) => { event.stopPropagation(); attributes.onMouseDown?.(event); },
       onClick: (event: React.MouseEvent<HTMLElement>) => { event.stopPropagation(); attributes.onClick?.(event); }

@@ -39,6 +39,10 @@ The new-task welcome uses `Textarea variant="composer" size="sm"` in a centered
 must not inherit conversation side gutters inside that frame. The catalog renders
 this case in the workbench and conversation pane to validate the production layout.
 Choose a variant for its meaning, rather than introducing a page-specific skin.
+Dialog supports `layout="content"` (default) and `layout="fixed"`. Fixed shells
+use the shared `--dialog-height-fixed` token, capped by the viewport inset, and
+keep the header/footer stable while the body scrolls. RSS source details and
+their editor reuse this layout so tab changes do not resize or recenter the shell.
 Toolbar and navigation actions use `responsiveTarget` to keep a 44px minimum
 target in windows up to 720px wide. Coarse pointers use that minimum for every
 shared action. The shared button stylesheet owns both adaptations.

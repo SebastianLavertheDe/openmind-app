@@ -193,6 +193,7 @@
   --dialog-width-md: 480px;
   --dialog-width-lg: 680px;
   --dialog-width-wide: 1080px;
+  --dialog-height-fixed: 760px;
   --dialog-backdrop: rgba(0, 0, 0, .32);
 }
 :root[data-theme="dark"] {

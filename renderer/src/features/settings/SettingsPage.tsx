@@ -47,7 +47,7 @@ function settingsSections(): readonly SettingsSectionDefinition[] { return [
 
 const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
 
-export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, onOpenRssRuns, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory, initialSkillLibraryMode, skillReturnSessionId }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(sessionId?: string): void; onOpenRssRuns?(): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image"; initialSkillLibraryMode?: SkillLibraryMode; skillReturnSessionId?: string | null }) {
+export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory, initialSkillLibraryMode, skillReturnSessionId }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(sessionId?: string): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image"; initialSkillLibraryMode?: SkillLibraryMode; skillReturnSessionId?: string | null }) {
   const locale = useLocale();
   const ai = useAiSnapshot();
   const feedback = useFeedback();
@@ -363,7 +363,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
               {activeSection === "connectors" ? <WechatSettingsSection /> : null}
-              {activeSection === "sources" ? prefs.openmindRoot ? <SourcesPage key={prefs.openmindRoot} presentation="settings" onRuns={onOpenRssRuns} /> : <EmptyState title={m.rss.rootRequired} action={<Button onClick={() => void selectOpenmindRoot()}>{m.rss.selectRoot}</Button>} /> : null}
+              {activeSection === "sources" ? prefs.openmindRoot ? <SourcesPage key={prefs.openmindRoot} presentation="settings" /> : <EmptyState title={m.rss.rootRequired} action={<Button onClick={() => void selectOpenmindRoot()}>{m.rss.selectRoot}</Button>} /> : null}
               {activeSection === "sessions" ? <ArchivedSessionsSettingsSection sessions={archivedSessions} busyId={sessionBusyId} onOpen={(sessionId) => void openArchivedSession(sessionId)} onRestore={(sessionId) => void restoreArchivedSession(sessionId)} /> : null}
             </div>
           )}

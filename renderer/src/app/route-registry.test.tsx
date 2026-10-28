@@ -25,14 +25,12 @@ function props(bootstrap: AppBootstrap): RouteRenderProps {
 afterEach(() => cleanup());
 
 describe("renderActiveRoute repo gate", () => {
-  it("opens RSS in settings and preserves access to its run history without a primary nav item", () => {
+  it("opens RSS in settings without a primary nav item", () => {
     const p = props(baseBootstrap);
     p.route = { page: "settings", state: { settingsSection: "sources" }, nonce: 2 };
-    const element = renderActiveRoute(p) as ReactElement<{ initialSection: string; onOpenRssRuns(): void }>;
+    const element = renderActiveRoute(p) as ReactElement<{ initialSection: string }>;
     expect(NAV_ITEMS.some(item => item.id === "sources")).toBe(false);
     expect(element.props.initialSection).toBe("sources");
-    element.props.onOpenRssRuns();
-    expect(p.navigate).toHaveBeenCalledWith("runs", { skillId: "rss-article-saver" });
   });
 
   it("redirects the retired RSS route into settings with a usable return page", async () => {

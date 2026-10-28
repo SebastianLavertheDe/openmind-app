@@ -242,7 +242,7 @@
       "kind": "website",
       "adapterId": "claude_blog_rss",
       "enabled": true,
-      "group": "prompts",
+      "group": "ai",
       "tags": [
         "blog"
       ],
@@ -722,7 +722,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "agents",
+      "group": "ai",
       "tags": [
         "blog"
       ],
@@ -882,7 +882,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "life",
+      "group": "ai",
       "tags": [
         "blog"
       ],
@@ -1074,7 +1074,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "engineering",
+      "group": "life",
       "tags": [
         "blog"
       ],
@@ -1314,7 +1314,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "engineering",
+      "group": "ai",
       "tags": [
         "blog"
       ],
@@ -1346,7 +1346,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "tech",
+      "group": "life",
       "tags": [
         "blog"
       ],
@@ -1986,7 +1986,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "engineering",
+      "group": "tech",
       "tags": [
         "blog"
       ],
@@ -2210,7 +2210,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "product",
+      "group": "engineering",
       "tags": [
         "blog"
       ],
@@ -2727,7 +2727,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "tech",
+      "group": "business",
       "tags": [
         "WeChat"
       ],
@@ -2753,7 +2753,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "ai",
+      "group": "business",
       "tags": [
         "WeChat"
       ],
@@ -2870,7 +2870,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "prompts",
+      "group": "ai",
       "tags": [
         "WeChat"
       ],
@@ -2987,7 +2987,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "prompts",
+      "group": "agents",
       "tags": [
         "WeChat"
       ],
@@ -3091,7 +3091,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "business",
+      "group": "agents",
       "tags": [
         "WeChat"
       ],
@@ -3234,7 +3234,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "prompts",
+      "group": "ai",
       "tags": [
         "WeChat"
       ],
@@ -3299,7 +3299,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "prompts",
+      "group": "ai",
       "tags": [
         "WeChat"
       ],
@@ -3442,7 +3442,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "prompts",
+      "group": "ai",
       "tags": [
         "WeChat"
       ],
@@ -3455,7 +3455,7 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "tech",
+      "group": "business",
       "tags": [
         "WeChat"
       ],

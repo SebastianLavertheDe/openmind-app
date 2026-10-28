@@ -14,5 +14,5 @@ export function normalizeRssGroup(value: string, existing: readonly string[] = [
 /** Only these shipped channel groups are eligible for the one-time migration. */
 export function legacyRssChannel(group: string): "blog" | "WeChat" | null {
   const key = rssGroupIdentity(group);
-  return key === "blog" ? "blog" : key === "wechat" ? "WeChat" : null;
+  return key === "blog" ? "blog" : key === "wechat" || key === "wechat tech and ai feeds" ? "WeChat" : null;
 }
