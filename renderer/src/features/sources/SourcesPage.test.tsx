@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
-import { RssSourceSchema, type RssDetection, type RssDocument, type RssDocumentView, type RssSourceView } from "@shared/rss-contracts";
+import { RssSourceSchema, type RssDetection, type RssDocument, type RssDocumentView, type RssSourceInput, type RssSourceView } from "@shared/rss-contracts";
 import { messages as m } from "@shared/messages";
 import { SourcesPage } from "./SourcesPage";
 import { DailyPreferences } from "./DailyPreferences";
@@ -19,7 +19,7 @@ function fixture(feedStatus: RssSourceView["localFeed"]["status"] = "missing") {
     getRssSourceRuns: vi.fn(async (_input: unknown) => ({ runs: [], nextCursor: null })),
     getRssSourceRunEvents: vi.fn(async (_input: unknown) => ({ events: [], nextAfter: null })),
     detectRssSource: vi.fn(async ({ inputUrl }: { inputUrl: string; selectedFeedUrl?: string }): Promise<RssDetection> => ({ inputUrl, kind: "feed", adapterId: "feed", resolvedFeedUrl: inputUrl, candidates: [] })),
-    createRssSource: vi.fn(async () => document),
+    createRssSource: vi.fn(async (_input: RssSourceInput) => document),
     editRssSource: vi.fn(async (input: { id: string; enabled?: boolean }) => { document.sources = document.sources.map(row => row.id === input.id ? { ...row, ...input, revision: row.revision + 1 } : row); return document; }),
     removeRssSource: vi.fn(async ({ id }: { id: string }) => { document.sources = document.sources.filter(row => row.id !== id); return document; }),
     importRssOpml: vi.fn(async () => document), runRss: vi.fn(async () => ({})),
@@ -135,17 +135,67 @@ describe("RSS sources and daily preferences", () => {
     expect(await screen.findByText("Task editor")).toBeTruthy();
     expect(api.setDefaultSkillsEnabled).not.toHaveBeenCalled();
   });
-  it.each(["page", "settings", "embedded"] as const)("supports %s with real category counts and all-enabled global execution", async presentation => {
-    const api = fixture(); document.sources[0].group = "blog"; document.sources[1].group = "WeChat";
+  it("selects an existing topic when adding a source without repeating feed detection", async () => {
+    const api = fixture(); render(<SourcesPage />);
+    fireEvent.click(screen.getByRole("button", { name: m.rss.add }));
+    fireEvent.change(screen.getByLabelText(m.rss.name), { target: { value: "Agent research" } });
+    fireEvent.change(screen.getByLabelText(m.rss.url), { target: { value: "https://agents.test/feed" } });
+    fireEvent.click(screen.getByRole("button", { name: m.rss.detect })); await screen.findByText(m.rss.detected);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${m.rss.category}`) }));
+    fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: m.rss.topicLabels.agents }));
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
+    await waitFor(() => expect(api.createRssSource).toHaveBeenCalledWith({ name: "Agent research", inputUrl: "https://agents.test/feed", group: "agents", enabled: true }));
+    expect(api.detectRssSource).toHaveBeenCalledTimes(1);
+  });
+  it("creates a category with the source, keeps failed drafts, and makes the category reusable", async () => {
+    const api = fixture();
+    api.createRssSource.mockRejectedValueOnce(new Error("Save failed")).mockImplementationOnce(async input => {
+      document.sources.push(RssSourceSchema.parse({ ...input, id: "photography", kind: "feed", revision: 1 })); return document;
+    });
+    render(<SourcesPage />); await screen.findByText("Design");
+    fireEvent.click(screen.getByRole("button", { name: m.rss.add }));
+    fireEvent.change(screen.getByLabelText(m.rss.name), { target: { value: "Photography" } });
+    fireEvent.change(screen.getByLabelText(m.rss.url), { target: { value: "https://photo.test/feed" } });
+    fireEvent.click(screen.getByRole("button", { name: m.rss.detect })); await screen.findByText(m.rss.detected);
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${m.rss.category}`) }));
+    fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: m.rss.newCategory }));
+    const category = screen.getByLabelText(m.rss.categoryName) as HTMLInputElement;
+    fireEvent.change(category, { target: { value: "   " } });
+    expect((screen.getByRole("button", { name: m.rss.save }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(category, { target: { value: " Photography & books " } });
+    expect(screen.queryByRole("tab", { name: "Photography & books" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save })); await screen.findByText("Save failed");
+    expect(category.value).toBe(" Photography & books ");
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(await screen.findByRole("tab", { name: "Photography & books" }));
+    expect(screen.getByRole("article", { name: "Photography" })).toBeTruthy(); expect(screen.queryByText("Design")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: m.rss.add }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${m.rss.category}`) }));
+    expect(within(await screen.findByRole("listbox")).getByRole("option", { name: "Photography & books" })).toBeTruthy();
+    expect(api.createRssSource).toHaveBeenLastCalledWith({ name: "Photography", inputUrl: "https://photo.test/feed", group: "Photography & books", enabled: true });
+  });
+  it.each([[" reading ", "Reading"], ["ＡＩ", "ai"]])("reuses an existing category for %s in the new-category flow", async (input, expected) => {
+    const api = fixture(); document.sources[0].group = "Reading"; render(<SourcesPage />); await screen.findByText("Design");
+    fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${m.rss.category}`) }));
+    fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: m.rss.newCategory }));
+    fireEvent.change(screen.getByLabelText(m.rss.categoryName), { target: { value: input } });
+    expect(screen.getByText(m.rss.categoryReuse(expected === "ai" ? m.rss.topicLabels.ai : expected))).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
+    await waitFor(() => expect(api.editRssSource).toHaveBeenCalledWith({ id: "design", revision: 1, name: "Design", group: expected }));
+    expect(api.detectRssSource).not.toHaveBeenCalled();
+  });
+  it.each(["page", "settings", "embedded"] as const)("supports %s with real category counts and source-scoped manual execution", async presentation => {
+    const api = fixture(); document.sources[0].group = "product"; document.sources[1].group = "ai";
     render(<SourcesPage presentation={presentation} />); await screen.findByText("Design");
     expect(screen.queryByRole("heading", { name: m.rss.title }) !== null).toBe(presentation !== "settings");
-    fireEvent.click(screen.getByRole("tab", { name: `${m.rss.blog} 1` }));
+    fireEvent.click(screen.getByRole("tab", { name: m.rss.topicLabels.product }));
     expect(screen.queryByText("Science")).toBeNull(); expect(screen.getByText(m.rss.results(1, 2))).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: m.rss.pipeline }));
-    await waitFor(() => expect(api.runRss).toHaveBeenCalledWith({ mode: "pipeline" }));
+    for (const name of [m.rss.sync, m.rss.collect, m.rss.pipeline]) expect(screen.queryByRole("button", { name })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: `${m.rss.pipeline}: Design` }));
     await waitFor(() => expect(api.runRss).toHaveBeenCalledWith({ mode: "pipeline", sourceId: "design" }));
-    expect(screen.getByText(m.rss.globalScope)).toBeTruthy();
+    expect(api.runRss).toHaveBeenCalledTimes(1);
   });
   it("opens details without fetching and keeps links and actions separate from the subject button", async () => {
     const api = fixture("ready"); document.sources[0].lastError = { stage: "collect", code: "access-denied", message: "403 evidence", retryable: false };
@@ -181,7 +231,7 @@ describe("RSS sources and daily preferences", () => {
     expect(screen.queryByText("Stale entry")).toBeNull();
   });
   it("keeps one dialog through edit, preserves the draft on polling and retains optimistic conflicts", async () => {
-    const api = fixture("ready"); document.sources[0].group = "blog"; document.sources[1].group = "WeChat";
+    const api = fixture("ready"); document.sources[0].group = "product"; document.sources[1].group = "ai";
     render(<SourcesPage />); await screen.findByText("Design"); fireEvent.click(screen.getByRole("button", { name: `${m.rss.details}: Design` }));
     const shell = screen.getByRole("dialog"); fireEvent.click(within(shell).getByRole("button", { name: m.rss.edit }));
     fireEvent.change(screen.getByLabelText(m.rss.name), { target: { value: "Draft" } });
@@ -190,15 +240,15 @@ describe("RSS sources and daily preferences", () => {
     expect((screen.getByLabelText(m.rss.name) as HTMLInputElement).value).toBe("Draft");
     api.editRssSource.mockRejectedValueOnce(new Error("Revision conflict"));
     fireEvent.click(screen.getByRole("button", { name: m.rss.save })); await screen.findByText("Revision conflict");
-    expect(api.editRssSource).toHaveBeenLastCalledWith({ id: "design", revision: 1, name: "Draft", group: "blog" });
+    expect(api.editRssSource).toHaveBeenLastCalledWith({ id: "design", revision: 1, name: "Draft", group: "product" });
     feedback.confirm.mockResolvedValueOnce(false); fireEvent.click(screen.getByRole("button", { name: m.rss.cancel }));
     await waitFor(() => expect(feedback.confirm).toHaveBeenCalled()); expect(screen.getByRole("dialog")).toBe(shell);
     fireEvent.click(screen.getByRole("button", { name: m.rss.cancel })); await screen.findByRole("tab", { name: m.rss.overview }); expect(screen.getByRole("dialog")).toBe(shell);
     fireEvent.click(within(shell).getByRole("button", { name: m.rss.edit }));
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(m.rss.category) })); fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: m.rss.wechat }));
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(m.rss.category) })); fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: m.rss.topicLabels.ai }));
     fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
     await screen.findByRole("tab", { name: m.rss.overview }); expect(api.detectRssSource).not.toHaveBeenCalled(); expect(screen.getByRole("dialog")).toBe(shell);
-    expect(api.editRssSource).toHaveBeenLastCalledWith({ id: "design", revision: 2, name: "Design", group: "WeChat" });
+    expect(api.editRssSource).toHaveBeenLastCalledWith({ id: "design", revision: 2, name: "Design", group: "ai" });
   });
   it("shows external deletion and drops an open detail when the content root changes", async () => {
     const api = fixture(); render(<SourcesPage />); await screen.findByText("Design");

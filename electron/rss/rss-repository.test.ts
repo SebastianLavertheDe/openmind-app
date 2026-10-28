@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { RssRepository } from "./rss-repository";
 import { withRssLock, waitForRssMutation } from "./file-lock";
 import type { RssCatalog } from "../../shared/rss-contracts";
+import { RSS_TOPIC_IDS } from "../../shared/rss-categories";
 
 const roots: string[] = [];
 const catalog: RssCatalog = { schemaVersion: 1, adapters: [], sources: [{ id: "preset-one", name: "Design", inputUrl: "https://example.org/feed?Language=EN", kind: "feed", adapterId: "feed", enabled: true, group: "Research", tags: [], legacyAliases: ["https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/design.xml"] }] };
@@ -15,6 +16,54 @@ function opml(outlines: string) { return `<opml version="2.0"><body>${outlines}<
 afterEach(() => roots.splice(0).forEach(root => fs.rmSync(root, { recursive: true, force: true })));
 
 describe("RSS persistent registry", () => {
+  it("assigns every bundled source a reviewed topic while retaining channel tags", () => {
+    const bundled: RssCatalog = JSON.parse(fs.readFileSync(path.resolve("config/rss-sources/catalog.json"), "utf8"));
+    expect(bundled.sources).toHaveLength(227);
+    expect(new Set(bundled.sources.map(source => source.id)).size).toBe(227);
+    expect(new Set(bundled.sources.map(source => source.group))).toEqual(new Set(RSS_TOPIC_IDS));
+    for (const source of bundled.sources) expect(source.tags.some(tag => tag === "blog" || tag === "WeChat")).toBe(true);
+    for (const [name, group] of [["OpenAI Blog", "ai"], ["LangChain Blog", "agents"], ["向阳乔木推荐看", "prompts"], ["L先生说", "life"]]) {
+      expect(bundled.sources.find(source => source.name === name)?.group).toBe(group);
+    }
+  });
+  it.each([true, false])("migrates channel groups once without losing source state (current=%s)", current => {
+    const { root, repository } = fixture(); const old = repository.read(); delete old.categoryVersion;
+    const first = old.sources[0]; first.group = "blog"; first.feedRevision = current ? first.revision : 0;
+    first.lastError = { stage: "collect", code: "access-denied", message: "403", retryable: false };
+    first.lastSyncAt = "2026-10-27T08:00:00Z"; first.tags = ["reading"];
+    old.sources.push({ ...first, id: "custom", presetId: null, inputUrl: "https://custom.test/feed", group: "My reading" },
+      { ...first, id: "changed", inputUrl: "https://changed.test/feed", group: "WeChat" },
+      { ...first, id: "empty", inputUrl: "https://empty.test/feed", group: "" });
+    old.deletedPresetIds = ["removed-preset"];
+    fs.writeFileSync(repository.file, JSON.stringify(old));
+    const feed = file(root, `.agent/skill-data/rss-article-saver/feeds/${first.id}.xml`, "<rss/>");
+    const migrated = repository.read();
+    expect(migrated).toMatchObject({ categoryVersion: 1, revision: old.revision + 1, deletedPresetIds: old.deletedPresetIds });
+    expect(migrated.sources[0]).toEqual({ ...first, group: "Research", tags: ["reading", "blog"], revision: first.revision + 1, feedRevision: current ? first.revision + 1 : 0 });
+    expect(migrated.sources[1]).toEqual(old.sources[1]); expect(migrated.sources[3]).toEqual(old.sources[3]);
+    expect(migrated.sources[2]).toMatchObject({ id: "changed", inputUrl: "https://changed.test/feed", group: "", tags: ["reading", "WeChat"] });
+    expect(fs.readFileSync(feed, "utf8")).toBe("<rss/>");
+    const bytes = fs.readFileSync(repository.file, "utf8");
+    expect(new RssRepository(root, catalog).read()).toEqual(migrated);
+    expect(fs.readFileSync(repository.file, "utf8")).toBe(bytes);
+    repository.update({ id: first.id, revision: migrated.sources[0].revision, group: "WeChat" });
+    expect(new RssRepository(root, catalog).read().sources[0].group).toBe("WeChat");
+  });
+  it("maps legacy OPML channels to topics and keeps custom OPML groups", () => {
+    const { root, repository } = fixture();
+    file(root, ".agent/skill-data/rss-article-saver/subscriptions.opml", opml(`<outline text="blog"><outline text="Original" xmlUrl="${catalog.sources[0].legacyAliases[0]}"/></outline><outline text="My topics"><outline text="Personal" xmlUrl="https://personal.test/feed"/></outline>`));
+    const document = repository.read();
+    expect(document.sources[0]).toMatchObject({ group: "Research", tags: ["blog"] });
+    expect(document.sources[1]).toMatchObject({ group: "My topics" });
+  });
+  it("reuses category names across case, whitespace and full-width input", () => {
+    const { repository } = fixture();
+    const input = { name: "Second", inputUrl: "https://second.test/feed", group: " research ", enabled: true };
+    const document = repository.add(input, { ...input, kind: "feed", resolvedFeedUrl: input.inputUrl, adapterId: "feed", candidates: [] });
+    expect(document.sources[1].group).toBe("Research");
+    const updated = repository.update({ id: document.sources[1].id, revision: 1, group: "ＡＩ" });
+    expect(updated.sources[1].group).toBe("ai");
+  });
   it.each([true, false])("persists group-only edits without clearing errors or reviving stale feeds (current=%s)", current => {
     const { root, repository } = fixture(); const original = repository.read().sources[0];
     repository.mutate(doc => { doc.sources[0].feedRevision = current ? original.revision : 0; doc.sources[0].lastError = { stage: "collect", code: "access-denied", message: "403", retryable: false }; });

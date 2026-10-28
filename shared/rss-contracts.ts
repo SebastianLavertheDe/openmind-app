@@ -17,6 +17,7 @@ export const RssSourceSchema = z.object({
 });
 export const RssDocumentSchema = z.object({
   schemaVersion: z.literal(1), initialized: z.literal(true), revision: z.number().int().nonnegative(),
+  categoryVersion: z.literal(1).optional(),
   sources: z.array(RssSourceSchema), deletedPresetIds: z.array(z.string()).default([]),
   migrationWarnings: z.array(z.string()).default([])
 });

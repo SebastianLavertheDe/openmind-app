@@ -82,8 +82,10 @@
       "kind": "website",
       "adapterId": "sequoia_ai_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/sequoia_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/sequoia_ai_rss.xml"
@@ -96,8 +98,10 @@
       "kind": "website",
       "adapterId": "greylock_ai_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/greylock_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/greylock_ai_rss.xml"
@@ -110,8 +114,10 @@
       "kind": "website",
       "adapterId": "bessemer_ai_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/bessemer_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/bessemer_ai_rss.xml"
@@ -124,8 +130,10 @@
       "kind": "website",
       "adapterId": "nfx_ai_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/nfx_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/nfx_ai_rss.xml"
@@ -138,8 +146,10 @@
       "kind": "website",
       "adapterId": "menlo_ai_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/menlo_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/menlo_ai_rss.xml"
@@ -152,8 +162,10 @@
       "kind": "website",
       "adapterId": "stanford_hai_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/stanford_hai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/stanford_hai_rss.xml"
@@ -166,8 +178,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/google_deepmind_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/google_deepmind_rss.xml"
@@ -180,8 +194,10 @@
       "kind": "website",
       "adapterId": "a16z_ai_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/a16z_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/a16z_ai_rss.xml"
@@ -194,8 +210,10 @@
       "kind": "website",
       "adapterId": "anthropic_engineering_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/anthropic_engineering_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/anthropic_engineering_rss.xml"
@@ -208,8 +226,10 @@
       "kind": "website",
       "adapterId": "cursor_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/cursor_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/cursor_blog_rss.xml"
@@ -222,8 +242,10 @@
       "kind": "website",
       "adapterId": "claude_blog_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/claude_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/claude_blog_rss.xml"
@@ -236,8 +258,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/openai_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/openai_blog_rss.xml"
@@ -250,8 +274,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/langchain_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/langchain_blog_rss.xml"
@@ -264,8 +290,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/karpathy_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/karpathy_blog_rss.xml"
@@ -278,8 +306,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/marktechpost_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/marktechpost_rss.xml"
@@ -292,8 +322,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/azure_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/azure_blog_rss.xml"
@@ -306,8 +338,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/tldr_tech_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/tldr_tech_rss.xml"
@@ -320,8 +354,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/deeplearning_batch_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/deeplearning_batch_rss.xml"
@@ -334,8 +370,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/bensbites_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/bensbites_rss.xml"
@@ -348,8 +386,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/techcrunch_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/techcrunch_ai_rss.xml"
@@ -362,8 +402,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/techcrunch_ai_tag_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/techcrunch_ai_tag_rss.xml"
@@ -376,8 +418,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/techcrunch_generative_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/techcrunch_generative_ai_rss.xml"
@@ -390,8 +434,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/wired_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/wired_ai_rss.xml"
@@ -404,8 +450,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/verge_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/verge_ai_rss.xml"
@@ -418,8 +466,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/importai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/importai_rss.xml"
@@ -432,8 +482,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/venturebeat_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/venturebeat_ai_rss.xml"
@@ -446,8 +498,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/artificial_intelligence_news_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/artificial_intelligence_news_rss.xml"
@@ -460,8 +514,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/arstechnica_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/arstechnica_ai_rss.xml"
@@ -474,8 +530,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/leiphone_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/leiphone_ai_rss.xml"
@@ -488,8 +546,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/david_heinemeier_hansson_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/david_heinemeier_hansson_rss.xml"
@@ -502,8 +562,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/smashing_magazine_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/smashing_magazine_rss.xml"
@@ -516,8 +578,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/latent_space_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/latent_space_rss.xml"
@@ -530,8 +594,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/google_research_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/google_research_blog_rss.xml"
@@ -544,8 +610,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/google_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/google_ai_rss.xml"
@@ -558,8 +626,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/huggingface_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/huggingface_blog_rss.xml"
@@ -572,8 +642,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/nvidia_ai_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/nvidia_ai_blog_rss.xml"
@@ -586,8 +658,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/aws_machine_learning_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/aws_machine_learning_blog_rss.xml"
@@ -600,8 +674,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/apple_machine_learning_research_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/apple_machine_learning_research_rss.xml"
@@ -614,8 +690,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/bair_blog_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/bair_blog_rss.xml"
@@ -628,8 +706,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/mit_news_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/mit_news_ai_rss.xml"
@@ -642,8 +722,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/lilian_weng_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/lilian_weng_rss.xml"
@@ -656,8 +738,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/chip_huyen_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/chip_huyen_rss.xml"
@@ -670,8 +754,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/eugene_yan_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/eugene_yan_rss.xml"
@@ -684,8 +770,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/the_gradient_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/the_gradient_rss.xml"
@@ -698,8 +786,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/fastai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/fastai_rss.xml"
@@ -712,8 +802,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/interconnects_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/interconnects_rss.xml"
@@ -726,8 +818,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/ahead_of_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/ahead_of_ai_rss.xml"
@@ -740,8 +834,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": false,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/arxiv_cs_ai_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/arxiv_cs_ai_rss.xml"
@@ -754,8 +850,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": false,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/arxiv_cs_lg_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/arxiv_cs_lg_rss.xml"
@@ -768,8 +866,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": false,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/arxiv_cs_cl_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/arxiv_cs_cl_rss.xml"
@@ -782,8 +882,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "life",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/lesswrong_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/lesswrong_rss.xml"
@@ -796,8 +898,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/alignment_forum_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/alignment_forum_rss.xml"
@@ -810,8 +914,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_simonwillisonnet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_simonwillisonnet_rss.xml"
@@ -824,8 +930,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_jeffgeerlingcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_jeffgeerlingcom_rss.xml"
@@ -838,8 +946,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_seangoedeckecom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_seangoedeckecom_rss.xml"
@@ -852,8 +962,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_krebsonsecuritycom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_krebsonsecuritycom_rss.xml"
@@ -866,8 +978,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_daringfireballnet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_daringfireballnet_rss.xml"
@@ -880,8 +994,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_ericmigicom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_ericmigicom_rss.xml"
@@ -894,8 +1010,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_antirezcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_antirezcom_rss.xml"
@@ -908,8 +1026,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_idiallocom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_idiallocom_rss.xml"
@@ -922,8 +1042,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_maurycyzcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_maurycyzcom_rss.xml"
@@ -936,8 +1058,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_pluralisticnet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_pluralisticnet_rss.xml"
@@ -950,8 +1074,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_shksprmobi_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_shksprmobi_rss.xml"
@@ -964,8 +1090,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_lcamtufsubstackcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_lcamtufsubstackcom_rss.xml"
@@ -978,8 +1106,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_mitchellhcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_mitchellhcom_rss.xml"
@@ -992,8 +1122,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "life",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_dynomightnet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_dynomightnet_rss.xml"
@@ -1006,8 +1138,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": false,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_utccutorontocacks_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_utccutorontocacks_rss.xml"
@@ -1020,8 +1154,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_xeiasonet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_xeiasonet_rss.xml"
@@ -1034,8 +1170,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_devblogsmicrosoftcomoldnewthing_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_devblogsmicrosoftcomoldnewthing_rss.xml"
@@ -1048,8 +1186,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_rightocom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_rightocom_rss.xml"
@@ -1062,8 +1202,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_lucumrpocooorg_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_lucumrpocooorg_rss.xml"
@@ -1076,8 +1218,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_skyfalldev_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_skyfalldev_rss.xml"
@@ -1090,8 +1234,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_garymarcussubstackcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_garymarcussubstackcom_rss.xml"
@@ -1104,8 +1250,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": false,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_rachelbythebaycom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_rachelbythebaycom_rss.xml"
@@ -1118,8 +1266,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_overreactedio_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_overreactedio_rss.xml"
@@ -1132,8 +1282,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_timshorg_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_timshorg_rss.xml"
@@ -1146,8 +1298,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_johndcookcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_johndcookcom_rss.xml"
@@ -1160,8 +1314,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_gilesthomascom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_gilesthomascom_rss.xml"
@@ -1174,8 +1330,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_matkladgithubio_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_matkladgithubio_rss.xml"
@@ -1188,8 +1346,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_derekthompsonorg_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_derekthompsonorg_rss.xml"
@@ -1202,8 +1362,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_evanhahncom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_evanhahncom_rss.xml"
@@ -1216,8 +1378,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": false,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_terriblesoftwareorg_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_terriblesoftwareorg_rss.xml"
@@ -1230,8 +1394,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "life",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_rakhimexotextcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_rakhimexotextcom_rss.xml"
@@ -1244,8 +1410,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "life",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_joanwestenbergcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_joanwestenbergcom_rss.xml"
@@ -1258,8 +1426,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_xaniaorg_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_xaniaorg_rss.xml"
@@ -1272,8 +1442,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_micahfleecom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_micahfleecom_rss.xml"
@@ -1286,8 +1458,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_nesbittio_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_nesbittio_rss.xml"
@@ -1300,8 +1474,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_construction_physicscom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_construction_physicscom_rss.xml"
@@ -1314,8 +1490,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_tediumco_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_tediumco_rss.xml"
@@ -1328,8 +1506,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_susamnet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_susamnet_rss.xml"
@@ -1342,8 +1522,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_entropicthoughtscom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_entropicthoughtscom_rss.xml"
@@ -1356,8 +1538,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_buttondowncomhillelwayne_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_buttondowncomhillelwayne_rss.xml"
@@ -1370,8 +1554,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_dwarkeshcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_dwarkeshcom_rss.xml"
@@ -1384,8 +1570,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_borrettime_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_borrettime_rss.xml"
@@ -1398,8 +1586,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_wheresyouredat_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_wheresyouredat_rss.xml"
@@ -1412,8 +1602,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_jaydml_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_jaydml_rss.xml"
@@ -1426,8 +1618,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_minimaxircom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_minimaxircom_rss.xml"
@@ -1440,8 +1634,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_geohotgithubio_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_geohotgithubio_rss.xml"
@@ -1454,8 +1650,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_paulgrahamcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_paulgrahamcom_rss.xml"
@@ -1468,8 +1666,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_filfrenet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_filfrenet_rss.xml"
@@ -1482,8 +1682,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_blogjim_nielsencom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_blogjim_nielsencom_rss.xml"
@@ -1496,8 +1698,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_dfarqhomeipnet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_dfarqhomeipnet_rss.xml"
@@ -1510,8 +1714,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_jyndev_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_jyndev_rss.xml"
@@ -1524,8 +1730,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_geoffreylittcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_geoffreylittcom_rss.xml"
@@ -1538,8 +1746,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_downtowndougbrowncom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_downtowndougbrowncom_rss.xml"
@@ -1552,8 +1762,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_brutecatcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_brutecatcom_rss.xml"
@@ -1566,8 +1778,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_elithegreenplacenet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_elithegreenplacenet_rss.xml"
@@ -1580,8 +1794,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_abortretryfail_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_abortretryfail_rss.xml"
@@ -1594,8 +1810,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_fabiensanglardnet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_fabiensanglardnet_rss.xml"
@@ -1608,8 +1826,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_oldvcrblogspotcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_oldvcrblogspotcom_rss.xml"
@@ -1622,8 +1842,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_bogdanthegeekgithubio_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_bogdanthegeekgithubio_rss.xml"
@@ -1636,8 +1858,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_hugotuniusse_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_hugotuniusse_rss.xml"
@@ -1650,8 +1874,10 @@
       "kind": "website",
       "adapterId": "gwern_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "life",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_gwernnet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_gwernnet_rss.xml"
@@ -1664,8 +1890,10 @@
       "kind": "website",
       "adapterId": "questmobile_rss",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/questmobile_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/questmobile_rss.xml"
@@ -1678,8 +1906,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_berthubeu_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_berthubeu_rss.xml"
@@ -1692,8 +1922,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_chadnauseamcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_chadnauseamcom_rss.xml"
@@ -1706,8 +1938,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_simoneorg_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_simoneorg_rss.xml"
@@ -1720,8 +1954,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_it_notesdragasnet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_it_notesdragasnet_rss.xml"
@@ -1734,8 +1970,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_beejus_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_beejus_rss.xml"
@@ -1748,8 +1986,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_heyparis_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_heyparis_rss.xml"
@@ -1762,8 +2002,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_danielwirtzcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_danielwirtzcom_rss.xml"
@@ -1776,8 +2018,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_matduggancom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_matduggancom_rss.xml"
@@ -1790,8 +2034,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_refactoringenglishcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_refactoringenglishcom_rss.xml"
@@ -1804,8 +2050,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_worksonmymachinesubstackcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_worksonmymachinesubstackcom_rss.xml"
@@ -1818,8 +2066,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_philiplainecom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_philiplainecom_rss.xml"
@@ -1832,8 +2082,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": false,
-      "group": "blog",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_steveblankcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_steveblankcom_rss.xml"
@@ -1846,8 +2098,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_bernsteinbearcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_bernsteinbearcom_rss.xml"
@@ -1860,8 +2114,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_danieldelaneynet_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_danieldelaneynet_rss.xml"
@@ -1874,8 +2130,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_troyhuntcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_troyhuntcom_rss.xml"
@@ -1888,8 +2146,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "life",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_hermanbearblogdev_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_hermanbearblogdev_rss.xml"
@@ -1902,8 +2162,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_tomrennercom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_tomrennercom_rss.xml"
@@ -1916,8 +2178,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_blogpixelmeltdev_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_blogpixelmeltdev_rss.xml"
@@ -1930,8 +2194,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_martinaldersoncom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_martinaldersoncom_rss.xml"
@@ -1944,8 +2210,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_danielchasehoopercom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_danielchasehoopercom_rss.xml"
@@ -1958,8 +2226,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_chiarkgreenendorguksgtatham_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_chiarkgreenendorguksgtatham_rss.xml"
@@ -1972,8 +2242,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_grantslattoncom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_grantslattoncom_rss.xml"
@@ -1986,8 +2258,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "life",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_experimental_historycom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_experimental_historycom_rss.xml"
@@ -2000,8 +2274,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_anildashcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_anildashcom_rss.xml"
@@ -2014,8 +2290,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_areslunaorg_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_areslunaorg_rss.xml"
@@ -2028,8 +2306,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_michaelstapelbergch_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_michaelstapelbergch_rss.xml"
@@ -2042,8 +2322,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_miguelgrinbergcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_miguelgrinbergcom_rss.xml"
@@ -2056,8 +2338,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_keygensh_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_keygensh_rss.xml"
@@ -2070,8 +2354,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_mjg59dreamwidthorg_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_mjg59dreamwidthorg_rss.xml"
@@ -2084,8 +2370,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_computerrip_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_computerrip_rss.xml"
@@ -2098,8 +2386,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": false,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": [
         "https://raw.githubusercontent.com/SebastianLavertheDe/blog-rss-feed/main/rss/hn_tedunangstcom_rss.xml",
         "https://github.com/SebastianLavertheDe/blog-rss-feed/blob/main/rss/hn_tedunangstcom_rss.xml"
@@ -2112,8 +2402,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "blog",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "blog"
+      ],
       "legacyAliases": []
     },
     {
@@ -2123,8 +2415,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2134,8 +2428,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2145,8 +2441,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2156,8 +2454,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2167,8 +2467,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2178,8 +2480,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2189,8 +2493,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2200,8 +2506,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2211,8 +2519,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2222,8 +2532,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2233,8 +2545,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2244,8 +2558,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2255,8 +2571,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2266,8 +2584,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2277,8 +2597,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2288,8 +2610,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2299,8 +2623,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2310,8 +2636,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2321,8 +2649,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2332,8 +2662,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2343,8 +2675,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2354,8 +2688,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2365,8 +2701,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2376,8 +2714,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2387,8 +2727,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2398,8 +2740,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2409,8 +2753,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2420,8 +2766,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2431,8 +2779,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2442,8 +2792,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2453,8 +2805,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2464,8 +2818,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2475,8 +2831,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2486,8 +2844,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2497,8 +2857,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2508,8 +2870,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2519,8 +2883,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2530,8 +2896,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2541,8 +2909,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2552,8 +2922,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2563,8 +2935,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2574,8 +2948,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2585,8 +2961,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2596,8 +2974,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2607,8 +2987,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2618,8 +3000,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2629,8 +3013,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "product",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2640,8 +3026,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2651,8 +3039,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2662,8 +3052,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2673,8 +3065,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2684,8 +3078,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2695,8 +3091,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2706,8 +3104,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2717,8 +3117,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2728,8 +3130,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2739,8 +3143,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2750,8 +3156,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2761,8 +3169,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2772,8 +3182,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2783,8 +3195,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2794,8 +3208,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2805,8 +3221,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2816,8 +3234,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2827,8 +3247,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2838,8 +3260,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "agents",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2849,8 +3273,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2860,8 +3286,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2871,8 +3299,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2882,8 +3312,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2893,8 +3325,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "life",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2904,8 +3338,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2915,8 +3351,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "business",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2926,8 +3364,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2937,8 +3377,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "ai",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2948,8 +3390,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2959,8 +3403,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "engineering",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2970,8 +3416,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2981,8 +3429,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -2992,8 +3442,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "prompts",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     },
     {
@@ -3003,8 +3455,10 @@
       "kind": "feed",
       "adapterId": "feed",
       "enabled": true,
-      "group": "WeChat",
-      "tags": [],
+      "group": "tech",
+      "tags": [
+        "WeChat"
+      ],
       "legacyAliases": []
     }
   ]

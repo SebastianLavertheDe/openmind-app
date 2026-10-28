@@ -8,6 +8,7 @@ import { useLocale } from "../../i18n";
 import { AutomationPage } from "../automation";
 import { DailyPreferences } from "./DailyPreferences";
 import { RssSourceCard } from "./RssSourceCard";
+import { RssCategoryIcon } from "./RssCategoryIcon";
 import { RssSourceDetails, type SourceSelection } from "./RssSourceDetails";
 import { ALL_CATEGORY, selectSources, type SourceFilter, type SourceSort } from "./rss-source-presentation";
 
@@ -45,8 +46,8 @@ export function SourcesPage({ presentation = "page", onRuns }: { presentation?: 
     catch (cause) { if (alive.current) { const message = String(cause instanceof Error ? cause.message : cause); setError(message); feedback.notify(message, "error"); } return false; }
     finally { pending.current.delete(key); if (alive.current) setRequests(current => { const next = { ...current }; delete next[key]; return next; }); }
   };
-  const run = (mode: RssRunInput["mode"], sourceId?: string) => void action(sourceId ? `source:${sourceId}` : "global", mode, async () => {
-    await window.openmind.runRss({ mode, ...(sourceId ? { sourceId } : {}) });
+  const run = (mode: RssRunInput["mode"], sourceId: string) => void action(`source:${sourceId}`, mode, async () => {
+    await window.openmind.runRss({ mode, sourceId });
     if (alive.current) feedback.notify(m.rss.queued, "success");
   });
   const toggle = (row: RssSourceView) => void action(`source:${row.id}`, "toggle", () => window.openmind.editRssSource({ id: row.id, revision: row.revision, enabled: !row.enabled }));
@@ -63,7 +64,6 @@ export function SourcesPage({ presentation = "page", onRuns }: { presentation?: 
     triggerRef.current = trigger;
     setSelection({ id, mode, fromDetails: false, error, token: ++selectionSequence.current });
   };
-  const globalBusy = Boolean(requests.global);
   const clear = () => { setQuery(""); setFilter("all"); setCategory(ALL_CATEGORY); };
   return <section className={presentation === "settings" ? "rss-sources rss-sources-settings" : presentation === "embedded" ? "rss-sources rss-sources-embedded" : "rss-sources"}>
     {presentation !== "settings" ? <header className="rss-header"><div><h1>{m.rss.title}</h1><p>{m.rss.description}</p></div></header> : null}
@@ -72,16 +72,15 @@ export function SourcesPage({ presentation = "page", onRuns }: { presentation?: 
       <Button loading={requests.import === "import"} disabled={Boolean(requests.import)} onClick={() => void action("import", "import", () => window.openmind.importRssOpml())}>{m.rss.import}</Button>
       <IconButton label={m.rss.refresh} onClick={() => void load()}><RefreshCw size={16} /></IconButton>
     </div></div>
-    <div className="rss-category-scroll" onFocusCapture={event => { if (event.target.getAttribute("role") === "tab") event.target.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }}><Tabs variant="pill" value={selected} tabs={tabs} onChange={setCategory} label={m.rss.categories} /></div>
+    <div className="rss-category-scroll" onFocusCapture={event => { if (event.target.getAttribute("role") === "tab") event.target.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }}><Tabs variant="pill" value={selected} tabs={tabs.map(tab => ({ ...tab, icon: <RssCategoryIcon category={tab.value.startsWith("group:") ? tab.value.slice(6) : tab.value} />, label: <span className="rss-category-label" title={tab.label}>{tab.label}</span> }))} onChange={setCategory} label={m.rss.categories} /></div>
     <div className="rss-results-toolbar"><h2 ref={resultsRef} tabIndex={-1} className="rss-results-title">{m.rss.results(rows.length, document?.sources.length || 0)}</h2><div className="rss-actions">
       <Select<SourceFilter> value={filter} onChange={setFilter} ariaLabel={m.rss.status} options={[{ value: "all", label: m.rss.all }, { value: "enabled", label: m.rss.enabled }, { value: "disabled", label: m.rss.disabled }, { value: "failed", label: m.rss.failed }, { value: "pending", label: m.rss.pending }]} />
       <Select<SourceSort> value={sort} onChange={setSort} ariaLabel={m.rss.sort} options={[{ value: "default", label: m.rss.defaultOrder }, { value: "name", label: m.rss.nameOrder }, { value: "recent", label: m.rss.recentOrder }]} />
     </div></div>
-    <div className="rss-global-actions"><p className="rss-muted">{m.rss.globalScope}</p><div className="rss-actions">
-      <Button loading={requests.global === "sync"} disabled={globalBusy} onClick={() => run("sync")}>{m.rss.sync}</Button><Button loading={requests.global === "collect"} disabled={globalBusy} onClick={() => run("collect")}>{m.rss.collect}</Button><Button loading={requests.global === "pipeline"} disabled={globalBusy} onClick={() => run("pipeline")}>{m.rss.pipeline}</Button>
+    <div className="rss-actions">
       <Button disabled={Boolean(requests.tasks)} onClick={() => void action("tasks", "tasks", async () => { if (!await window.openmind.getDefaultSkillsEnabled()) await window.openmind.setDefaultSkillsEnabled(true); if (alive.current) setTasks(true); })}>{m.rss.tasks}</Button>
       {onRuns ? <Button onClick={onRuns}>{m.rss.runs}</Button> : null}<DailyPreferences />
-    </div></div>
+    </div>
     {error ? <ErrorState message={error} retry={() => void load()} /> : null}
     {document?.migrationWarnings.map(warning => <p key={warning}>{warning}</p>)}
     {!document && !error ? <LoadingState /> : null}

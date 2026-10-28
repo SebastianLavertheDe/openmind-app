@@ -5,8 +5,8 @@ import type { DesktopApi } from "../../shared/contracts";
 
 export function installRssCatalogApi() {
   let document: RssDocumentView = { schemaVersion: 1, initialized: true, revision: 1, rootKey: "catalog-root", deletedPresetIds: [], migrationWarnings: [], sources: [
-    { id: "design", name: "Design research", group: "blog", enabled: true, itemCount: 120, lastSyncAt: "2026-10-28T08:00:00Z", lastError: { stage: "collect", code: "access-denied", message: "HTTP 403 returned by the article endpoint. No login requirement inferred.", retryable: false } },
-    { id: "wechat", name: "WeChat publications", group: "WeChat", enabled: true },
+    { id: "design", name: "Design research", group: "product", enabled: true, itemCount: 120, lastSyncAt: "2026-10-28T08:00:00Z", lastError: { stage: "collect", code: "access-denied", message: "HTTP 403 returned by the article endpoint. No login requirement inferred.", retryable: false } },
+    { id: "wechat", name: "Agent workflows", group: "agents", enabled: true },
     { id: "custom", name: "A deliberately long research source name that remains accessible in full", group: "Custom OPML research group with a long preserved name", enabled: false },
     { id: "ungrouped", name: "An uncategorized feed", group: "", enabled: true },
     { id: "pending", name: "Source awaiting setup", group: "", enabled: false, inputUrl: "" }

@@ -6,6 +6,7 @@ import { RssDocumentSchema, RssSourceSchema, rssUrlIdentity, type RssCatalog, ty
 import { DailyBriefPreferencesSchema, SaveDailyBriefPreferencesSchema, type DailyBriefPreferences } from "../../shared/daily-brief-preferences";
 import { writeJsonAtomic } from "../lib/fs-utils";
 import { rssPrivateDirectory, withRssLock } from "./file-lock";
+import { legacyRssChannel, normalizeRssGroup } from "../../shared/rss-categories";
 
 export class RssRepository {
   readonly directory: string;
@@ -19,7 +20,7 @@ export class RssRepository {
       if (fs.existsSync(this.file)) return this.load();
       const persistent = path.join(this.directory, "subscriptions.opml");
       const legacy = fs.existsSync(persistent) ? persistent : path.join(this.root, ".agent", "skills", "rss-article-saver", "subscriptions.opml");
-      const document: RssDocument = { schemaVersion: 1, initialized: true, revision: 1, sources: [], deletedPresetIds: [], migrationWarnings: [] };
+      const document: RssDocument = { schemaVersion: 1, initialized: true, categoryVersion: 1, revision: 1, sources: [], deletedPresetIds: [], migrationWarnings: [] };
       if (fs.existsSync(legacy)) {
         const sources = this.parseOpml(legacy, path.join(this.root, ".agent", "skills", "rss-article-saver"));
         const settings = this.legacySettings();
@@ -37,7 +38,27 @@ export class RssRepository {
       writeJsonAtomic(this.file, document);
       return document;
     });
-    return this.load();
+    const current = this.load();
+    if (current.categoryVersion === 1) return current;
+    return withRssLock(this.directory, "registry", () => {
+      const document = this.load();
+      if (document.categoryVersion === 1) return document;
+      for (const source of document.sources) {
+        const channel = legacyRssChannel(source.group);
+        if (!channel) continue; // Preserve custom topics and explicitly uncategorized sources.
+        const preset = this.catalog.sources.find(row => row.inputUrl && source.inputUrl && rssUrlIdentity(row.inputUrl) === rssUrlIdentity(source.inputUrl));
+        const group = preset && !legacyRssChannel(preset.group) ? preset.group : "";
+        const feedWasCurrent = source.feedRevision === source.revision;
+        source.group = group;
+        source.tags = [...new Set([...source.tags, channel])].slice(0, 30);
+        source.revision++;
+        if (feedWasCurrent) source.feedRevision = source.revision;
+      }
+      document.categoryVersion = 1;
+      document.revision++;
+      writeJsonAtomic(this.file, document);
+      return document;
+    });
   }
   private load(): RssDocument { return RssDocumentSchema.parse(JSON.parse(fs.readFileSync(this.file, "utf8"))); }
   rootKey(): string { return crypto.createHash("sha256").update(fs.realpathSync(this.root)).digest("hex"); }
@@ -58,7 +79,8 @@ export class RssRepository {
     return this.mutate(doc => {
       this.assertUnique(doc, input.inputUrl);
       const preset = this.catalog.sources.find(row => row.inputUrl && rssUrlIdentity(row.inputUrl) === rssUrlIdentity(input.inputUrl));
-      doc.sources.push(RssSourceSchema.parse({ ...detected, ...input, id: crypto.randomUUID(), presetId: preset?.id || null, revision: 1 }));
+      const group = normalizeRssGroup(input.group ?? preset?.group ?? "", doc.sources.map(row => row.group));
+      doc.sources.push(RssSourceSchema.parse({ ...detected, ...input, group, id: crypto.randomUUID(), presetId: preset?.id || null, revision: 1 }));
       if (preset) doc.deletedPresetIds = doc.deletedPresetIds.filter(id => id !== preset.id);
     });
   }
@@ -68,7 +90,7 @@ export class RssRepository {
       if (!row || row.revision !== input.revision) throw new Error("RSS source changed; refresh and retry.");
       if (input.inputUrl) this.assertUnique(doc, input.inputUrl, row.id);
       const feedWasCurrent = row.feedRevision === row.revision;
-      Object.assign(row, detected || {}, { ...(input.name !== undefined ? { name: input.name } : {}), ...(input.group !== undefined ? { group: input.group } : {}), ...(input.enabled !== undefined ? { enabled: input.enabled } : {}) });
+      Object.assign(row, detected || {}, { ...(input.name !== undefined ? { name: input.name } : {}), ...(input.group !== undefined ? { group: normalizeRssGroup(input.group, doc.sources.map(source => source.group)) } : {}), ...(input.enabled !== undefined ? { enabled: input.enabled } : {}) });
       row.revision++;
       if (detected) row.lastError = null;
       // A renamed/toggled source can still use its current XML, but changing
@@ -108,6 +130,9 @@ export class RssRepository {
   }
   private fromUrl(name: string, originalUrl: string, enabled: boolean, group = "", tags: string[] = []): RssSource {
     const preset = this.catalog.sources.find(row => row.legacyAliases.includes(originalUrl) || row.inputUrl && rssUrlIdentity(row.inputUrl) === rssUrlIdentity(originalUrl));
+    const channel = legacyRssChannel(group);
+    if (channel) tags = [...new Set([...tags, channel])].slice(0, 30);
+    if (!group.trim() || channel) group = preset && !legacyRssChannel(preset.group) ? preset.group : "";
     const unresolved = !preset && /^https:\/\/(?:raw\.githubusercontent\.com\/SebastianLavertheDe\/blog-rss-feed\/|github\.com\/SebastianLavertheDe\/blog-rss-feed\/)/i.test(originalUrl);
     return RssSourceSchema.parse({ id: preset?.id || crypto.randomUUID(), name, inputUrl: preset?.inputUrl ?? (unresolved ? "" : originalUrl), kind: preset?.kind || "feed", adapterId: preset?.adapterId || "feed", presetId: preset?.id || null, enabled: enabled && !unresolved, revision: 1, group, tags, lastError: unresolved ? { stage: "configuration", code: "unmapped-source", message: "Original source address is missing; enter the original website or RSS URL.", retryable: false } : null });
   }

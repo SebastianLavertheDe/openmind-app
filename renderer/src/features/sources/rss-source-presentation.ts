@@ -1,26 +1,31 @@
 import type { RssSourceView } from "@shared/rss-contracts";
 import { getLocale, messages as m } from "@shared/messages";
+import { isRssTopic, RSS_TOPIC_IDS, rssGroupIdentity } from "@shared/rss-categories";
 
 export type SourceFilter = "all" | "enabled" | "disabled" | "failed" | "pending";
 export type SourceSort = "default" | "name" | "recent";
 export const ALL_CATEGORY = "scope:all";
 export const UNGROUPED_CATEGORY = "scope:ungrouped";
 export const categoryId = (group: string) => group.trim() ? `group:${group}` : UNGROUPED_CATEGORY;
-export const categoryLabel = (group: string) => !group.trim() ? m.rss.ungrouped : group === "blog" ? m.rss.blog : group === "WeChat" ? m.rss.wechat : group;
+export const categoryLabel = (group: string) => !group.trim() ? m.rss.ungrouped : isRssTopic(group) ? m.rss.topicLabels[group] : group === "blog" ? m.rss.blog : group === "WeChat" ? m.rss.wechat : group;
 export const needsSetup = (source: RssSourceView) => !source.inputUrl || source.lastError?.stage === "configuration";
 export function sourceGroups(sources: RssSourceView[]): string[] {
-  return [...new Set(sources.map(source => source.group).filter(group => group.trim()))].sort((a, b) => {
-    const rank = (value: string) => value === "blog" ? 0 : value === "WeChat" ? 1 : 2;
+  return [...RSS_TOPIC_IDS, ...new Set(sources.map(source => source.group).filter(group => group.trim() && !isRssTopic(group)))].sort((a, b) => {
+    const rank = (value: string) => isRssTopic(value) ? RSS_TOPIC_IDS.indexOf(value) : RSS_TOPIC_IDS.length;
     return rank(a) - rank(b) || a.localeCompare(b, getLocale());
   });
 }
+export function existingCategory(name: string, groups: string[]): string | undefined {
+  const identity = rssGroupIdentity(name);
+  return groups.find(group => rssGroupIdentity(group) === identity || rssGroupIdentity(categoryLabel(group)) === identity);
+}
 export function selectSources(sources: RssSourceView[], query: string, filter: SourceFilter, category: string, sort: SourceSort) {
   const search = query.trim().toLocaleLowerCase();
-  const matching = sources.filter(source => `${source.name} ${source.inputUrl} ${source.tags.join(" ")} ${source.group}`.toLocaleLowerCase().includes(search) &&
+  const matching = sources.filter(source => `${source.name} ${source.inputUrl} ${source.tags.join(" ")} ${source.group} ${categoryLabel(source.group)}`.toLocaleLowerCase().includes(search) &&
     (filter === "all" || filter === "enabled" && source.enabled || filter === "disabled" && !source.enabled || filter === "failed" && Boolean(source.lastError) || filter === "pending" && needsSetup(source)));
   const ids = [ALL_CATEGORY, ...sourceGroups(sources).map(categoryId), ...(sources.some(source => !source.group.trim()) ? [UNGROUPED_CATEGORY] : [])];
   const selected = ids.includes(category) ? category : ALL_CATEGORY;
-  const tabs = ids.map(value => ({ value, label: value === ALL_CATEGORY ? m.rss.all : value === UNGROUPED_CATEGORY ? m.rss.ungrouped : categoryLabel(value.slice(6)), count: matching.filter(source => value === ALL_CATEGORY || categoryId(source.group) === value).length }));
+  const tabs = ids.map(value => ({ value, label: value === ALL_CATEGORY ? m.rss.all : value === UNGROUPED_CATEGORY ? m.rss.ungrouped : categoryLabel(value.slice(6)) }));
   const rows = matching.filter(source => selected === ALL_CATEGORY || categoryId(source.group) === selected);
   if (sort !== "default") rows.sort((a, b) => (sort === "name" ? a.name.localeCompare(b.name, getLocale()) : timestamp(b.lastSyncAt) - timestamp(a.lastSyncAt)) || a.id.localeCompare(b.id));
   return { tabs, rows, selected };

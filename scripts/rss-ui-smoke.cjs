@@ -20,20 +20,52 @@ app.whenReady().then(async () => {
   win.webContents.on('console-message', (_event, _level, message) => { if (message.includes('Error') || message.includes('Missing')) console.error(message); });
   const js = code => win.webContents.executeJavaScript(code, true);
   const ready = selector => js(`new Promise((resolve, reject) => { const until = Date.now() + 10000; const check = () => { if (document.querySelector(${JSON.stringify(selector)})) return resolve(); if (Date.now() > until) return reject(new Error('Missing ${selector}')); setTimeout(check, 30); }; check(); })`);
+  const readyCount = count => js(`new Promise((resolve, reject) => { const until = Date.now() + 10000; const check = () => { if (document.querySelectorAll('.rss-source-card').length === ${count}) return resolve(); if (Date.now() > until) return reject(new Error('Expected ${count} source cards')); setTimeout(check, 30); }; check(); })`);
   const click = text => js(`(() => { const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(text)} || button.getAttribute('aria-label') === ${JSON.stringify(text)}); if (!button) throw new Error('Missing button: ' + ${JSON.stringify(text)}); button.click(); })()`);
   const dialogClick = text => js(`(() => { const button = [...document.querySelectorAll('.rss-detail-dialog button')].find(button => button.textContent.trim() === ${JSON.stringify(text)} || button.getAttribute('aria-label') === ${JSON.stringify(text)}); if (!button) throw new Error('Missing dialog action: ' + ${JSON.stringify(text)}); button.click(); })()`);
   const capture = async name => { await js('new Promise(resolve => setTimeout(resolve, 650))'); fs.writeFileSync(path.join(output, name + '.png'), (await win.webContents.capturePage()).toPNG()); };
+  const input = async (selector, value) => js(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await win.loadFile(path.join(root, '.build/renderer/index.html')); await ready('.app-nav');
   assert.equal(await js("!!document.querySelector('.app-nav button[aria-label=\"RSS 源\"]')"), false, 'RSS must not remain in the primary sidebar');
   await click('设置'); await ready('.settings-navigation'); await click('RSS 源'); await ready('.rss-source-card');
   assert.ok(await js("document.querySelector('.settings-page').dataset.settingsSection === 'sources' && document.querySelector('.settings-nav-button[data-section-id=\"sources\"]').getAttribute('aria-current') === 'page' && !document.querySelector('.app-nav')"), 'RSS sources must open in the dedicated settings shell');
   assert.equal(await js("[...document.querySelectorAll('h1')].filter(node => node.textContent.trim() === 'RSS 源').length"), 1, 'RSS settings must have one page heading');
+  const captures = [];
+  const fixtureSources = await js('window.openmind.getRssSources().then(document => document.sources)');
+  const replaceSources = async sources => {
+    await js(`(async () => { const document = await window.openmind.getRssSources(); for (const source of document.sources) await window.openmind.removeRssSource(source); for (const source of ${JSON.stringify(sources)}) await window.openmind.createRssSource(source); })()`);
+    await click('刷新'); await readyCount(sources.length);
+  };
+  // Show actual public definitions, without fetching feeds or reading user data.
+  const catalog = JSON.parse(fs.readFileSync(path.join(root, 'config/rss-sources/catalog.json'), 'utf8'));
+  await replaceSources(catalog.sources.map(source => ({ ...source, enabled: false })));
+  assert.equal(await js("document.querySelectorAll('.rss-category-scroll [role=tab]').length"), 9, '227 sources should use eight topics plus All');
+  for (const theme of ['light', 'dark']) for (const width of [720, 1280]) {
+    win.setContentSize(width, 900); await js(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
+    const name = `catalog-sources-${theme}-${width}`; await capture(name); captures.push(name);
+    assert.ok(await js("document.querySelector('.rss-sources').scrollWidth <= document.querySelector('.rss-sources').clientWidth + 2"), 'Public catalog must fit the page');
+  }
+  win.setContentSize(1280, 900); await js("document.documentElement.dataset.theme = 'light'");
+  await click('添加源'); await ready('.rss-editor');
+  await input('.rss-editor input:not([type="url"])', 'Photography journal');
+  await input('.rss-editor input[type="url"]', 'https://photography.example/feed');
+  await js("document.querySelector('.rss-editor button[aria-haspopup=\"listbox\"]').click()"); await ready('[role="listbox"]');
+  await capture('category-picker'); captures.push('category-picker');
+  await click('新建分类…'); await ready('.rss-editor input[placeholder="例如：摄影、阅读"]');
+  await input('.rss-editor input[placeholder="例如：摄影、阅读"]', '摄影');
+  await click('检测链接'); await js('new Promise(resolve => setTimeout(resolve, 100))');
+  await capture('category-create'); captures.push('category-create');
+  await click('保存'); await ready('.rss-source-card:nth-child(228)');
+  await js("[...document.querySelectorAll('.rss-category-scroll [role=tab]')].find(tab => tab.textContent === '摄影').click()");
+  assert.equal(await js("document.querySelectorAll('.rss-source-card').length"), 1);
+  assert.ok(await js("document.querySelector('.rss-source-card').textContent.includes('Photography journal')"));
+  await replaceSources(fixtureSources);
   // Exercise real overflow: a short fixture cannot expose a shrinking Flex list.
   await js(`(async () => {
-    for (let index = 0; index < 210; index++) await window.openmind.createRssSource({ name: 'Layout source ' + index, inputUrl: 'https://layout.example/feed/' + index + '/long-path'.repeat(12), group: index % 3 ? 'Long custom OPML category '.repeat(6) : '', enabled: false });
+    const topics = ['ai', 'agents', 'prompts', 'engineering', 'business', 'tech', 'life'];
+    for (let index = 0; index < 210; index++) await window.openmind.createRssSource({ name: 'Layout source ' + index, inputUrl: 'https://layout.example/feed/' + index + '/long-path'.repeat(12), group: index === 208 ? 'Long custom OPML category '.repeat(6) : index === 209 ? '' : topics[index % topics.length], enabled: false });
   })()`);
   await click('刷新'); await ready('.rss-source-card:nth-child(213)');
-  const captures = [];
   for (const theme of ['light', 'dark']) for (const width of [720, 1280]) {
     win.setContentSize(width, 900);
     await js(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
@@ -55,12 +87,12 @@ app.whenReady().then(async () => {
     assert.ok(geometry.scrollable, 'The page must scroll through the long source list');
   }
   win.setContentSize(1280, 900);
-  await js(`document.querySelector('.rss-category-scroll [data-value="group:blog"]').click()`);
+  await js(`document.querySelector('.rss-category-scroll [data-value="group:product"]').click()`);
   assert.equal(await js("document.querySelectorAll('.rss-source-card').length"), 1);
-  await click('更新并采集'); await js('new Promise(resolve => setTimeout(resolve, 100))');
+  assert.deepEqual(await js("[...document.querySelectorAll('.rss-sources > .rss-actions button')].map(button => button.textContent.trim())"), ['定时任务', '运行记录', '总结与选题偏好']);
   await click('更新并采集: Design research'); await js('new Promise(resolve => setTimeout(resolve, 100))');
   const runs = await js("window.openmind.getRssFixtureCalls().then(calls => calls.filter(call => call.method === 'run'))");
-  assert.deepEqual(runs.map(run => run.sourceId || null), [null, 'design'], 'Filtering must not change global scope; card actions must pass sourceId');
+  assert.deepEqual(runs.map(run => run.sourceId), ['design'], 'Manual card actions must pass sourceId');
   assert.ok(await js("document.querySelector('.rss-source-card').textContent.includes('RSS 已就绪') && document.querySelector('.rss-source-card').textContent.includes('正文采集失败')"));
   // Roving keyboard selection also keeps the final long category inside its scroll container.
   await js(`document.querySelector('.rss-category-scroll [role="tab"][aria-selected="true"]').focus()`);
@@ -111,7 +143,6 @@ app.whenReady().then(async () => {
   await click('取消'); await js('new Promise(resolve => setTimeout(resolve, 650))');
   win.setContentSize(1000, 900);
   await click('添加源'); await ready('[role="dialog"] input[type="url"]');
-  const input = async (selector, value) => js(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(value)}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await input('[role="dialog"] input:not([type="url"])', 'New research feed');
   await input('[role="dialog"] input[type="url"]', 'https://invalid.example/feed');
   await click('检测链接'); await js('new Promise(resolve => setTimeout(resolve, 100))');
@@ -131,6 +162,6 @@ app.whenReady().then(async () => {
   assert.equal(await js("document.querySelector('.settings-page').dataset.settingsSection"), 'sources');
   await click('返回应用'); await ready('.app-nav');
   assert.equal(await js("!!document.querySelector('.settings-page')"), false, 'Settings must return to the original application page');
-  const report = { platform: process.platform, captures, settingsNavigation: true, convertedRssLocation: true, addErrorRetry: true, preferences: true, keyboard: true, longListLayout: true, categories: true, scopedTasks: true, detailTabs: true, sharedEditShell: true, sourceCount: 213, filtering, overflow: false };
+  const report = { platform: process.platform, captures, settingsNavigation: true, convertedRssLocation: true, addErrorRetry: true, preferences: true, keyboard: true, longListLayout: true, categories: true, categoryCreation: true, catalogSources: catalog.sources.length, catalogTopics: 8, scopedTasks: true, detailTabs: true, sharedEditShell: true, sourceCount: 213, filtering, overflow: false };
   fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report)); win.destroy();
 }).catch(error => { console.error(error); process.exitCode = 1; }).finally(() => { for (const win of BrowserWindow.getAllWindows()) win.destroy(); app.quit(); });

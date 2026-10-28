@@ -1,7 +1,9 @@
 export const rssMessages = { rss: {
   category: "Category", categories: "Source categories", blog: "Blogs and websites", wechat: "WeChat", ungrouped: "Uncategorized",
+  topicLabels: { ai: "AI", agents: "Agents", prompts: "Prompts", engineering: "Engineering", product: "Design", business: "Business", tech: "Technology", life: "Life" },
+  newCategory: "Create category…", categoryName: "New category name", categoryPlaceholder: "For example, photography or books", categoryHint: "Choose a topic or create one when saving this source.", categoryReuse: (name: string) => `The existing “${name}” category will be used.`,
   sort: "Sort sources", defaultOrder: "Default order", nameOrder: "Name", recentOrder: "Latest RSS update", clearFilters: "Clear filters", results: (shown: number, total: number) => `${shown} / ${total} sources`,
-  globalScope: "Applies to all enabled sources, including those outside the current filters.", more: "More actions", details: "View details", overview: "Overview", entries: "RSS entries",
+  more: "More actions", details: "View details", overview: "Overview", entries: "RSS entries",
   rssReady: "RSS ready", rssMissing: "RSS not generated", rssOutdated: "RSS needs updating", syncTime: "Last RSS update", collectTime: "Last article collection", rssItems: (n: number) => `${n} RSS entries`,
   syncFailed: "RSS update failed", collectFailed: "Article collection failed", configurationFailed: "Source needs setup", detectFailed: "Feed detection failed", accessDenied: "Access was denied", previousError: "Last attempt", technicalError: "Technical details",
   resolvedUrl: "Detected RSS URL", localFile: "Local RSS file used for collection", lastAttempt: "Last attempt", stage: "Stage", tags: "Tags", unknown: "Unknown", copy: "Copy", deleted: "This source has been deleted.",

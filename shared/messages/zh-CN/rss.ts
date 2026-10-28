@@ -1,7 +1,9 @@
 export const rssMessages = { rss: {
   category: "分类", categories: "源分类", blog: "博客与网站", wechat: "公众号", ungrouped: "未分类",
+  topicLabels: { ai: "AI", agents: "Agent", prompts: "Prompt", engineering: "编程技术", product: "产品设计", business: "商业创业", tech: "科技资讯", life: "生活思考" },
+  newCategory: "新建分类…", categoryName: "新分类名称", categoryPlaceholder: "例如：摄影、阅读", categoryHint: "选择已有主题，或在保存来源时创建新分类。", categoryReuse: (name: string) => `将使用已有的「${name}」分类。`,
   sort: "源排序", defaultOrder: "默认顺序", nameOrder: "名称", recentOrder: "最近 RSS 更新", clearFilters: "清除筛选", results: (shown: number, total: number) => `${shown} / ${total} 个源`,
-  globalScope: "作用于全部已启用源，包含当前筛选之外的源。", more: "更多操作", details: "查看详情", overview: "概览", entries: "RSS 条目",
+  more: "更多操作", details: "查看详情", overview: "概览", entries: "RSS 条目",
   rssReady: "RSS 已就绪", rssMissing: "RSS 尚未生成", rssOutdated: "RSS 需要更新", syncTime: "最近 RSS 更新", collectTime: "最近正文采集", rssItems: (n: number) => `${n} 条 RSS 条目`,
   syncFailed: "RSS 更新失败", collectFailed: "正文采集失败", configurationFailed: "源待配置", detectFailed: "链接检测失败", accessDenied: "访问被拒绝", previousError: "上次运行结果", technicalError: "技术详情",
   resolvedUrl: "识别出的 RSS 网址", localFile: "采集使用的本地 RSS 文件", lastAttempt: "最近尝试", stage: "阶段", tags: "标签", unknown: "未知", copy: "复制", deleted: "该源已被删除。",

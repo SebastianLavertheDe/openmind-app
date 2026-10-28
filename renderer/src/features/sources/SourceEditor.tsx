@@ -4,7 +4,9 @@ import { messages as m } from "@shared/messages";
 import { Button, DialogBody, DialogFooter, FormField, Input, Select, Textarea } from "../../design-system/components";
 import { useFeedback } from "../../feedback-context";
 import { useBeforeSessionNavigation } from "../../app/session-navigation";
-import { categoryLabel } from "./rss-source-presentation";
+import { categoryId, categoryLabel, existingCategory, UNGROUPED_CATEGORY } from "./rss-source-presentation";
+
+const CREATE_CATEGORY = "action:create-category";
 
 export function SourceEditor({ source, groups, onSaved, onCancel, guard, onBusy }: {
   source: RssSourceView | null; groups: string[]; onSaved(): Promise<void>; onCancel(): void;
@@ -16,6 +18,8 @@ export function SourceEditor({ source, groups, onSaved, onCancel, guard, onBusy 
   const [name, setName] = useState(initial?.name || "");
   const [url, setUrl] = useState(initial?.inputUrl || "");
   const [group, setGroup] = useState(initial?.group || "");
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
   const [candidate, setCandidate] = useState("");
   const [detected, setDetected] = useState<RssDetection | null>(null);
   const [validated, setValidated] = useState(false);
@@ -25,7 +29,11 @@ export function SourceEditor({ source, groups, onSaved, onCancel, guard, onBusy 
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const busy = detecting || saving;
-  const dirty = name !== (initial?.name || "") || url !== (initial?.inputUrl || "") || group !== (initial?.group || "") || Boolean(candidate);
+  const groupOptions = [...new Set(["", ...groups, group])];
+  const matchingCategory = existingCategory(newCategory, groupOptions.filter(Boolean));
+  const savedGroup = creatingCategory ? matchingCategory ?? newCategory.trim() : group;
+  const categoryValid = !creatingCategory || Boolean(newCategory.trim());
+  const dirty = name !== (initial?.name || "") || url !== (initial?.inputUrl || "") || group !== (initial?.group || "") || creatingCategory && Boolean(newCategory) || Boolean(candidate);
   const canLeave = useCallback(async () => !busy && (!dirty || await feedback.confirm({ title: m.rss.discard, body: m.rss.discardBody, confirmText: m.rss.cancel, danger: true })), [busy, dirty, feedback]);
   useBeforeSessionNavigation(canLeave);
   useEffect(() => { guard.current = canLeave; return () => { guard.current = async () => true; }; }, [canLeave, guard]);
@@ -40,11 +48,11 @@ export function SourceEditor({ source, groups, onSaved, onCancel, guard, onBusy 
   };
   const needsDetection = !initial || url !== initial.inputUrl || Boolean(candidate);
   const save = async () => {
-    if (busy || !name.trim() || !url.trim() || needsDetection && !validated) return;
+    if (busy || !name.trim() || !url.trim() || !categoryValid || needsDetection && !validated) return;
     setSaving(true); setError("");
     try {
-      const input = { name, inputUrl: url, group, ...(candidate ? { selectedFeedUrl: candidate } : {}) };
-      if (initial) await window.openmind.editRssSource({ id: initial.id, revision: initial.revision, name, group, ...(needsDetection ? input : {}) });
+      const input = { name, inputUrl: url, group: savedGroup, ...(candidate ? { selectedFeedUrl: candidate } : {}) };
+      if (initial) await window.openmind.editRssSource({ id: initial.id, revision: initial.revision, name, group: savedGroup, ...(needsDetection ? input : {}) });
       else await window.openmind.createRssSource({ ...input, enabled: true });
       if (alive.current) await onSaved();
     } catch (cause) { if (alive.current) setError(String(cause instanceof Error ? cause.message : cause)); }
@@ -55,12 +63,13 @@ export function SourceEditor({ source, groups, onSaved, onCancel, guard, onBusy 
     <DialogBody className="rss-detail-body">
       <FormField label={m.rss.name}><Input value={name} disabled={busy} maxLength={200} onChange={event => setName(event.target.value)} required autoFocus /></FormField>
       <FormField label={m.rss.url} error={error}><Input value={url} disabled={busy} type="url" maxLength={4096} onChange={event => { setUrl(event.target.value); setDetected(null); setValidated(false); setCandidate(""); setError(""); }} required /></FormField>
-      <FormField label={m.rss.category}><Select value={group} disabled={busy} ariaLabel={m.rss.category} onChange={setGroup} options={[...new Set(["", ...groups, group])].map(value => ({ value, label: categoryLabel(value) }))} /></FormField>
+      <FormField label={m.rss.category} hint={m.rss.categoryHint}><Select size="rect" value={creatingCategory ? CREATE_CATEGORY : categoryId(group)} disabled={busy} ariaLabel={m.rss.category} onChange={value => { setCreatingCategory(value === CREATE_CATEGORY); if (value !== CREATE_CATEGORY) setGroup(value === UNGROUPED_CATEGORY ? "" : value.slice(6)); }} options={[...groupOptions.map(value => ({ value: categoryId(value), label: categoryLabel(value) })), { value: CREATE_CATEGORY, label: m.rss.newCategory }]} /></FormField>
+      {creatingCategory ? <FormField label={m.rss.categoryName} hint={matchingCategory ? m.rss.categoryReuse(categoryLabel(matchingCategory)) : undefined}><Input value={newCategory} disabled={busy} maxLength={200} onChange={event => setNewCategory(event.target.value)} placeholder={m.rss.categoryPlaceholder} required autoFocus /></FormField> : null}
       <FormField label={m.rss.convertedFeed} hint={feedHint}><Textarea value={source?.localFeed.path || ""} readOnly rows={2} placeholder={m.rss.feedAfterSave} /></FormField>
       <div><Button loading={detecting} disabled={saving || !url.trim()} onClick={() => void detect()}>{detecting ? m.rss.detecting : m.rss.detect}</Button></div>
       {detected && detected.candidates.length > 1 ? <FormField label={m.rss.candidate} hint={m.rss.candidateHint}><Select value={candidate} disabled={busy} onChange={value => { setCandidate(value); setValidated(false); setError(""); }} placeholder={m.rss.candidate} options={detected.candidates.map(item => ({ value: item.url, label: item.title }))} /></FormField> : null}
       {validated ? <p role="status">{m.rss.detected}</p> : null}
     </DialogBody>
-    <DialogFooter><Button disabled={busy} onClick={onCancel}>{m.rss.cancel}</Button><Button type="submit" variant="primary" loading={saving} disabled={busy || !name.trim() || !url.trim() || needsDetection && !validated}>{m.rss.save}</Button></DialogFooter>
+    <DialogFooter><Button disabled={busy} onClick={onCancel}>{m.rss.cancel}</Button><Button type="submit" variant="primary" loading={saving} disabled={busy || !name.trim() || !url.trim() || !categoryValid || needsDetection && !validated}>{m.rss.save}</Button></DialogFooter>
   </form>;
 }
