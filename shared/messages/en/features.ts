@@ -181,10 +181,6 @@ export const featureMessages = {
       operation: "Actions",
       edit: (name: string) => `Edit ${name}`,
       toggle: (enabled: boolean, name: string) => `${enabled ? "Disable" : "Enable"} ${name}`,
-      rssRules: { title: "Default fetch rules", summary: "Up to 1 article per feed · Last 7 days · Extract images", detail: "Feed URLs and enabled states are stored in app data. Fetch limits, date ranges, and image extraction are managed by this Skill’s run configuration." },
-      redditRules: { title: "Community fetch rules", summary: "Save each item · Enabled communities only · Preserved across Skill updates", detail: "Community names, JSON URLs, and enabled states are stored in this Skill’s persistent data folder. Timeouts, comments, and retry rules follow updates to the official Skill." },
-      showRules: "View rules",
-      hideRules: "Hide rules",
       saved: (reddit: boolean, added: boolean) => `${reddit ? "Community" : "Subscription"} ${added ? "added" : "updated"}.`,
       frequency: "Daily pipeline"
     },
@@ -422,6 +418,8 @@ export const featureMessages = {
   settings: {
     loading: "Loading preferences",
     loadError: "Could not load preferences. Try again.",
+    collectorSourcesRootRequired: "Choose an OpenMind content folder to manage collection sources.",
+    collectorSourcesLoadTimeout: "Loading collection sources timed out. Please try again.",
     retry: "Reload",
     page: { title: "Settings", description: "Manage OpenMind appearance, AI, permissions, workflows, and local data." },
     navigation: {
@@ -445,6 +443,8 @@ export const featureMessages = {
         workflow: { title: "Content workflow", description: "Configure creation stages, autosave, review, and archiving rules." },
         connectors: { title: "Connectors", description: "Connect content publishing platforms." },
         sources: { title: "Sources", description: "Manage RSS feeds, folders, APIs, and other inputs that Skills can reuse." },
+        xSources: { title: "X/Twitter sources", description: "Manage timeline requests and sign-in configuration for X." },
+        redditSources: { title: "Reddit sources", description: "Manage community names, addresses, and collection enablement." },
         storage: { title: "Data and storage", description: "Set local retention policies for caches, logs, and notification history." },
         sessions: { title: "Archived sessions", description: "View, open, or restore archived AI sessions." },
         runtime: { title: "Built-in runtime", description: "Manage the shared Python environment, video import settings, and download tools." }
@@ -813,7 +813,8 @@ export const featureMessages = {
 
   automation: {
     title: "Automation",
-    loading: "Loading automation rules…",
+    loading: "Loading scheduled tasks…",
+    loadTimeout: "Loading scheduled tasks timed out. Please try again.",
     empty: "No automation rules yet. Create a rule in the app data folder, or refresh and try again.",
     noDescription: "No rule description.",
     running: "Running…",

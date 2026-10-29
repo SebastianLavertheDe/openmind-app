@@ -37,5 +37,5 @@ export function errorSummary(error: RssSourceView["lastError"]) {
   const stage = { sync: m.rss.syncFailed, collect: m.rss.collectFailed, configuration: m.rss.configurationFailed, detect: m.rss.detectFailed }[error.stage];
   return `${stage}${error.code === "access-denied" ? ` · ${m.rss.accessDenied}` : ""}`;
 }
-export function sourceTime(value: string | null) { return value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString(getLocale(), { hour12: false }) : m.rss.unknown; }
+export function sourceTime(value: string | null, compact = false) { return value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString(getLocale(), compact ? { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false } : { hour12: false }) : m.rss.unknown; }
 export function shortUrl(value: string) { try { const url = new URL(value); return `${url.host}${url.pathname === "/" ? "" : url.pathname}`; } catch { return value; } }

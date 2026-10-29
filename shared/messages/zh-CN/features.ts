@@ -178,10 +178,6 @@ export const featureMessages = {
       operation: "操作",
       edit: (name: string) => `编辑 ${name}`,
       toggle: (enabled: boolean, name: string) => `${enabled ? "停用" : "启用"} ${name}`,
-      rssRules: { title: "默认抓取规则", summary: "每个订阅最多 1 篇 · 最近 7 天 · 提取图片", detail: "订阅级地址和启停状态保存在应用数据中；抓取数量、时间范围与图片提取规则由当前 Skill 的运行配置统一管理。" },
-      redditRules: { title: "社区抓取规则", summary: "逐条保存 · 仅抓取已启用社区 · Skill 更新不覆盖", detail: "社区名称、JSON 地址和启停状态保存在当前 Skill 的持久化数据目录；超时、评论和重试规则仍随官方 Skill 更新。" },
-      showRules: "查看规则",
-      hideRules: "收起规则",
       saved: (reddit: boolean, added: boolean) => `${reddit ? "社区" : "订阅"}已${added ? "添加" : "更新"}。`,
       frequency: "每日流水线"
     },
@@ -419,6 +415,8 @@ export const featureMessages = {
   settings: {
     loading: "正在加载偏好设置",
     loadError: "偏好设置加载失败，请重试。",
+    collectorSourcesRootRequired: "选择 OpenMind 内容目录后，即可管理采集来源。",
+    collectorSourcesLoadTimeout: "读取采集来源超时，请重试。",
     retry: "重新加载",
     page: { title: "设置", description: "管理 OpenMind 的外观、AI、权限、工作流和本地数据。" },
     navigation: {
@@ -442,6 +440,8 @@ export const featureMessages = {
         workflow: { title: "内容工作流", description: "配置创作阶段、自动保存、审核和归档规则。" },
         connectors: { title: "连接器", description: "连接内容发布平台。" },
         sources: { title: "资料来源", description: "管理可供 Skills 复用的 RSS、文件夹、API 和其他输入来源。" },
+        xSources: { title: "X/Twitter 源", description: "管理 X 时间线的请求和登录配置。" },
+        redditSources: { title: "Reddit 源", description: "管理采集使用的社区名称、地址和启停状态。" },
         storage: { title: "数据与存储", description: "记录缓存、日志和通知历史的本地保留策略。" },
         sessions: { title: "会话归档", description: "查看、打开或恢复已经归档的 AI 会话。" },
         runtime: { title: "内置运行时", description: "管理共享 Python 环境、视频导入设置与下载工具。" }
@@ -810,7 +810,8 @@ export const featureMessages = {
 
   automation: {
     title: "自动化",
-    loading: "正在加载 Automation Rule…",
+    loading: "正在加载定时任务…",
+    loadTimeout: "读取定时任务超时，请重试。",
     empty: "暂无 Automation Rule。请在应用数据目录中创建规则，或刷新后重试。",
     noDescription: "未填写规则说明。",
     running: "正在运行…",

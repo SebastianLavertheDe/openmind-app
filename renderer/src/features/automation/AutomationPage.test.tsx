@@ -5,6 +5,7 @@ import type { BrokerRunEvent } from "@shared/execution-contracts";
 import { messages } from "@shared/messages";
 import { AutomationPage } from "./AutomationPage";
 import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
+import { DEFAULT_AUTOMATION_RULES } from "@shared/automation-defaults";
 
 const skillCatalog: InstalledRunnableSkillView[] = [
   {
@@ -111,6 +112,76 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("AutomationPage", () => {
+  it("keeps source configuration in settings instead of loading it with automation", async () => {
+    const x = DEFAULT_AUTOMATION_RULES.find(rule => rule.id === "x-following-capture")!;
+    const getXFollowingCurls = vi.fn();
+    window.openmind = makeApi({
+      listAutomationRules: async () => [{ ...seedRules[0], ...x }],
+      getXFollowingCurls
+    });
+    render(<AutomationPage />);
+    expect(await screen.findByRole("heading", { name: x.name })).toBeTruthy();
+    expect(getXFollowingCurls).not.toHaveBeenCalled();
+    expect(screen.queryByText(messages.skillCenter.xCurl.title)).toBeNull();
+  });
+
+  it("does not block the task list on pending schedule details", async () => {
+    window.openmind = makeApi({ listAutomationSchedules: () => new Promise(() => undefined) });
+    render(<AutomationPage />);
+    expect(await screen.findByRole("heading", { name: seedRules[0].name })).toBeTruthy();
+    expect(screen.queryByText(messages.automation.loading)).toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: "立即运行" }).hasAttribute("disabled")).toBe(false));
+  });
+
+  it("ignores supplementary results from an older refresh", async () => {
+    let resolveOld!: (catalog: InstalledRunnableSkillView[]) => void;
+    const old = new Promise<InstalledRunnableSkillView[]>(resolve => { resolveOld = resolve; });
+    window.openmind = makeApi({ listInstalledRunnableSkills: vi.fn().mockReturnValueOnce(old).mockResolvedValue(skillCatalog.map(skill => ({ ...skill, version: "2.0.0" }))) });
+    render(<AutomationPage />);
+    await screen.findByRole("heading", { name: seedRules[0].name });
+    act(() => { window.dispatchEvent(new Event(INSTALLED_SKILL_CATALOG_CHANGED_EVENT)); });
+    await waitFor(() => expect(document.querySelector(".rule-status-strip")?.textContent).toContain("v2.0.0"));
+    await act(async () => { resolveOld(skillCatalog); });
+    expect(document.querySelector(".rule-status-strip")?.textContent).toContain("v2.0.0");
+  });
+
+  it("keeps the task list and offers retry when supplementary information fails", async () => {
+    window.openmind = makeApi({ listAutomationSchedules: vi.fn().mockRejectedValueOnce(new Error("Schedule unavailable")).mockResolvedValue([]) });
+    render(<AutomationPage />);
+    expect(await screen.findByRole("heading", { name: seedRules[0].name })).toBeTruthy();
+    expect((await screen.findByRole("alert")).textContent).toContain("Schedule unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(screen.getByRole("heading", { name: seedRules[0].name })).toBeTruthy();
+  });
+
+  it.each(["rules", "details"])("ends an indefinitely pending %s request with a retryable timeout", async target => {
+    vi.useFakeTimers();
+    try {
+      const hanging = () => new Promise<never>(() => undefined);
+      window.openmind = makeApi(target === "rules" ? { listAutomationRules: hanging } : { listAutomationSchedules: hanging });
+      await act(async () => { render(<AutomationPage />); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(screen.queryByText(messages.automation.loading)).toBeNull();
+      expect(screen.getByRole("alert").textContent).toContain(messages.automation.loadTimeout);
+      expect(screen.getByRole("button", { name: "重试" })).toBeTruthy();
+      if (target === "details") expect(screen.getByRole("heading", { name: seedRules[0].name })).toBeTruthy();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("shows RSS updates, article collection and daily summary as separate selectable schedules", async () => {
+    const rules: AutomationRule[] = DEFAULT_AUTOMATION_RULES.slice(0, 3).map(input => ({ ...seedRules[0], ...input }));
+    window.openmind = makeApi({ listAutomationRules: async () => rules });
+    await act(async () => { render(<AutomationPage />); });
+    for (const rule of rules) {
+      fireEvent.click(screen.getByRole("button", { name: new RegExp(rule.name) }));
+      expect(screen.getByRole("heading", { name: rule.name })).toBeTruthy();
+      expect(screen.getByText(`skill:${rule.target.id}`)).toBeTruthy();
+      expect(screen.getByRole("switch", { name: messages.automation.enableRule(rule.name) })).toBeTruthy();
+    }
+    expect(screen.queryByText("RSS 抓取与每日总结")).toBeNull();
+  });
+
   it("preserves an existing cron schedule and saves an explicitly changed timezone", async () => {
     const rule: AutomationRule = { ...seedRules[0], trigger: { type: "cron", expression: "15 */3 * * 1-5" }, timezone: "Asia/Shanghai" };
     window.openmind = makeApi({ listAutomationRules: async () => [rule] });

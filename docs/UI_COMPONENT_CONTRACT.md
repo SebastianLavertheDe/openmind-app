@@ -27,6 +27,10 @@ App navigation and AI drawers use `Drawer` for modal focus/ARIA behavior and kee
 their existing application-chrome geometry. `ImageViewer` uses Dialog's media
 surface and owns its image canvas in `image-viewer.css`.
 
+`Popover` and `PopoverSurface` use `panel` for content and `menu` for compact
+action lists. The menu surface uses the shared dropdown inset and keeps MenuItem
+targets at their normal size. `anchor` wraps a separately owned shared surface.
+
 `control-contract.ts` defines the supported action sizes, variants, tones, input
 variants and dialog sizes. `tokens.css` defines the theme values and dimensions.
 Dimensions follow each component's established design: form inputs use 34px,

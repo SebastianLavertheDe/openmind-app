@@ -82,5 +82,6 @@
   animation: ui-dropdown-in var(--dur-fast) var(--ease-standard) both;
 }
 .ui-popover-surface[data-leaving] { pointer-events: none; animation: ui-dropdown-out var(--dur-exit) var(--ease-exit) both; }
+.ui-popover-surface[data-variant="menu"] { padding: var(--space-1); border-radius: var(--radius-md); }
 .ui-popover-surface[data-variant="anchor"] { padding: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; animation: none; }
 @media (prefers-reduced-motion: reduce) { .ui-popover-surface, .ui-popover-surface[data-leaving] { animation: none; } }

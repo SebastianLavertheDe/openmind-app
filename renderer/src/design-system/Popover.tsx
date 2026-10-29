@@ -4,13 +4,14 @@ import { useAnchoredPopover, type AnchoredPopoverAlign, type AnchoredPopoverSide
 import { useDismissableLayer } from "./use-dismissable-layer";
 import { useExitPresence } from "./use-exit-presence";
 import { useModalFocusScope } from "./use-modal-focus-scope";
+import type { PopoverVariant } from "./control-contract";
 
 type Position = Pick<CSSProperties, "position" | "left" | "top" | "right" | "bottom" | "width" | "minWidth" | "maxWidth" | "maxHeight" | "transform" | "zIndex">;
 
 export interface PopoverSurfaceProps extends Omit<ComponentPropsWithoutRef<"div">, "style" | "role"> {
   role?: "dialog" | "menu" | "listbox";
-  /** Anchor-only layers contain a shared SelectMenuSurface, never feature paint. */
-  variant?: "panel" | "anchor";
+  /** Menus use a compact inset; anchor layers wrap another shared surface. */
+  variant?: PopoverVariant;
   position?: Position;
 }
 

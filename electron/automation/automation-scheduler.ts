@@ -381,6 +381,7 @@ export class AutomationScheduler {
           rootGeneration: this.options.rootGeneration
         });
       this.options.repository.updateRun(record.id, {
+        target: rule.target,
         state: "running",
         attempt: record.attempt + 1,
         retryAt: null,

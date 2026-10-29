@@ -4,7 +4,8 @@ import type { AiSession, AiSnapshot, DesktopApi, McpServerDefinition, ProviderCa
 import { AiProvider } from "../../ai-context";
 import { FeedbackHost } from "../../components/FeedbackHost";
 import { SettingsPage } from "./SettingsPage";
-import { getLocale, setLocale } from "@shared/messages";
+import { getLocale, messages, setLocale } from "@shared/messages";
+import { SourceDefinitionSchema } from "@shared/contracts";
 
 const providers: ProviderCapabilities[] = [
   { id: "codex-preview", provider: "codex", label: "Codex CLI", runtime: "native", available: true, version: "1.0", supportsApprovals: true, supportsResume: true, supportsImages: false, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false },
@@ -114,6 +115,37 @@ beforeEach(() => {
 afterEach(() => { cleanup(); setLocale("zh-CN"); document.documentElement.lang = "zh-CN"; });
 
 describe("SettingsPage", () => {
+  it("groups X and Reddit source management beside RSS in Data and sessions", async () => {
+    const community = SourceDefinitionSchema.parse({ id: "reddit-local", name: "r/LocalLLaMA", kind: "reddit", skillId: "reddit-fetcher", url: "https://www.reddit.com/r/LocalLLaMA/hot.json", frequency: "daily", status: "idle" });
+    window.openmind = makeApi({ getXFollowingCurls: async () => ["curl https://x.com/fixture"], listSources: async () => [community] });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    const navigation = screen.getByRole("navigation", { name: "设置分类" });
+    for (const name of ["RSS 源", "X/Twitter 源", "Reddit 源"]) {
+      expect(within(navigation).getByRole("button", { name }).closest(".settings-nav-group")?.textContent).toContain("数据与会话");
+    }
+    openCategory("X/Twitter 源");
+    expect(await screen.findByRole("heading", { name: "X/Twitter 源" })).toBeTruthy();
+    expect(await screen.findByText(messages.skillCenter.xCurl.configured(1))).toBeTruthy();
+    openCategory("Reddit 源");
+    expect(await screen.findByRole("heading", { name: "Reddit 源" })).toBeTruthy();
+    expect(await screen.findByRole("link", { name: community.url! })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "编辑 r/LocalLLaMA" })).toBeTruthy();
+  });
+
+  it.each(["X/Twitter 源", "Reddit 源"])("requires a content folder before reading %s", async name => {
+    const listSources = vi.fn();
+    const getXFollowingCurls = vi.fn();
+    window.openmind = makeApi({ getPreferences: async () => ({ ...defaultPrefs, openmindRoot: "" }), listSources, getXFollowingCurls });
+    renderSettings();
+    await screen.findByRole("heading", { name: "常规" });
+    openCategory(name);
+    expect(await screen.findByText(messages.settings.collectorSourcesRootRequired)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "选择内容目录" })).toBeTruthy();
+    expect(listSources).not.toHaveBeenCalled();
+    expect(getXFollowingCurls).not.toHaveBeenCalled();
+  });
+
   it("manages RSS sources in settings with one heading and preferences in the toolbar", async () => {
     const getRssSources = vi.fn(async () => ({ schemaVersion: 1 as const, initialized: true as const, revision: 1, deletedPresetIds: [], migrationWarnings: [], sources: [] }));
     window.openmind = makeApi({ getRssSources });

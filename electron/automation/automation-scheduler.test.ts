@@ -66,6 +66,37 @@ describe("AutomationRepository", () => {
 });
 
 describe("AutomationScheduler", () => {
+  it("dispatches RSS updates, article collection and summary independently", async () => {
+    const harness = createHarness(new Date("2026-10-29T12:00:00.000Z"));
+    harness.scheduler.setDefaultSkillsEnabled(true);
+    for (const input of DEFAULT_AUTOMATION_RULES.slice(0, 3)) {
+      harness.scheduler.saveRule({ ...input, enabled: true });
+      await harness.scheduler.runNow(input.id);
+    }
+    expect(harness.submitted).toEqual(["rss-article-saver", "rss-article-saver", "daily-article-summarizer"]);
+    expect(harness.submittedInputs).toEqual([
+      expect.objectContaining({ mode: "sync" }), expect.objectContaining({ mode: "collect" }), { date: expect.any(String) }
+    ]);
+    expect(harness.submittedWorkflows).toEqual([]);
+  });
+
+  it("links a legacy workflow retry to the new collection target", async () => {
+    const harness = createHarness(new Date("2026-10-29T12:00:00.000Z"));
+    harness.scheduler.saveRule({ ...DEFAULT_AUTOMATION_RULES.find(rule => rule.id === "rss-capture")!, enabled: true });
+    const queued = harness.scheduler["options"].repository.createRun({
+      ruleId: "rss-capture", target: { type: "workflow", id: "rss-to-summary-workflow", versionPolicy: "*" },
+      state: "queued", attempt: 1, retryAt: "2026-10-29T13:00:00.000Z", childRunId: null, triggerReason: "hourly", scheduledFor: null,
+      createdAt: "2026-10-29T11:00:00.000Z", completedAt: null, error: "Interrupted workflow"
+    });
+    await harness.scheduler.runNow("rss-capture");
+    expect(harness.scheduler.listRuns("rss-capture")[0]).toMatchObject({
+      id: queued.id, target: { type: "skill", id: "rss-article-saver" }, childRunId: "child-1", state: "running"
+    });
+    harness.children.get("child-1")!.state = "succeeded";
+    await harness.scheduler.handleRunEvent(event("child-1", "succeeded"));
+    expect(harness.scheduler.listRuns("rss-capture")[0].state).toBe("succeeded");
+  });
+
   it("starts without installing or seeding default jobs", async () => {
     const harness = createHarness(new Date("2026-08-05T09:00:00.000Z"));
     harness.scheduler.start();
@@ -380,6 +411,7 @@ function createHarness(initialNow: Date, options: {
   const children = new Map<string, BrokerRunRecord>();
   const workflows = new Map<string, WorkflowRunRecord>();
   const submitted: string[] = [];
+  const submittedInputs: Record<string, unknown>[] = [];
   const submittedWorkflows: string[] = [];
   const submittedWorkflowInputs: Record<string, unknown>[] = [];
   let now = initialNow;
@@ -390,6 +422,7 @@ function createHarness(initialNow: Date, options: {
     submitSkill: (request) => {
       const id = `child-${submitted.length + 1}`;
       submitted.push(request.skillId);
+      submittedInputs.push({ ...request.inputs });
       const record = child(id, "running", request.skillId);
       children.set(id, record);
       return record;
@@ -417,7 +450,7 @@ function createHarness(initialNow: Date, options: {
     fileFingerprint: options.fileFingerprint,
     environment: options.environment
   });
-  return { scheduler, children, workflows, submitted, submittedWorkflows, submittedWorkflowInputs, setNow: (value: Date) => { now = value; } };
+  return { scheduler, children, workflows, submitted, submittedInputs, submittedWorkflows, submittedWorkflowInputs, setNow: (value: Date) => { now = value; } };
 }
 
 function child(id: string, state: BrokerRunRecord["state"], skillId: string): BrokerRunRecord {

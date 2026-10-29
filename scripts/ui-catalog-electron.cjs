@@ -89,6 +89,7 @@ app.whenReady().then(async () => {
     if (scenario.id.startsWith("skill-library-")) await waitForSelector(".skill-library-card");
     if (scenario.id.startsWith("rss-source-")) await waitForSelector(".rss-source-card");
     if (scenario.id === "rss-source-details") { await click('.rss-card-subject'); await waitForSelector('.rss-detail-dialog'); }
+    if (scenario.id === "rss-source-menu") { await click('.rss-source-card [aria-haspopup="menu"]'); await waitForSelector('.ui-popover-surface[role="menu"]'); }
     if (scenario.id === "new-task-home") await waitForSelector(".new-task-skill-card");
     if (scenario.id === "skill-composer-menu") { await click('.composer-skill-picker [aria-haspopup="dialog"]'); await waitForSelector(".composer-skill-options"); }
     if (scenario.id === "action-menu") await click('.ui-dropdown-trigger');
@@ -114,6 +115,16 @@ app.whenReady().then(async () => {
       assert.equal(rss.dialog, scenario.id === "rss-source-details");
       if (scenario.id === "rss-source-embedded") assert.ok(rss.pageWidth <= 390);
       report.geometry.push({ name, rss });
+      if (scenario.id === "rss-source-menu") {
+        const menu = await win.webContents.executeJavaScript(`(() => {
+          const surface = document.querySelector('.ui-popover-surface[role="menu"]'), box = surface.getBoundingClientRect();
+          const item = surface.querySelector('[role="menuitem"]');
+          return { width: box.width, height: box.height, itemHeight: item.getBoundingClientRect().height, focused: item === document.activeElement,
+            contained: box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight };
+        })()`);
+        assert.ok(menu.width <= 160 && menu.height <= 52 && menu.itemHeight >= 32 && menu.focused && menu.contained, `${name}: compact source menu contract`);
+        report.geometry.push({ name, menu });
+      }
     }
     if (scenario.id === "new-task-home") {
       const home = await win.webContents.executeJavaScript(`(() => {

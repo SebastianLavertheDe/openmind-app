@@ -405,16 +405,14 @@
 .skills-owned-sources-toolbar { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
 .skills-owned-sources-actions { display: flex; flex: 0 0 auto; gap: 7px; }
 .skills-owned-sources-actions button,
-.skills-source-empty button,
-.skills-source-rules button {
+.skills-source-empty button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
 }
 .skills-owned-sources-actions button:not([data-ui-control]),
-.skills-source-empty button:not([data-ui-control]),
-.skills-source-rules button:not([data-ui-control]) {
+.skills-source-empty button:not([data-ui-control]) {
   min-height: 32px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -426,11 +424,9 @@
   cursor: pointer;
 }
 .skills-owned-sources-actions button:not([data-ui-control]):hover,
-.skills-source-empty button:not([data-ui-control]):hover,
-.skills-source-rules button:not([data-ui-control]):hover { background: var(--control-hover); color: var(--text); }
+.skills-source-empty button:not([data-ui-control]):hover { background: var(--control-hover); color: var(--text); }
 .skills-owned-sources-actions button:not([data-ui-control]):active,
-.skills-source-empty button:not([data-ui-control]):active,
-.skills-source-rules button:not([data-ui-control]):active { transform: translateY(1px) scale(.98); }
+.skills-source-empty button:not([data-ui-control]):active { transform: translateY(1px) scale(.98); }
 .skills-owned-sources-actions button:not([data-ui-control]):disabled { opacity: .55; cursor: default; }
 .skills-owned-sources-actions button:not([data-ui-control]):first-child { border-color: var(--text); background: var(--text); color: var(--panel); }
 .skills-owned-sources-actions button:not([data-ui-control]):first-child:hover { background: var(--text-dim); color: var(--panel); }
@@ -501,20 +497,6 @@
   color: var(--muted);
   font-size: var(--fs-xs);
 }
-
-.skills-source-rules {
-  display: block;
-  margin-top: 14px;
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--panel-muted) 42%, var(--panel));
-}
-.skills-source-rules > .ui-disclosure-trigger:not([data-ui-control]) { grid-column: 1 / -1; width: 100%; min-width: 0; justify-content: space-between; gap: 16px; }
-.skills-source-rules-summary { min-width: 0; display: flex; align-items: baseline; gap: 9px; }
-.skills-source-rules > .ui-disclosure-content { grid-column: 1 / -1; }
-.skills-source-rules strong { color: var(--text-dim); font-size: var(--fs-xs); font-weight: 600; }
-.skills-source-rules span { overflow: hidden; color: var(--muted); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
-.skills-source-rules p { grid-column: 1 / -1; margin: 0; padding-top: 9px; border-top: 1px solid var(--hairline); color: var(--muted); font-size: var(--fs-xs); line-height: 1.55; }
 
 .skills-x-curl-card {
   display: grid;
@@ -740,10 +722,6 @@
   .skills-owned-sources-toolbar { align-items: stretch; flex-direction: column; }
   .skills-source-search { width: 100%; flex: 0 0 auto; }
   .skills-source-row { padding-inline: 7px; }
-  .skills-source-rules { grid-template-columns: 1fr; }
-  .skills-source-rules button { justify-self: start; }
-  .skills-source-rules-summary { display: grid; gap: 4px; }
-  .skills-source-rules span { white-space: normal; }
   .skills-availability { grid-template-columns: 1fr; }
   .skills-availability-control { justify-content: space-between; }
   .skills-availability-control > span { text-align: left; }

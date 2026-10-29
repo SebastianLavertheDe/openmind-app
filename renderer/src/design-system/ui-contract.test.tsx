@@ -2,7 +2,7 @@ import { createRef, useRef, useState } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Button, ConfirmDialog, FormDialog, FormField, IconButton, ImageAttachment, Input, InputGroup, Popover } from "./components";
+import { Button, ConfirmDialog, FormDialog, FormField, IconButton, ImageAttachment, Input, InputGroup, MenuItem, Popover } from "./components";
 import { useMotionPreference } from "./use-motion-preference";
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers(); });
@@ -169,6 +169,31 @@ describe("public UI contracts", () => {
     expect(outerClose).not.toHaveBeenCalled();
     await waitFor(() => expect(document.activeElement).toBe(trigger));
     expect(screen.getByRole("dialog", { name: "Project" })).toBeTruthy();
+  });
+
+  it("keeps compact action menus keyboard accessible and restores focus on dismissal", async () => {
+    const user = userEvent.setup();
+    const remove = vi.fn();
+    function SourceActions() {
+      const [open, setOpen] = useState(false);
+      const anchor = useRef<HTMLButtonElement>(null);
+      return <><Button ref={anchor} onClick={() => setOpen(true)}>Source actions</Button>
+        <Popover variant="menu" role="menu" modal open={open} anchorRef={anchor} onClose={() => setOpen(false)} aria-label="Source actions">
+          <MenuItem tone="danger" onClick={() => { setOpen(false); remove(); }}>Remove source</MenuItem>
+        </Popover></>;
+    }
+    render(<SourceActions />);
+    const trigger = screen.getByRole("button", { name: "Source actions" });
+    await user.click(trigger);
+    const item = screen.getByRole("menuitem", { name: "Remove source" });
+    await waitFor(() => expect(document.activeElement).toBe(item));
+    await user.keyboard("{Escape}");
+    expect(remove).not.toHaveBeenCalled();
+    await waitFor(() => expect(document.activeElement).toBe(trigger));
+    await user.click(trigger);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Remove source" })));
+    await user.keyboard("{Enter}");
+    expect(remove).toHaveBeenCalledOnce();
   });
 
   it("shares one OS motion subscription across many controls and releases it on unmount", () => {

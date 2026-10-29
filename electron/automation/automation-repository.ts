@@ -17,6 +17,7 @@ import { messages } from "../../shared/messages";
 
 type AutomationRegistry = {
   schemaVersion: typeof AUTOMATION_SCHEMA_VERSION;
+  rssTasksVersion: 1;
   defaultsSeeded: boolean;
   defaultSkillsEnabled: boolean;
   rules: AutomationRule[];
@@ -36,7 +37,7 @@ export class AutomationRepository {
 
   getDefaultSkillsEnabled(): boolean { return this.read().defaultSkillsEnabled; }
 
-  /** Only an explicit toggle creates/restores defaults; startup never seeds them. */
+  /** Explicit opt-in creates/restores defaults; upgrades split legacy RSS jobs once. */
   setDefaultRulesEnabled(enabled: boolean, commitSetting = true): void {
     const registry = this.read();
     if (enabled && registry.rules.some((rule) =>
@@ -124,32 +125,56 @@ export class AutomationRepository {
   }
 
   private read(): AutomationRegistry {
-    if (!fs.existsSync(this.filePath)) return { schemaVersion: AUTOMATION_SCHEMA_VERSION, defaultsSeeded: false, defaultSkillsEnabled: false, rules: [], runs: [] };
+    if (!fs.existsSync(this.filePath)) return { schemaVersion: AUTOMATION_SCHEMA_VERSION, rssTasksVersion: 1, defaultsSeeded: false, defaultSkillsEnabled: false, rules: [], runs: [] };
     try {
       const raw = JSON.parse(fs.readFileSync(this.filePath, "utf8")) as Partial<AutomationRegistry>;
       if (raw.schemaVersion !== AUTOMATION_SCHEMA_VERSION || !Array.isArray(raw.rules) || !Array.isArray(raw.runs)) throw new Error("Automation registry schema mismatch");
-      const rules = raw.rules.map((rule) => {
-        const parsed = AutomationRuleSchema.parse(rule);
-        // A managed legacy capture keeps its enabled state, period and zone.
-        if (parsed.id === "rss-capture" && parsed.target.type === "workflow" && parsed.target.id === "rss-to-summary-workflow") {
-          return AutomationRuleSchema.parse({ ...parsed, target: { type: "skill", id: "rss-article-saver", versionPolicy: "*" }, inputs: { ...parsed.inputs, mode: "pipeline" } });
-        }
-        return parsed;
-      });
+      const rules = raw.rules.map((rule) => AutomationRuleSchema.parse(rule));
       const runs = raw.runs.map((run) => AutomationRunRecordSchema.parse(run));
       if (new Set(rules.map((rule) => rule.id)).size !== rules.length) throw new Error("Automation Rule ID 重复");
       // Preserve the existing opt-in for older installations without inspecting Skills.
       const defaultSkillsEnabled = typeof raw.defaultSkillsEnabled === "boolean"
         ? raw.defaultSkillsEnabled : raw.defaultsSeeded === true;
-      return { schemaVersion: AUTOMATION_SCHEMA_VERSION, defaultsSeeded: raw.defaultsSeeded === true, defaultSkillsEnabled, rules, runs };
+      const registry: AutomationRegistry = { schemaVersion: AUTOMATION_SCHEMA_VERSION, rssTasksVersion: 1, defaultsSeeded: raw.defaultsSeeded === true, defaultSkillsEnabled, rules, runs };
+      if (raw.rssTasksVersion !== 1) {
+        this.migrateRssTasks(registry);
+        this.write(registry);
+      }
+      return registry;
     } catch (error) {
       throw new Error(`Automation registry 无法读取，拒绝覆盖现有状态：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private migrateRssTasks(registry: AutomationRegistry): void {
+    const capture = registry.rules.find(rule => rule.id === "rss-capture");
+    if (!capture) return;
+    const combined = capture.target.type === "workflow" && capture.target.id === "rss-to-summary-workflow"
+      || capture.target.type === "skill" && capture.target.id === "rss-article-saver" && (capture.inputs.mode === "pipeline" || capture.inputs.mode === undefined);
+    if (!combined) return;
+    // Keep the collection rule's schedule and history; each phase now runs independently.
+    capture.target = { ...capture.target, type: "skill", id: "rss-article-saver" };
+    capture.inputs = { ...capture.inputs, mode: "collect" };
+    capture.name = messages.rss.collectTask;
+    capture.description = messages.rss.collectDescription;
+    const now = new Date().toISOString();
+    capture.updatedAt = now;
+    for (const id of ["rss-sync", "daily-summary-generation"]) {
+      if (registry.rules.some(rule => rule.id === id)) continue;
+      const input = DEFAULT_AUTOMATION_RULES.find(rule => rule.id === id)!;
+      const added = AutomationRuleSchema.parse({
+        schemaVersion: AUTOMATION_SCHEMA_VERSION, ...AutomationRuleInputSchema.parse(input), enabled: capture.enabled, timezone: capture.timezone,
+        lastTriggeredAt: null, lastScheduledKey: null, createdAt: now, updatedAt: now
+      });
+      const index = registry.rules.indexOf(capture);
+      registry.rules.splice(id === "rss-sync" ? index : index + 1, 0, added);
     }
   }
 
   private write(registry: AutomationRegistry): void {
     const normalized = {
       schemaVersion: AUTOMATION_SCHEMA_VERSION,
+      rssTasksVersion: registry.rssTasksVersion,
       defaultsSeeded: registry.defaultsSeeded,
       defaultSkillsEnabled: registry.defaultSkillsEnabled,
       rules: registry.rules.map((rule) => AutomationRuleSchema.parse(rule)),

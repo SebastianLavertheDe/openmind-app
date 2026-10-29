@@ -60,6 +60,16 @@ def _parse_legacy_curl_command(raw: str, default_label: str) -> list[ManagedTime
     index = 1
     while index < len(args):
         arg = args[index]
+        if arg == "--url":
+            if index + 1 >= len(args) or args[index + 1].startswith("-"):
+                raise FetchError("legacy curl credential is missing URL")
+            url = args[index + 1]
+            index += 2
+            continue
+        if arg.startswith("--url="):
+            url = arg.split("=", 1)[1]
+            index += 1
+            continue
         if arg in {"-H", "--header"} and index + 1 < len(args):
             header = args[index + 1]
             if ":" in header:

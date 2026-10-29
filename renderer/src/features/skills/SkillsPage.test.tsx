@@ -247,7 +247,7 @@ describe("SkillsPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Reddit 内容抓取" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "社区源 1" }));
-    expect(screen.getByText("https://www.reddit.com/r/LocalLLaMA/hot.json")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "https://www.reddit.com/r/LocalLLaMA/hot.json" })).toBeTruthy();
     expect(screen.queryByText("Reddit 订阅")).toBeNull();
 
     fireEvent.click(screen.getByRole("switch", { name: "停用 r/LocalLLaMA" }));

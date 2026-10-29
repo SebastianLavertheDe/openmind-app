@@ -1,4 +1,5 @@
 import { SourcesPage } from "../sources";
+import { shortUrl } from "../sources/rss-source-presentation";
 import { SkillLibraryPage } from "./SkillLibraryPage";
 import type { SkillLibraryEntry, SkillLibraryMode } from "@shared/skill-library";
 import type { ProviderCapabilities } from "@shared/contracts";
@@ -17,7 +18,7 @@ import type { BrokerRunRecord, InstalledSkillView, SkillDefinition, SkillPackage
 import type { SkillPackageSourceInput } from "@shared/skill-package-sources";
 import { messages } from "@shared/messages";
 import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events";
-import { StatusBadge, SearchInput, Input, Textarea } from "../../design-system/components";
+import { CopyButton, StatusBadge, SearchInput, Input, Textarea } from "../../design-system/components";
 import { ToggleSwitch } from "../../design-system/controls";
 import { DefaultSkillsToggle } from "./DefaultSkillsToggle";
 import { useExitPresence } from "../../design-system/use-exit-presence";
@@ -831,8 +832,8 @@ function SkillDetailTabs({ active, sourceLabel, runCount, onChange }: {
 
 type SourceEditorState = { mode: "add" } | { mode: "edit"; source: SourceDefinition };
 
-function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources }: {
-  summary: ManifestSummary;
+export function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources }: {
+  summary: Pick<ManifestSummary, "id" | "title">;
   sources: SourceDefinition[];
   onSourceUpdated(source: SourceDefinition): void;
   onReloadSources(): Promise<void>;
@@ -843,7 +844,6 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [feedback, setFeedback] = useState<SkillToggleFeedback | null>(null);
-  const [rulesOpen, setRulesOpen] = useState(false);
   const editorPresence = useExitPresence(Boolean(editor), 160);
   const lastEditor = useRef<SourceEditorState | null>(editor);
   if (editor) lastEditor.current = editor;
@@ -911,6 +911,20 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
     {!visibleSources.length ? <div className="skills-source-empty">
       <span>{query ? m.ownedSources.noMatch : copy.empty}</span>
       {!query && canEditSources ? <Button variant="ghost" type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}>{m.ownedSources.addFirst(isReddit)}</Button> : null}
+    </div> : isReddit ? <div className="collector-source-grid" role="list">
+      {visibleSources.map(source => <article key={source.id} className="workspace-card collector-source-card" role="listitem" aria-label={source.name}>
+        <div className="collector-source-heading">
+          <strong className="collector-source-name" title={source.name}>{source.name}</strong>
+          <ToggleSwitch checked={source.enabled} disabled={busyId === source.id} label={m.ownedSources.toggle(source.enabled, source.name)} onChange={() => void toggleSource(source)} />
+        </div>
+        <div className="collector-source-meta"><StatusBadge tone={sourceBadgeTone(source)}>{sourceStatusLabel(source)}</StatusBadge><span>{sourceLastRun(source)}</span></div>
+        <div className="collector-source-address">{source.url ? <>
+          <a href={source.url} title={source.url} aria-label={source.url} onClick={event => { event.preventDefault(); void window.openmind.openExternal(event.currentTarget.href); }}>{shortUrl(source.url)}</a>
+          <CopyButton text={source.url} label={`${messages.ai.message.copy}: ${source.name}`} />
+        </> : <span>{source.frequency}</span>}</div>
+        <div className="collector-source-edit"><IconButton label={m.ownedSources.edit(source.name)} onClick={() => setEditor({ mode: "edit", source })}><Pencil size={16} aria-hidden /></IconButton></div>
+        {source.recentError ? <p className="collector-source-error" title={source.recentError}>{source.recentError}</p> : null}
+      </article>)}
     </div> : <div className="skills-source-list" role="list">
       <div className="skills-source-list-head" aria-hidden><span /><span>{m.ownedSources.nameAndAddress(isReddit)}</span><span>{m.ownedSources.statusAndLastRun}</span><span>{m.ownedSources.operation}</span></div>
       {visibleSources.map((source) => <article key={source.id} className="skills-source-row" role="listitem">
@@ -932,11 +946,6 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
       </article>)}
     </div>}
 
-    {isRss || isReddit ? <AnimatedDisclosure className="skills-source-rules" open={rulesOpen} onOpenChange={setRulesOpen} unmountOnExit
-      summary={<><span className="skills-source-rules-summary"><strong>{(isRss ? m.ownedSources.rssRules : m.ownedSources.redditRules).title}</strong><span>{(isRss ? m.ownedSources.rssRules : m.ownedSources.redditRules).summary}</span></span><span>{rulesOpen ? m.ownedSources.hideRules : m.ownedSources.showRules}</span></>}>
-      <p>{(isRss ? m.ownedSources.rssRules : m.ownedSources.redditRules).detail}</p>
-    </AnimatedDisclosure> : null}
-
     {editorPresence.visible && renderedEditor ? <SkillSourceEditor
       key={renderedEditor.mode === "edit" ? `edit:${renderedEditor.source.id}` : "add"}
       state={renderedEditor}
@@ -954,7 +963,7 @@ function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources 
 }
 
 function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
-  summary: ManifestSummary;
+  summary: Pick<ManifestSummary, "id" | "title">;
   source?: SourceDefinition;
   busy: boolean;
   feedback: SkillToggleFeedback | null;
@@ -1190,7 +1199,7 @@ function skillSourceTabLabel(skillId: string, count: number): string {
   return m.sourceTab.other(count);
 }
 
-function skillSourceCopy(summary: ManifestSummary, count: number): { title: string; description: string; searchPlaceholder: string; empty: string } {
+function skillSourceCopy(summary: Pick<ManifestSummary, "id" | "title">, count: number): { title: string; description: string; searchPlaceholder: string; empty: string } {
   if (summary.id === "rss-article-saver") return {
     title: m.sourceCopy.rss.title(summary.title),
     description: m.sourceCopy.rss.description(count),
@@ -1222,6 +1231,11 @@ function sourceStatusTone(source: SourceDefinition): string {
   if (source.status === "warning") return "warning";
   if (source.status === "running") return "running";
   return source.status === "success" ? "success" : "idle";
+}
+
+function sourceBadgeTone(source: SourceDefinition) {
+  const tone = sourceStatusTone(source);
+  return tone === "danger" || tone === "warning" || tone === "success" ? tone : tone === "running" ? "info" : "neutral";
 }
 
 function sourceLastRun(source: SourceDefinition): string {

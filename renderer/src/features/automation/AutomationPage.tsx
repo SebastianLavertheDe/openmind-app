@@ -12,6 +12,7 @@ import { messages } from "@shared/messages";
 import { ErrorState, LogViewer, Select, ToggleSwitch, Input, InputGroup } from "../../design-system/components";
 import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
 import type { ConfirmAction } from "../../feedback-context";
+import { readWithDeadline } from "../../request-deadline";
 
 const m = messages;
 
@@ -43,21 +44,27 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
     const request = ++loadSequence.current;
     setLoading(true);
     try {
-      const [nextRules, nextSchedules, nextRuns, nextSkillCatalog] = await Promise.all([
-        window.openmind.listAutomationRules(),
-        window.openmind.listAutomationSchedules(),
-        window.openmind.listAutomationRuns(),
-        window.openmind.listInstalledRunnableSkills()
-      ]);
+      const nextRules = await readWithDeadline(window.openmind.listAutomationRules(), m.automation.loadTimeout);
       if (request !== loadSequence.current) return;
       setRules(nextRules);
-      setSchedules(nextSchedules);
-      setRuns(nextRuns);
-      setSkillCatalog(nextSkillCatalog);
       setSelectedId((current) => nextRules.some((rule) => rule.id === current)
         ? current
         : initialRuleId(initialSkillId, nextRules));
       setError(null);
+      setLoading(false);
+      const receive = async <T,>(result: Promise<T>, accept: (value: T) => void) => {
+        try {
+          const value = await readWithDeadline(result, m.automation.loadTimeout);
+          if (request === loadSequence.current) accept(value);
+        } catch (cause) {
+          if (request === loadSequence.current) setError(cause instanceof Error ? cause.message : String(cause));
+        }
+      };
+      await Promise.all([
+        receive(window.openmind.listAutomationSchedules(), setSchedules),
+        receive(window.openmind.listAutomationRuns(), setRuns),
+        receive(window.openmind.listInstalledRunnableSkills(), setSkillCatalog)
+      ]);
     } catch (cause) {
       if (request === loadSequence.current) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -230,7 +237,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
               </div>
             </header>
 
-            {error ? <p role="alert" className="automation-config-note">{error}</p> : null}
+            {error ? <ErrorState message={error} retry={() => void load()} /> : null}
             <div className="rule-status-strip">
               <span className={`rule-pill ${runtimeTone(runState)}`}>{detailStatus(runState)}</span>
               <span>{automationAvailabilityLabel(selected, selectedSkill)}</span>
