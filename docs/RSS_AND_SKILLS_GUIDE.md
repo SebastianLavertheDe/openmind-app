@@ -88,7 +88,13 @@ Linux 示例（替换为自己的安装位置和数据目录）：
 "/opt/OpenMind/resources/cli/openmind" rss pipeline --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
 "/opt/OpenMind/resources/cli/openmind" brief generate --date 20261027 --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
 "/opt/OpenMind/resources/cli/openmind" brief generate --topics --date 20261027 --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
+"/opt/OpenMind/resources/cli/openmind" reddit collect --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
+"/opt/OpenMind/resources/cli/openmind" x collect --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
 ```
+
+`runtime prepare --scheduled` 一次准备 RSS、摘要、选题、Reddit、X 五个内置包及共享 Python 依赖。`rss pipeline --summarize` 按同一个日期依次执行 RSS、摘要；RSS 失败或取消时不启动摘要。各采集及简报命令支持 `--check`：安装/验证对应内置包、解析配置并准备运行时，但不启动采集或调用模型；检查通过不代表外部服务可用。手动导入的同名包仍需明确迁移，CLI 不会自动覆盖它们。
+
+源码部署可使用本仓库的 `resources/cli/openmind`，启动器会调用 `.build/electron/electron/cli/openmind.js`。先执行 `npm run prepare:skill-library`、`npm run build:electron`、`npm run prepare:python-runtime`。cron 不加载交互式 shell 配置，使用 nvm 时需设置绝对路径 `OPENMIND_NODE_EXECUTABLE`（Node 22.12+）。构建缺失时启动器明确退出，不会回退运行旧仓库脚本。
 
 需要浏览器渲染的网站（例如 Sequoia）另外执行一次 `runtime prepare --browser`，参数同上。Chromium 安装在应用的 `userData/runtimes/browser-playwright/`。Linux 还需要主机具备 Chromium 所需的系统库；缺少浏览器时任务明确报错，不会生成伪成功的空 Feed。
 
@@ -97,12 +103,16 @@ RSS 命令可加 `--source-id ID` 单独处理一个源；不指定日期时使�
 crontab 示例：
 
 ```cron
-# 使用当前系统 cron 的时区；日志目录需预先存在。
-0 * * * * "/opt/OpenMind/resources/cli/openmind" rss pipeline --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data" >> "/srv/OpenMind App Data/rss-cron.log" 2>&1
-0 22 * * * "/opt/OpenMind/resources/cli/openmind" brief generate --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data" >> "/srv/OpenMind App Data/brief-cron.log" 2>&1
+# 使用当前系统 cron 的时区；logs/cron 和 locks 目录需预先存在。
+0 * * * * flock -n "/srv/OpenMind App Data/locks/rss-summary.lock" "/opt/OpenMind/resources/cli/openmind" rss pipeline --summarize --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data" >> "/srv/OpenMind App Data/logs/cron/rss-summary.log" 2>&1
+*/10 * * * * flock -n "/srv/OpenMind App Data/locks/x.lock" "/opt/OpenMind/resources/cli/openmind" x collect --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data" >> "/srv/OpenMind App Data/logs/cron/x.log" 2>&1
+0 */2 * * * flock -n "/srv/OpenMind App Data/locks/reddit.lock" "/opt/OpenMind/resources/cli/openmind" reddit collect --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data" >> "/srv/OpenMind App Data/logs/cron/reddit.log" 2>&1
+0 18 * * * flock -n "/srv/OpenMind App Data/locks/topics.lock" "/opt/OpenMind/resources/cli/openmind" brief generate --topics --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data" >> "/srv/OpenMind App Data/logs/cron/topics.log" 2>&1
 ```
 
-App 的定时规则明确保存自己的 IANA 时区；系统 crontab 使用主机 cron 的时区设置。两者调用同一批处理与锁，但不会相互编辑调度配置。切换时自行停用旧仓库的脚本任务，避免旧脚本绕过新锁重复采集。本次迁移不会读写用户 crontab。
+App 的定时规则明确保存自己的 IANA 时区；系统 crontab 使用主机 cron 的时区设置。Ubuntu/Debian 的 cron 不支持 `CRON_TZ`，`TZ` 也只影响任务内的日期，不能改变触发时间；应将目标时间换算到主机时区。两者不会相互编辑调度配置；选择 cron 调度时，保持 App 中同类定时规则停用，避免重复触发。上面的 `flock` 防止同一 cron 任务重叠，不代替 App 内手动执行的并发控制。
+
+迁移现有 cron 时先备份 crontab、安装登记及涉及的用户配置，暂停待迁移任务并等待正在运行的旧进程结束。保留原有频率、源启用状态和 Provider，合并旧安装目录里的采集/摘要缓存到 `.agent/skill-data/<skill>/`，再用 `--check` 检查四条命令后切换入口。日志和锁应放在 `userData`，不再写入安装包；保留未迁入 App 的独立任务（例如知识库编译）。CLI 本身不读写用户 crontab。
 
 Windows 可通过任务计划程序运行 `openmind.cmd`；macOS 可由 launchd 或用户自己的 cron 调用。两种启动器随包提供，本次实际安装包验证的平台为 Linux ARM64。
 
@@ -177,3 +187,13 @@ OPENMIND_TEST_PYTHON="/absolute/path/to/python" npm run test:rss
 `scripts/rss-packaged-smoke.cjs <Linux解包目录>` 使用真实安装包启动器和临时用户目录验证无显示服务、内置 Python、1025 个源的完整结果、同步/采集、并发去重及历史记录保护；再通过本地 HTTP 模型替身检查 Provider 配置、偏好改变后的总结/选题、缓存和旧版本。`scripts/rss-ui-smoke.cjs` 先使用公开目录的 227 个源定义验证八个主题、新建分类及浅深色 720/1280 页面，再用独立的 213 源压力夹具验证长分组、长地址、操作范围、详情分页、日志、错误重试和键盘操作。截图不抓取公网 Feed，不读取真实用户配置。`rss-motion-smoke.cjs` 与 Skills 实际组件比较弹窗和胶囊 Tab，保存进退场帧及正常／减少动态效果的时序证据。生产组件目录另外覆盖约 390px 内嵌布局。测试使用隔离 Electron 配置；截图输出到忽略的 `.tmp/`。
 
 逐项结果见[实施计划的验收记录](RSS_AND_SKILLS_CONSOLIDATION_PLAN.md#12-实施与验收记录)。固定样例和模型替身用于检验配置、筛选与缓存契约；不将其当作公网登录站点、真实模型质量或跨平台实测结果。
+
+
+## 来源卡片的规模与状态
+
+- RSS 和 Reddit 来源列表每页最多挂载 30 张卡片；搜索覆盖全部来源，切换搜索或分类返回第一页。无变化刷新保留卡片对象与焦点，后台更新不重置当前页或编辑草稿。
+- 来源面板在可见时每 5 秒刷新，同时响应桌面任务状态事件；隐藏窗口停止定时读取，恢复可见后重新读取。CLI 采集结果由后续轮询读取。
+- Reddit 列表和保存使用按类型隔离的查询，RSS 配置损坏不会阻断 Reddit 管理。RSS 和 Reddit 的启用设置统一放在编辑弹窗中，随保存生效，取消不改变已保存状态；卡片只展示状态。
+- Reddit 采集器将逐社区结果写入 `<openmindRoot>/.agent/skill-data/reddit-fetcher/source-status/<sha256-url>.json`。结果记录本次状态、时间、新增条目数及错误；没有新帖也是成功。旧版本留下的整批任务状态不会当作各社区结果；旧安装需更新 App 来源的 Skill 并运行一次，才会产生这些结果。修改来源 URL 后展示新地址的结果，改名不丢失原地址结果。
+- Reddit 卡片不显示运行状态标签，只用小红点表示上次采集失败；重试期间保留红点，采集成功后清除。错误说明通过红点的悬浮或键盘焦点提示查看。
+- RSS 条目 XML 在工作线程中解析，按文件版本与基础 URL 缓存，最多保留 8 个 Feed，缓存预算为 24 MiB（文件与序列化条目大小）。翻页重用已解析结果；文件替换会使缓存失效并重置旧游标。文件大小、目录边界及来源/内容根隔离检查仍然生效。

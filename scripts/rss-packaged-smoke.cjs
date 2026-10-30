@@ -6,14 +6,17 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const briefLabels = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/rss/fixtures/brief-labels.json'), 'utf8')).en;
-const appRoot = path.resolve(process.argv[2] || 'dist/linux-arm64-unpacked');
-const binary = path.join(appRoot, 'openmind-desktop');
+const sourceMode = process.argv[2] === '--source';
+const appRoot = sourceMode ? path.resolve(__dirname, '..') : path.resolve(process.argv[2] || 'dist/linux-arm64-unpacked');
+const binary = sourceMode ? process.execPath : path.join(appRoot, 'openmind-desktop');
 const resources = path.join(appRoot, 'resources');
-const compiled = path.join(resources, 'app.asar', '.build', 'electron', 'electron');
+const compiled = sourceMode ? path.join(appRoot, '.build/electron/electron') : path.join(resources, 'app.asar', '.build', 'electron', 'electron');
+const skillLibrary = sourceMode ? path.join(appRoot, '.build/skill-library') : path.join(resources, 'skill-library');
 const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'openmind-rss-packaged-'));
 const content = path.join(fixture, 'content'), userData = path.join(fixture, 'user-data');
 fs.mkdirSync(content);
 const env = { ...process.env, DISPLAY: '', WAYLAND_DISPLAY: '', ELECTRON_RUN_AS_NODE: '1' };
+if (sourceMode) env.OPENMIND_NODE_EXECUTABLE = process.execPath;
 delete env.OPENMIND_SKILL_LIBRARY_BUNDLE;
 delete env.OPENMIND_PYTHON_RUNTIME_ASSET_ROOT;
 const outputs = [];
@@ -25,8 +28,8 @@ function run(args, executable = binary) {
     child.on('error', reject); child.on('close', code => code === 0 ? resolve(stdout) : reject(new Error(`Packaged command failed (${code}): ${stderr}\n${stdout}`)));
   });
 }
-const common = ['--root', content, '--user-data', userData, '--date', '20261027'];
-const cli = (...args) => run([...args, ...common], path.join(resources, 'cli', 'openmind'));
+const common = ['--root', content, '--user-data', userData];
+const cli = (...args) => run([...args, ...common, ...(args[0] === 'runtime' || args[0] === 'x' ? [] : ['--date', '20261027'])], path.join(resources, 'cli', 'openmind'));
 const providerCalls = [];
 const server = http.createServer((request, response) => {
   if (request.url === '/v1/chat/completions') {
@@ -57,17 +60,17 @@ const server = http.createServer((request, response) => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${server.address().port}/feed`;
   console.log('Preparing the installed bundled Python runtime in temporary userData…');
-  console.log(await cli('runtime', 'prepare'));
+  console.log(await cli('runtime', 'prepare', '--scheduled'));
   const pythonRoot = path.join(userData, 'runtimes/environments/shared-python');
   const state = JSON.parse(fs.readFileSync(path.join(pythonRoot, 'state.json')));
   const python = path.join(pythonRoot, 'generations', state.currentFingerprint, '.venv/bin/python');
-  const catalog = JSON.parse(fs.readFileSync(path.join(resources, 'skill-library/catalog.json')));
+  const catalog = JSON.parse(fs.readFileSync(path.join(skillLibrary, 'catalog.json')));
   const native = catalog.skills.filter(entry => entry.packageDirectory);
   assert.equal(native.length, 15);
   assert.ok(!native.some(entry => entry.id === 'knowledge-wiki-compiler'));
   const entrypoints = [];
   for (const entry of native) {
-    const packageRoot = path.join(resources, 'skill-library', entry.id);
+    const packageRoot = path.join(skillLibrary, entry.id);
     const manifest = JSON.parse(fs.readFileSync(path.join(packageRoot, 'openmind.skill.yaml')));
     if (manifest.kind === 'process') {
       await run([path.join(packageRoot, manifest.entrypoint.script), '--help'], python);
@@ -98,6 +101,13 @@ const server = http.createServer((request, response) => {
   fs.writeFileSync(path.join(content, 'article/20261027/science.md'), '# Science measurements\nA controlled experiment compared observations with a mathematical model.\n');
   fs.mkdirSync(path.join(content, 'config'));
   fs.writeFileSync(path.join(content, 'config/providers.yaml'), JSON.stringify({ schemaVersion: 1, default: 'fixture', providers: [{ id: 'fixture', name: 'Fixture', enabled: true, protocol: 'openai-chat', apiKey: 'fixture-only', baseUrl: `http://127.0.0.1:${server.address().port}/v1`, model: 'fixture-model', proxyPolicy: 'disabled' }] }));
+  const runCount = fs.readdirSync(path.join(userData, 'runs')).length;
+  for (const area of ['reddit', 'x']) {
+    const result = JSON.parse((await cli(area, 'collect', '--check')).trim());
+    assert.equal(result.status, 'ready');
+    assert.equal(result.skillId, area === 'reddit' ? 'reddit-fetcher' : 'x-following-fetcher');
+  }
+  assert.equal(fs.readdirSync(path.join(userData, 'runs')).length, runCount, 'checks must not submit collection runs');
   const preferencesDirectory = path.join(content, '.agent/preferences');
   fs.mkdirSync(preferencesDirectory, { recursive: true });
   const savePreferences = (revision, text) => fs.writeFileSync(path.join(preferencesDirectory, 'daily-brief.json'), JSON.stringify({ schemaVersion: 1, revision, text, updatedAt: null }));
@@ -110,6 +120,9 @@ const server = http.createServer((request, response) => {
   assert.match(initialSummary, /# 20261027 Daily summary/);
   assert.doesNotMatch(initialSummary, /[\u4e00-\u9fff]/, 'English preferences apply to document labels as well as model prose');
   const callsBefore = providerCalls.length;
+  const chain = (await cli('rss', 'pipeline', '--summarize')).trim().split('\n').map(line => JSON.parse(line));
+  assert.deepEqual(chain.map(row => row.skillId), ['rss-article-saver', 'daily-article-summarizer']);
+  outputs.push(...chain);
   outputs.push(JSON.parse((await cli('brief', 'generate')).trim()));
   assert.equal(providerCalls.length, callsBefore, 'identical inputs reuse the model cache');
   savePreferences(2, 'Science only, exclude design, English, at most 1 item');

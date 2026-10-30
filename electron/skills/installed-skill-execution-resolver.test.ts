@@ -31,6 +31,18 @@ afterEach(() => {
 });
 
 describe("InstalledSkillExecutionResolver", () => {
+  it("preserves the cron timezone when preparing a managed process", async () => {
+    vi.stubEnv("TZ", "Asia/Shanghai");
+    try {
+      const fixture = createFixture();
+      const plan = await fixture.resolver.resolve(runRequest(fixture.digest), "timezone-run");
+      expect(plan.process.env.TZ).toBe("Asia/Shanghai");
+      await plan.prepareRuntime?.();
+      expect(plan.process.env.TZ).toBe("Asia/Shanghai");
+      expect(plan.process.env).not.toHaveProperty("HOME");
+    } finally { vi.unstubAllEnvs(); }
+  });
+
   it("builds an execution plan from an intact installed package", async () => {
     const fixture = createFixture();
     const resolver = fixture.resolver;

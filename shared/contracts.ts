@@ -659,6 +659,8 @@ export const ContentKindSchema = z.enum(["article", "post", "summary", "topic", 
 export type ContentKind = z.infer<typeof ContentKindSchema>;
 
 export const SourceKindSchema = z.enum(["rss", "web", "x", "reddit", "manual", "api"]);
+export const SourceQuerySchema = z.object({ kind: SourceKindSchema.optional(), skillId: z.string().max(160).optional() }).strict();
+export type SourceQuery = z.infer<typeof SourceQuerySchema>;
 
 export const SourceDefinitionSchema = z.object({
   schemaVersion: z.number().default(SCHEMA_VERSION),
@@ -1229,7 +1231,7 @@ export interface DesktopApi {
   writeContent(path: string, content: string): Promise<ContentRecord>;
   getXFollowingCurls(): Promise<string[]>;
   saveXFollowingCurls(contents: string[]): Promise<void>;
-  listSources(): Promise<SourceDefinition[]>;
+  listSources(query?: SourceQuery): Promise<SourceDefinition[]>;
   getRssSources(): Promise<RssDocumentView>;
   getRssSourceEntries(input: RssEntriesQuery): Promise<RssEntriesPage>;
   getRssSourceRuns(input: RssRunsQuery): Promise<RssRunsPage>;

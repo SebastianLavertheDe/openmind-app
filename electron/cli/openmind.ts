@@ -14,22 +14,15 @@ import { readRssCatalog } from "../rss/rss-service";
 import { computeRootId } from "../paths/openmind-path-resolver";
 import { waitForRssMutation } from "../rss/file-lock";
 import { readCommandResult } from "./command-result";
+import { commandInputs, parseCommand } from "./command-options";
 
 /** Run with Node or Electron's RUN_AS_NODE launcher: no app/window/display initialization. */
 export async function runCommand(argv: string[]): Promise<number> {
-  const [area, command, ...rest] = argv;
-  if (area === "--help" || !area) {
-    process.stdout.write("openmind rss sync|collect|pipeline --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--source-id ID]\nopenmind brief generate --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--topics]\nopenmind runtime prepare --root ABSOLUTE --user-data ABSOLUTE [--browser]\n");
+  if (argv[0] === "--help" || !argv.length) {
+    process.stdout.write("openmind rss sync|collect|pipeline --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--source-id ID] [--check]\nopenmind rss pipeline --summarize --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--check]\nopenmind brief generate --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--topics] [--check]\nopenmind reddit collect --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--check]\nopenmind x collect --root ABSOLUTE --user-data ABSOLUTE [--check]\nopenmind runtime prepare --root ABSOLUTE --user-data ABSOLUTE [--browser] [--scheduled]\n");
     return 0;
   }
-  if (!(area === "rss" && ["sync", "collect", "pipeline"].includes(command) || area === "brief" && command === "generate" || area === "runtime" && command === "prepare")) throw new Error("Unknown command. Use --help.");
-  const options = new Map<string, string>();
-  for (let i = 0; i < rest.length; i++) {
-    const key = rest[i];
-    if (key === "--topics" || key === "--browser") { options.set(key, "true"); continue; }
-    if (!["--root", "--user-data", "--date", "--source-id"].includes(key) || !rest[i + 1] || rest[i + 1].startsWith("--")) throw new Error(`Invalid argument: ${key}`);
-    options.set(key, rest[++i]);
-  }
+  const { area, command, options, skillIds } = parseCommand(argv);
   const rootArgument = options.get("--root") || "", dataArgument = options.get("--user-data") || "";
   if (!path.isAbsolute(rootArgument) || !path.isAbsolute(dataArgument)) throw new Error("--root and --user-data must be explicit absolute paths.");
   const root = fs.realpathSync(rootArgument);
@@ -47,9 +40,10 @@ export async function runCommand(argv: string[]): Promise<number> {
   const packages = new SkillPackageService(paths);
   const repository = new RssRepository(root, readRssCatalog(), [path.join(paths.state, computeRootId(root), ".openmind")]);
   if (area === "rss") await waitForRssMutation(() => repository.read());
-  const id = area === "rss" || area === "runtime" ? "rss-article-saver" : options.has("--topics") ? "daily-topic-selector" : "daily-article-summarizer";
-  const record = await waitForRssMutation(() => installBuiltinDefault(packages, id));
-  if (!packages.isEnabled(record)) throw new Error(`Skill ${id} is disabled. Enable it in Skill settings.`);
+  for (const id of skillIds) {
+    const record = await waitForRssMutation(() => installBuiltinDefault(packages, id));
+    if (area !== "runtime" && !packages.isEnabled(record)) throw new Error(`Skill ${id} is disabled. Enable it in Skill settings.`);
+  }
   const python = new SharedPythonRuntimeService(paths, { projects: () => listInstalledPythonProjects(packages) });
   if (area === "runtime") {
     const status = await python.setEnabled(true);
@@ -60,21 +54,39 @@ export async function runCommand(argv: string[]): Promise<number> {
     process.stdout.write(JSON.stringify(status) + "\n"); return status.ready ? 0 : 1;
   }
   const resolver = new InstalledSkillExecutionResolver(packages, new RuntimeManager(paths, { sharedPython: python }), root, 1);
-  const registry = new SkillToolRegistry(root, { paths, openmindRoot: root, rootGeneration: 1, installedResolver: resolver });
   const date = options.get("--date") || new Date().toLocaleDateString("sv-SE").replace(/-/g, "");
-  const run = registry.submitRun({ skillId: id, inputs: { date, ...(area === "rss" ? { mode: command, sourceId: options.get("--source-id") || "" } : {}) }, trigger: { type: "manual" }, providerBindings: {}, externalExportBindingIds: [], rootGeneration: 1 });
-  const stop = () => { void registry.cancelRun(run.id); };
+  const requests = skillIds.map(skillId => ({ skillId, inputs: commandInputs(skillId, command, options, date), trigger: { type: "manual" as const }, providerBindings: {}, externalExportBindingIds: [], rootGeneration: 1 }));
+  if (options.has("--check")) {
+    for (const request of requests) {
+      const plan = await resolver.resolve(request, "cli-check");
+      await plan.prepareRuntime?.();
+      process.stdout.write(JSON.stringify({ skillId: request.skillId, status: "ready", executable: plan.process.executable, skillHome: plan.skillHome }) + "\n");
+    }
+    return 0;
+  }
+  const registry = new SkillToolRegistry(root, { paths, openmindRoot: root, rootGeneration: 1, installedResolver: resolver });
+  let activeRunId: string | null = null;
+  let stopped = false;
+  const stop = () => { stopped = true; if (activeRunId) void registry.cancelRun(activeRunId); };
   process.once("SIGTERM", stop); process.once("SIGINT", stop);
   try {
-    for (;;) {
-      const current = registry.getRun(run.id);
-      if (current.terminalState) {
-        const result = readCommandResult(path.join(paths.runs, run.id, "work"), registry.getRunEvents(run.id));
-        process.stdout.write(JSON.stringify({ runId: run.id, status: current.terminalState, error: current.error, result, artifacts: current.artifacts }) + "\n");
-        return current.terminalState === "succeeded" ? 0 : 1;
+    for (const request of requests) {
+      if (stopped) return 1;
+      const run = registry.submitRun(request);
+      activeRunId = run.id;
+      for (;;) {
+        const current = registry.getRun(run.id);
+        if (current.terminalState) {
+          const result = readCommandResult(path.join(paths.runs, run.id, "work"), registry.getRunEvents(run.id));
+          process.stdout.write(JSON.stringify({ skillId: request.skillId, runId: run.id, status: current.terminalState, error: current.error, result, artifacts: current.artifacts }) + "\n");
+          activeRunId = null;
+          if (current.terminalState !== "succeeded") return 1;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
-      await new Promise(resolve => setTimeout(resolve, 100));
     }
+    return stopped ? 1 : 0;
   } finally { process.removeListener("SIGTERM", stop); process.removeListener("SIGINT", stop); }
 }
 

@@ -225,7 +225,7 @@ export const featureMessages = {
       reddit: { title: (name: string) => `${name}的社区源`, description: (count: number) => `共 ${count} 个社区。这里展示实际抓取地址，仓库整体更新不会覆盖。`, search: "搜索社区名称或地址…", empty: "还没有为这个 Skill 添加社区。" },
       x: { title: (name: string) => `${name}的请求配置`, description: "通过浏览器复制的完整 cURL 配置 X 请求。配置只供当前 Skill 使用，仓库整体更新不会覆盖。", search: "搜索抓取配置…", empty: "这个 Skill 还没有可用的抓取配置。" }
     },
-    sourceStatus: { disabled: "已停用", idle: "等待运行", running: "运行中", success: "正常", warning: "需关注", failed: "失败", never: "尚未运行", last: (time: string) => `上次 ${time}` },
+    sourceStatus: { lastFailed: "上一次采集失败", disabled: "已停用", idle: "等待运行", running: "运行中", success: "正常", warning: "需关注", failed: "失败", never: "尚未运行", last: (time: string) => `上次 ${time}` },
     kindLabel: { process: "进程 Skill", agent: "Agent", prompt: "提示词", workflow: "工作流" },
     runState: { succeeded: "成功", failed: "失败", timedOut: "超时", cancelled: "已取消", queued: "排队中", inspecting: "检查中", preparing: "准备运行环境", running: "运行中", cancelling: "取消中" }
   },

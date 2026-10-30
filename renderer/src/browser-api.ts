@@ -445,7 +445,7 @@ export function installBrowserPreviewApi(): boolean {
     writeContent: async (path, content) => ({ path, name: path.split("/").at(-1), content, truncated: false }),
     getXFollowingCurls: async () => [...previewXFollowingCurls],
     saveXFollowingCurls: async (contents) => { previewXFollowingCurls = contents.map((content) => content.trim()); },
-    listSources: async () => previewSources,
+    listSources: async query => previewSources.filter(source => (!query?.kind || source.kind === query.kind) && (!query?.skillId || source.skillId === query.skillId)),
     updateSource: async (id, patch) => {
       const current = previewSources.find((source) => source.id === id);
       if (!current) throw new Error(messages.browserPreview.sourceMissing);

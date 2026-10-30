@@ -1,4 +1,5 @@
 export const rssMessages = { rss: {
+  sourcePage: (page: number, pages: number, total: number) => `Page ${page} of ${pages} · ${total} sources`,
   category: "Category", categories: "Source categories", blog: "Blogs and websites", wechat: "WeChat", ungrouped: "Uncategorized",
   topicLabels: { ai: "AI", agents: "Agents", prompts: "Prompts", engineering: "Engineering", product: "Design", business: "Business", tech: "Technology", life: "Life" },
   newCategory: "Create category…", categoryName: "New category name", categoryPlaceholder: "For example, photography or books", categoryHint: "Choose a topic or create one when saving this source.", categoryReuse: (name: string) => `The existing “${name}” category will be used.`,

@@ -20,6 +20,34 @@ const CursorSchema = z.object({ scope: z.string(), version: z.string().optional(
 const hash = (text: string | Buffer) => crypto.createHash("sha256").update(text).digest("hex");
 const encode = (value: z.infer<typeof CursorSchema>) => Buffer.from(JSON.stringify(value)).toString("base64url");
 
+type ParsedFeed = { stamp: string; version: string; entries: RssEntry[]; bytes: number };
+// The IPC reader is recreated per request. Cache by canonical file AND base URL,
+// with a bounded LRU shared by readers in this process (the entries worker).
+const feedCache = new Map<string, ParsedFeed>();
+function parsedFeed(root: string, file: string, baseUrl: string): ParsedFeed | null {
+  if (!fs.existsSync(file)) return null;
+  const actual = fs.realpathSync(file);
+  if (!actual.startsWith(fs.realpathSync(root) + path.sep)) throw new Error("RSS query path escapes its data root.");
+  const stat = fs.statSync(actual);
+  if (!stat.isFile() || stat.size > MAX_FEED) throw new Error("RSS query file is invalid or exceeds its size limit.");
+  const stamp = `${stat.mtimeMs}:${stat.ctimeMs}:${stat.size}:${stat.ino}`;
+  const key = `${actual}\0${baseUrl}`;
+  const cached = feedCache.get(key);
+  if (cached?.stamp === stamp) { feedCache.delete(key); feedCache.set(key, cached); return cached; }
+  feedCache.delete(key);
+  const content = readBounded(root, file, MAX_FEED);
+  if (!content) return null;
+  const entries = parseEntries(content.toString("utf8"), baseUrl);
+  const result = { stamp, version: hash(content), entries, bytes: content.length + Buffer.byteLength(JSON.stringify(entries)) };
+  feedCache.set(key, result);
+  let bytes = [...feedCache.values()].reduce((total, value) => total + value.bytes, 0);
+  while (feedCache.size > 8 || bytes > 24 * 1024 * 1024) {
+    const oldest = feedCache.keys().next().value!;
+    bytes -= feedCache.get(oldest)!.bytes; feedCache.delete(oldest);
+  }
+  return result;
+}
+
 /** Read-only queries. No converter, provider, installed package or network access. */
 export class RssSourceReader {
   constructor(private repository: RssRepository, private runsRoot: string) {}
@@ -31,12 +59,11 @@ export class RssSourceReader {
     const scope = this.scope(source.id, "entries");
     const cursor = this.cursor(input.cursor, scope);
     const file = rssPrivateDirectory(this.repository.root, ".agent", "skill-data", "rss-article-saver", "feeds", `${source.id}.xml`);
-    const content = readBounded(this.repository.root, file, MAX_FEED);
-    if (content === null) return { entries: [], total: 0, status: "missing", version: null, nextCursor: null, reset: Boolean(cursor) };
-    const version = hash(content);
+    const feed = parsedFeed(this.repository.root, file, source.inputUrl);
+    if (feed === null) return { entries: [], total: 0, status: "missing", version: null, nextCursor: null, reset: Boolean(cursor) };
+    const { version, entries } = feed;
     const reset = Boolean(cursor && cursor.version !== version);
     const offset = !reset ? cursor?.offset || 0 : 0;
-    const entries = parseEntries(content.toString("utf8"), source.inputUrl);
     if (offset > entries.length) throw new Error("Invalid RSS page cursor.");
     const end = offset + input.limit;
     return { entries: entries.slice(offset, end), total: entries.length, version, reset,

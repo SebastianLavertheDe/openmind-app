@@ -228,7 +228,7 @@ export const featureMessages = {
       reddit: { title: (name: string) => `${name} communities`, description: (count: number) => `${count} communities. Actual fetch URLs are shown here and are preserved when the repository is updated.`, search: "Search community names or URLs…", empty: "No communities have been added to this Skill." },
       x: { title: (name: string) => `${name} request configuration`, description: "Configure X requests using complete cURL commands copied from your browser. This configuration belongs to this Skill and is preserved when the repository is updated.", search: "Search fetch configurations…", empty: "This Skill has no available fetch configuration." }
     },
-    sourceStatus: { disabled: "Disabled", idle: "Waiting to run", running: "Running", success: "Healthy", warning: "Needs attention", failed: "Failed", never: "Never run", last: (time: string) => `Last: ${time}` },
+    sourceStatus: { lastFailed: "Last collection failed", disabled: "Disabled", idle: "Waiting to run", running: "Running", success: "Healthy", warning: "Needs attention", failed: "Failed", never: "Never run", last: (time: string) => `Last: ${time}` },
     kindLabel: { process: "Process Skill", agent: "Agent", prompt: "Prompt", workflow: "Workflow" },
     runState: { succeeded: "Succeeded", failed: "Failed", timedOut: "Timed out", cancelled: "Cancelled", queued: "Queued", inspecting: "Inspecting", preparing: "Preparing runtime", running: "Running", cancelling: "Cancelling" }
   },

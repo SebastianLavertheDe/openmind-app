@@ -1,5 +1,6 @@
-import { SourcesPage } from "../sources";
-import { shortUrl } from "../sources/rss-source-presentation";
+import { reconcileSources } from "../sources/source-list-state";
+import { SkillSourcesPanel } from "../sources/SkillSourcesPanel";
+export { SkillSourcesPanel } from "../sources/SkillSourcesPanel";
 import { SkillLibraryPage } from "./SkillLibraryPage";
 import type { SkillLibraryEntry, SkillLibraryMode } from "@shared/skill-library";
 import type { ProviderCapabilities } from "@shared/contracts";
@@ -13,12 +14,12 @@ import { Dialog } from "../../design-system/Dialog";
 import { getLocale } from "@shared/messages";
 import { useLocale } from "../../i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ChevronDown, Clock3, FolderOpen, GitBranch, Package, Pencil, Plus, RefreshCw, Upload, X } from "lucide-react";
+import { CheckCircle2, ChevronDown, Clock3, FolderOpen, GitBranch, Package, Plus, RefreshCw } from "lucide-react";
 import type { BrokerRunRecord, InstalledSkillView, SkillDefinition, SkillPackageInspectionView, SkillSourceInspectionView, SourceDefinition } from "@shared/contracts";
 import type { SkillPackageSourceInput } from "@shared/skill-package-sources";
 import { messages } from "@shared/messages";
 import { notifyInstalledSkillCatalogChanged } from "../../installed-skill-events";
-import { CopyButton, StatusBadge, SearchInput, Input, Textarea } from "../../design-system/components";
+import { StatusBadge, SearchInput, Input } from "../../design-system/components";
 import { ToggleSwitch } from "../../design-system/controls";
 import { DefaultSkillsToggle } from "./DefaultSkillsToggle";
 import { useExitPresence } from "../../design-system/use-exit-presence";
@@ -182,9 +183,12 @@ export function InstalledSkillsManager({ initialSkillId, embedded = false, initi
   useEffect(() => { setDetailTab("overview"); }, [selectedId]);
 
   const reloadSources = useCallback(async () => {
-    const nextSources = await window.openmind.listSources();
-    setSources(nextSources);
-  }, []);
+    const skillId = selectedSummary?.id;
+    const nextSources = await window.openmind.listSources(skillId ? { skillId } : undefined);
+    setSources(current => reconcileSources(current, skillId ? [...current.filter(source => source.skillId !== skillId), ...nextSources] : nextSources));
+  }, [selectedSummary?.id]);
+
+  const sourceUpdated = useCallback((updated: SourceDefinition) => setSources(current => current.map(source => source.id === updated.id ? updated : source)), []);
 
   const checkSourceUpdate = useCallback(async (group: SkillCatalogGroup) => {
     const source = sourceInputForGroup(group);
@@ -386,7 +390,7 @@ export function InstalledSkillsManager({ initialSkillId, embedded = false, initi
                 {detailTab === "sources" ? <SkillSourcesPanel
                   summary={selectedSummary}
                   sources={selectedSources}
-                  onSourceUpdated={(updated) => setSources((current) => current.map((source) => source.id === updated.id ? updated : source))}
+                  onSourceUpdated={sourceUpdated}
                   onReloadSources={reloadSources}
                 /> : null}
                 {detailTab === "runs" ? <SkillRunHistory runs={selectedRuns} unavailable={runHistoryUnavailable} /> : null}
@@ -830,321 +834,6 @@ function SkillDetailTabs({ active, sourceLabel, runCount, onChange }: {
     tabs={tabs.map(tab => ({ value: tab.id, label: tab.label, id: `skill-tab-${tab.id}`, controls: `skill-panel-${tab.id}` }))} />;
 }
 
-type SourceEditorState = { mode: "add" } | { mode: "edit"; source: SourceDefinition };
-
-export function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadSources }: {
-  summary: Pick<ManifestSummary, "id" | "title">;
-  sources: SourceDefinition[];
-  onSourceUpdated(source: SourceDefinition): void;
-  onReloadSources(): Promise<void>;
-}) {
-  useLocale();
-  const [query, setQuery] = useState("");
-  const [editor, setEditor] = useState<SourceEditorState | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [feedback, setFeedback] = useState<SkillToggleFeedback | null>(null);
-  const editorPresence = useExitPresence(Boolean(editor), 160);
-  const lastEditor = useRef<SourceEditorState | null>(editor);
-  if (editor) lastEditor.current = editor;
-  const renderedEditor = editor ?? lastEditor.current;
-  const isRss = summary.id === "rss-article-saver";
-  const isReddit = summary.id === "reddit-fetcher";
-  const canEditSources = isRss || isReddit;
-  const copy = skillSourceCopy(summary, sources.length);
-  const visibleSources = sources.filter((source) => {
-    const needle = query.trim().toLocaleLowerCase();
-    return !needle || `${source.name} ${source.url || ""} ${source.tags.join(" ")}`.toLocaleLowerCase().includes(needle);
-  });
-
-  const toggleSource = async (source: SourceDefinition) => {
-    setBusyId(source.id);
-    setFeedback(null);
-    try {
-      const updated = await window.openmind.updateSource(source.id, { enabled: !source.enabled });
-      onSourceUpdated(updated);
-    } catch (cause) {
-      setFeedback({ tone: "error", message: cause instanceof Error ? cause.message : String(cause) });
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const importOpml = async () => {
-    setImporting(true);
-    setFeedback(null);
-    try {
-      const count = await window.openmind.importOpml();
-      await onReloadSources();
-      setFeedback({ tone: "success", message: m.ownedSources.importSuccess(count) });
-    } catch (cause) {
-      setFeedback({ tone: "error", message: cause instanceof Error ? cause.message : String(cause) });
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  if (isRss) return <SourcesPage presentation="embedded" />;
-
-  if (summary.id === "x-following-fetcher") return <SkillXCurlPanel
-    summary={summary}
-    source={sources[0]}
-    busy={Boolean(sources[0] && busyId === sources[0].id)}
-    feedback={feedback}
-    onToggle={sources[0] ? () => void toggleSource(sources[0]) : undefined}
-  />;
-
-  return <section className="skills-owned-sources">
-    <header className="skills-owned-sources-header">
-      <div><h3>{copy.title}</h3><p>{copy.description}</p></div>
-      <div className="skills-owned-sources-toolbar">
-        {canEditSources ? <div className="skills-owned-sources-actions">
-          <Button variant="ghost" type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}><Plus size={14} aria-hidden />{isRss ? m.ownedSources.addRss : m.ownedSources.addReddit}</Button>
-          {isRss ? <Button variant="ghost" type="button" data-motion="action" disabled={importing} aria-busy={importing || undefined} onClick={() => void importOpml()}><Upload size={14} className={importing ? "spin" : ""} aria-hidden />{m.ownedSources.importOpml}</Button> : null}
-        </div> : null}
-        <SearchInput className="skills-source-search" variant="outlined" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.searchPlaceholder} aria-label={copy.searchPlaceholder} />
-      </div>
-    </header>
-
-    {feedback ? <p className={`skills-source-feedback ${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.message}</p> : null}
-
-    {!visibleSources.length ? <div className="skills-source-empty">
-      <span>{query ? m.ownedSources.noMatch : copy.empty}</span>
-      {!query && canEditSources ? <Button variant="ghost" type="button" data-motion="action" onClick={() => setEditor({ mode: "add" })}>{m.ownedSources.addFirst(isReddit)}</Button> : null}
-    </div> : isReddit ? <div className="collector-source-grid" role="list">
-      {visibleSources.map(source => <article key={source.id} className="workspace-card collector-source-card" role="listitem" aria-label={source.name}>
-        <div className="collector-source-heading">
-          <strong className="collector-source-name" title={source.name}>{source.name}</strong>
-          <ToggleSwitch checked={source.enabled} disabled={busyId === source.id} label={m.ownedSources.toggle(source.enabled, source.name)} onChange={() => void toggleSource(source)} />
-        </div>
-        <div className="collector-source-meta"><StatusBadge tone={sourceBadgeTone(source)}>{sourceStatusLabel(source)}</StatusBadge><span>{sourceLastRun(source)}</span></div>
-        <div className="collector-source-address">{source.url ? <>
-          <a href={source.url} title={source.url} aria-label={source.url} onClick={event => { event.preventDefault(); void window.openmind.openExternal(event.currentTarget.href); }}>{shortUrl(source.url)}</a>
-          <CopyButton text={source.url} label={`${messages.ai.message.copy}: ${source.name}`} />
-        </> : <span>{source.frequency}</span>}</div>
-        <div className="collector-source-edit"><IconButton label={m.ownedSources.edit(source.name)} onClick={() => setEditor({ mode: "edit", source })}><Pencil size={16} aria-hidden /></IconButton></div>
-        {source.recentError ? <p className="collector-source-error" title={source.recentError}>{source.recentError}</p> : null}
-      </article>)}
-    </div> : <div className="skills-source-list" role="list">
-      <div className="skills-source-list-head" aria-hidden><span /><span>{m.ownedSources.nameAndAddress(isReddit)}</span><span>{m.ownedSources.statusAndLastRun}</span><span>{m.ownedSources.operation}</span></div>
-      {visibleSources.map((source) => <article key={source.id} className="skills-source-row" role="listitem">
-        <span className={`skills-source-state ${sourceStatusTone(source)}`} aria-hidden />
-        <div className="skills-source-main">
-          <strong>{source.name}</strong>
-          <small title={source.url || undefined}>{source.url || source.frequency}</small>
-        </div>
-        <div className="skills-source-meta"><span>{sourceStatusLabel(source)}</span><small>{sourceLastRun(source)}</small></div>
-        <div className="skills-source-row-actions">
-          {source.kind === "rss" || source.kind === "reddit" ? <IconButton type="button" className="skills-source-edit" data-motion="icon" onClick={() => setEditor({ mode: "edit", source })} label={m.ownedSources.edit(source.name)}><Pencil size={14} aria-hidden /></IconButton> : null}
-          <ToggleSwitch
-            checked={source.enabled}
-            disabled={busyId === source.id}
-            label={m.ownedSources.toggle(source.enabled, source.name)}
-            onChange={() => void toggleSource(source)}
-          />
-        </div>
-      </article>)}
-    </div>}
-
-    {editorPresence.visible && renderedEditor ? <SkillSourceEditor
-      key={renderedEditor.mode === "edit" ? `edit:${renderedEditor.source.id}` : "add"}
-      state={renderedEditor}
-      kind={isReddit ? "reddit" : "rss"}
-      active={Boolean(editor)}
-      leaving={editorPresence.leaving}
-      onClose={() => setEditor(null)}
-      onSaved={async () => {
-        setEditor(null);
-        await onReloadSources();
-        setFeedback({ tone: "success", message: m.ownedSources.saved(isReddit, renderedEditor.mode === "add") });
-      }}
-    /> : null}
-  </section>;
-}
-
-function SkillXCurlPanel({ summary, source, busy, feedback, onToggle }: {
-  summary: Pick<ManifestSummary, "id" | "title">;
-  source?: SourceDefinition;
-  busy: boolean;
-  feedback: SkillToggleFeedback | null;
-  onToggle?: () => void;
-}) {
-  const locale = useLocale();
-  const [curls, setCurls] = useState<string[]>([]);
-  const [curlState, setCurlState] = useState<"loading" | "configured" | "missing">("loading");
-  const [editorOpen, setEditorOpen] = useState(false);
-  const editorPresence = useExitPresence(editorOpen, 160);
-  const copy = skillSourceCopy(summary, source ? 1 : 0);
-
-  const loadCurl = useCallback(async () => {
-    setCurlState("loading");
-    try {
-      const next = (await window.openmind.getXFollowingCurls())
-        .map((curl) => String(curl || "").trim())
-        .filter((curl) => /^curl(?:\s|')/i.test(curl));
-      setCurls(next);
-      setCurlState(next.length ? "configured" : "missing");
-    } catch {
-      setCurls([]);
-      setCurlState("missing");
-    }
-  }, []);
-
-  useEffect(() => { void loadCurl(); }, [loadCurl]);
-
-  return <section className="skills-owned-sources skills-x-curl-panel">
-    <header className="skills-owned-sources-header">
-      <div><h3>{copy.title}</h3><p>{copy.description}</p></div>
-    </header>
-
-    <article className="skills-x-curl-card">
-      <span className={`skills-source-state ${curlState === "configured" ? "success" : "idle"}`} aria-hidden />
-      <div className="skills-x-curl-copy">
-        <strong>{m.xCurl.title}</strong>
-        <span>{curlState === "loading" ? m.xCurl.loading : curlState === "configured" ? m.xCurl.configured(curls.length) : m.xCurl.missing}</span>
-        <small>{m.xCurl.securitySummary}</small>
-      </div>
-      <div className="skills-x-curl-actions">
-        <Button variant="ghost" type="button" data-motion="action" disabled={curlState === "loading"} onClick={() => setEditorOpen(true)}><Pencil size={14} aria-hidden />{curlState === "configured" ? m.xCurl.edit : m.xCurl.fill}</Button>
-        {source && onToggle ? <ToggleSwitch
-          checked={source.enabled}
-          disabled={busy}
-          label={m.ownedSources.toggle(source.enabled, summary.title)}
-          onChange={onToggle}
-        /> : null}
-      </div>
-    </article>
-
-    {feedback ? <p className={`skills-source-feedback ${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.message}</p> : null}
-
-    <div className="skills-x-curl-help">
-      <strong>{m.xCurl.helpTitle}</strong>
-      <ol>{m.xCurl.helpSteps.map((step) => <li key={step}>{step}</li>)}</ol>
-    </div>
-
-    {editorPresence.visible ? <SkillXCurlEditor
-      initialCurls={curls}
-      active={editorOpen}
-      leaving={editorPresence.leaving}
-      onClose={() => setEditorOpen(false)}
-      onSaved={async (next) => {
-        setCurls(next);
-        setCurlState("configured");
-        setEditorOpen(false);
-      }}
-    /> : null}
-  </section>;
-}
-
-function SkillXCurlEditor({ initialCurls, active, leaving, onClose, onSaved }: { initialCurls: string[]; active: boolean; leaving: boolean; onClose(): void; onSaved(curls: string[]): Promise<void> }) {
-  useLocale();
-  const [drafts, setDrafts] = useState(() => initialCurls.length ? initialCurls : [""]);
-  const [saving, setSaving] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
-  const dismiss = () => { if (!saving) onClose(); };
-  const textareaRefs = useRef<Array<HTMLTextAreaElement | null>>([]);
-  const dialogRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    if (!active) return;
-    textareaRefs.current[0]?.focus();
-  }, [active]);
-
-  const save = async () => {
-    const normalized = drafts.map((draft) => draft.trim());
-    const invalidIndex = normalized.findIndex((curl) => !/^curl(?:\s|')/i.test(curl));
-    if (invalidIndex >= 0) {
-      setFailure(m.xCurl.invalidAt(invalidIndex + 1));
-      return;
-    }
-    const next = [...new Set(normalized)];
-    setSaving(true);
-    setFailure(null);
-    try {
-      await window.openmind.saveXFollowingCurls(next);
-      await onSaved(next);
-    } catch (cause) {
-      setFailure(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return <Dialog size="lg" as="section" open={active} presence={{ visible: true, leaving }} onClose={dismiss} dismissDisabled={saving}  containerRef={dialogRef} className="skills-x-curl-editor" aria-labelledby="skills-x-curl-editor-title">
-      <DialogHeader title={m.xCurl.editorTitle} titleId="skills-x-curl-editor-title" description={m.xCurl.editorDescription} onClose={dismiss} closeDisabled={saving} closeLabel={m.common.close} />
-      <form className="ui-dialog-form" onSubmit={(event) => { event.preventDefault(); void save(); }}><DialogBody>
-        <div className="skills-x-curl-list">
-          {drafts.map((draft, index) => <section className="skills-x-curl-item" key={index}>
-            <header>
-              <label htmlFor={`skills-x-curl-${index}`}>{m.xCurl.fullCurl(index + 1)}</label>
-              <Button variant="ghost" type="button" data-motion="action" disabled={drafts.length === 1} aria-label={m.xCurl.remove(index + 1)} onClick={() => {
-                setDrafts((current) => current.filter((_, currentIndex) => currentIndex !== index));
-                setFailure(null);
-              }}><X size={13} aria-hidden />{m.common.delete}</Button>
-            </header>
-            <Textarea id={`skills-x-curl-${index}`} ref={(node) => { textareaRefs.current[index] = node; }} value={draft} onChange={(event) => {
-              const value = event.target.value;
-              setDrafts((current) => current.map((item, currentIndex) => currentIndex === index ? value : item));
-              setFailure(null);
-            }} spellCheck={false} placeholder={"curl 'https://x.com/i/api/graphql/…' \\\n  -H 'authorization: …'"} />
-          </section>)}
-        </div>
-        <Button type="button" className="skills-x-curl-add" data-motion="action" disabled={drafts.length >= 20} onClick={() => {
-          setDrafts((current) => [...current, ""]);
-          setFailure(null);
-        }}><Plus size={14} aria-hidden />{m.xCurl.add}</Button>
-        <p className="skills-x-curl-security">{m.xCurl.securityDetail}</p>
-        {failure ? <p className="skills-source-editor-error" role="alert">{failure}</p> : null}
-        </DialogBody><DialogFooter><Button variant="ghost" type="button" data-motion="action" onClick={dismiss} disabled={saving}>{m.common.cancel}</Button><Button variant="primary" type="submit"  data-motion="action" disabled={saving || drafts.some((draft) => !draft.trim())} aria-busy={saving || undefined}>{saving ? m.common.saving : m.xCurl.saveAll}</Button></DialogFooter>
-      </form>
-    </Dialog>;
-}
-
-function SkillSourceEditor({ state, kind, active, leaving, onClose, onSaved }: { state: SourceEditorState; kind: "rss" | "reddit"; active: boolean; leaving: boolean; onClose(): void; onSaved(): Promise<void> }) {
-  useLocale();
-  const editing = state.mode === "edit" ? state.source : null;
-  const isReddit = kind === "reddit";
-  const [name, setName] = useState(editing?.name || "");
-  const [url, setUrl] = useState(editing?.url || "");
-  const [tags, setTags] = useState(editing?.tags.join(", ") || "");
-  const [saving, setSaving] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
-  const dismiss = () => { if (!saving) onClose(); };
-  const inputRef = useRef<HTMLInputElement>(null);
-  const dialogRef = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    if (!active) return;
-    inputRef.current?.focus();
-  }, [active]);
-
-  const save = async () => {
-    setSaving(true);
-    setFailure(null);
-    const nextTags = tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean);
-    try {
-      if (editing) await window.openmind.updateSource(editing.id, { name: name.trim(), url: url.trim(), tags: nextTags });
-      else await window.openmind.addRssSource({ name: name.trim(), url: url.trim(), kind, frequency: m.ownedSources.frequency, tags: nextTags });
-      await onSaved();
-    } catch (cause) {
-      setFailure(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return <Dialog size="md" as="section" open={active} presence={{ visible: true, leaving }} onClose={dismiss} dismissDisabled={saving}  containerRef={dialogRef}  aria-labelledby="skill-source-editor-title">
-      <DialogHeader title={m.sourceEditor.title(Boolean(editing), isReddit)} titleId="skill-source-editor-title" description={m.sourceEditor.description(isReddit)} onClose={dismiss} closeDisabled={saving} closeLabel={m.common.close} />
-      <form className="ui-dialog-form" onSubmit={(event) => { event.preventDefault(); void save(); }}><DialogBody>
-        <FormField label={m.sourceEditor.name(isReddit)}><Input ref={inputRef} value={name} onChange={(event) => setName(event.target.value)} placeholder={m.sourceEditor.namePlaceholder(isReddit)} /></FormField>
-        <FormField label={m.sourceEditor.url(isReddit)}><Input type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder={isReddit ? "https://www.reddit.com/r/LocalLLaMA/hot.json" : "https://example.com/feed.xml"} /></FormField>
-        <FormField label={m.sourceEditor.tags}><Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={m.sourceEditor.tagsPlaceholder(isReddit)} /></FormField>
-        {failure ? <p className="skills-source-editor-error" role="alert">{failure}</p> : null}
-        </DialogBody><DialogFooter><Button variant="ghost" type="button" data-motion="action" onClick={dismiss} disabled={saving}>{m.common.cancel}</Button><Button variant="primary" type="submit"  data-motion="action" disabled={saving || !name.trim() || !url.trim()} aria-busy={saving || undefined}>{saving ? m.common.saving : editing ? m.sourceEditor.saveChanges : m.sourceEditor.add(isReddit)}</Button></DialogFooter>
-      </form>
-    </Dialog>;
-}
-
 function SkillAvailability({ record, summary, busy, feedback, onChange }: {
   record: InstalledSkillView;
   summary: ManifestSummary;
@@ -1197,52 +886,6 @@ function skillSourceTabLabel(skillId: string, count: number): string {
   if (skillId === "reddit-fetcher") return m.sourceTab.reddit(count);
   if (skillId === "x-following-fetcher") return m.sourceTab.x;
   return m.sourceTab.other(count);
-}
-
-function skillSourceCopy(summary: Pick<ManifestSummary, "id" | "title">, count: number): { title: string; description: string; searchPlaceholder: string; empty: string } {
-  if (summary.id === "rss-article-saver") return {
-    title: m.sourceCopy.rss.title(summary.title),
-    description: m.sourceCopy.rss.description(count),
-    searchPlaceholder: m.sourceCopy.rss.search,
-    empty: m.sourceCopy.rss.empty
-  };
-  if (summary.id === "reddit-fetcher") return {
-    title: m.sourceCopy.reddit.title(summary.title),
-    description: m.sourceCopy.reddit.description(count),
-    searchPlaceholder: m.sourceCopy.reddit.search,
-    empty: m.sourceCopy.reddit.empty
-  };
-  return {
-    title: m.sourceCopy.x.title(summary.title),
-    description: m.sourceCopy.x.description,
-    searchPlaceholder: m.sourceCopy.x.search,
-    empty: m.sourceCopy.x.empty
-  };
-}
-
-function sourceStatusLabel(source: SourceDefinition): string {
-  if (!source.enabled || source.status === "disabled") return m.sourceStatus.disabled;
-  return ({ idle: m.sourceStatus.idle, running: m.sourceStatus.running, success: m.sourceStatus.success, warning: m.sourceStatus.warning, failed: m.sourceStatus.failed, disabled: m.sourceStatus.disabled } as const)[source.status];
-}
-
-function sourceStatusTone(source: SourceDefinition): string {
-  if (!source.enabled || source.status === "disabled") return "idle";
-  if (source.status === "failed") return "danger";
-  if (source.status === "warning") return "warning";
-  if (source.status === "running") return "running";
-  return source.status === "success" ? "success" : "idle";
-}
-
-function sourceBadgeTone(source: SourceDefinition) {
-  const tone = sourceStatusTone(source);
-  return tone === "danger" || tone === "warning" || tone === "success" ? tone : tone === "running" ? "info" : "neutral";
-}
-
-function sourceLastRun(source: SourceDefinition): string {
-  if (!source.lastRunAt) return m.sourceStatus.never;
-  const parsed = new Date(source.lastRunAt);
-  if (Number.isNaN(parsed.getTime())) return source.lastRunAt;
-  return m.sourceStatus.last(parsed.toLocaleString(getLocale(), { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }));
 }
 
 function buildItems(installed: InstalledSkillView[], installedInspectionMap: Record<string, SkillPackageInspectionView> = {}): SkillItem[] {

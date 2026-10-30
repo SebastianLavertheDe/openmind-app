@@ -34,12 +34,17 @@ app.whenReady().then(async () => {
   const fixtureSources = await js('window.openmind.getRssSources().then(document => document.sources)');
   const replaceSources = async sources => {
     await js(`(async () => { const document = await window.openmind.getRssSources(); for (const source of document.sources) await window.openmind.removeRssSource(source); for (const source of ${JSON.stringify(sources)}) await window.openmind.createRssSource(source); })()`);
-    await click('刷新'); await readyCount(sources.length);
+    await click('刷新'); await readyCount(Math.min(30, sources.length));
   };
   // Show actual public definitions, without fetching feeds or reading user data.
   const catalog = JSON.parse(fs.readFileSync(path.join(root, 'config/rss-sources/catalog.json'), 'utf8'));
   await replaceSources(catalog.sources.map(source => ({ ...source, enabled: false })));
   assert.equal(await js("document.querySelectorAll('.rss-category-scroll [role=tab]').length"), 9, '227 sources should use eight topics plus All');
+  const firstSource = await js("document.querySelector('.rss-card-subject strong').textContent");
+  await click('下一页'); await readyCount(30);
+  assert.notEqual(await js("document.querySelector('.rss-card-subject strong').textContent"), firstSource, 'The next page must show different sources');
+  await click('上一页'); await readyCount(30);
+  assert.equal(await js("document.querySelector('.rss-card-subject strong').textContent"), firstSource);
   for (const theme of ['light', 'dark']) for (const width of [720, 1280]) {
     win.setContentSize(width, 900); await js(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
     const name = `catalog-sources-${theme}-${width}`; await capture(name); captures.push(name);
@@ -55,7 +60,7 @@ app.whenReady().then(async () => {
   await input('.rss-editor input[placeholder="例如：摄影、阅读"]', '摄影');
   await click('检测链接'); await js('new Promise(resolve => setTimeout(resolve, 100))');
   await capture('category-create'); captures.push('category-create');
-  await click('保存'); await ready('.rss-source-card:nth-child(228)');
+  await click('保存'); await ready('.rss-category-scroll [data-value="group:摄影"]');
   await js("[...document.querySelectorAll('.rss-category-scroll [role=tab]')].find(tab => tab.textContent === '摄影').click()");
   assert.equal(await js("document.querySelectorAll('.rss-source-card').length"), 1);
   assert.ok(await js("document.querySelector('.rss-source-card').textContent.includes('Photography journal')"));
@@ -65,7 +70,8 @@ app.whenReady().then(async () => {
     const topics = ['ai', 'agents', 'prompts', 'engineering', 'business', 'tech', 'life'];
     for (let index = 0; index < 210; index++) await window.openmind.createRssSource({ name: 'Layout source ' + index, inputUrl: 'https://layout.example/feed/' + index + '/long-path'.repeat(12), group: index === 208 ? 'Long custom OPML category '.repeat(6) : index === 209 ? '' : topics[index % topics.length], enabled: false });
   })()`);
-  await click('刷新'); await ready('.rss-source-card:nth-child(213)');
+  await click('刷新'); await readyCount(30);
+  assert.equal(await js('window.openmind.getRssSources().then(document => document.sources.length)'), 213);
   for (const theme of ['light', 'dark']) for (const width of [720, 1280]) {
     win.setContentSize(width, 900);
     await js(`document.documentElement.dataset.theme = ${JSON.stringify(theme)}`);
@@ -95,7 +101,7 @@ app.whenReady().then(async () => {
   const runs = await js("window.openmind.getRssFixtureCalls().then(calls => calls.filter(call => call.method === 'run'))");
   assert.deepEqual(runs.map(run => run.sourceId), ['design'], 'Manual card actions must pass sourceId');
   assert.ok(await js("document.querySelector('.rss-source-card').textContent.includes('RSS 已就绪') && !document.querySelector('.rss-source-card').textContent.includes('正文采集失败')"), 'Errors must not add a text block to the card');
-  const errorIndicator = '.rss-card-heading button[aria-label="技术详情: Design research"]';
+  const errorIndicator = '.rss-source-card button[aria-label="技术详情: Design research"]';
   await ready(errorIndicator);
   assert.equal(await js("document.querySelectorAll('.rss-source-card .rss-source-error, .rss-card-error').length"), 0);
   const errorBounds = await js(`(() => { const box = document.querySelector(${JSON.stringify(errorIndicator)}).getBoundingClientRect(); return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) }; })()`);
@@ -114,7 +120,7 @@ app.whenReady().then(async () => {
   await js('new Promise(resolve => setTimeout(resolve, 50))');
   const filtering = await js(`(async () => { const search = document.querySelector('.rss-toolbar input'), start = performance.now(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(search, 'Layout source 209'); search.dispatchEvent(new Event('input', { bubbles: true })); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); const filtered = document.querySelectorAll('.rss-source-card').length; const animations = document.querySelector('.rss-source-grid').getAnimations({ subtree: true }).filter(animation => animation.playState === 'running').length; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(search, ''); search.dispatchEvent(new Event('input', { bubbles: true })); return { filtered, animations, elapsedMs: performance.now() - start }; })()`);
   assert.equal(filtering.filtered, 1); assert.equal(filtering.animations, 0);
-  await ready('.rss-source-card:nth-child(213)');
+  await readyCount(30);
   await js(`document.querySelector('.rss-card-subject').focus()`);
   assert.equal(await js("document.activeElement.matches('.rss-card-subject')"), true);
   win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
@@ -187,6 +193,7 @@ app.whenReady().then(async () => {
   assert.ok(await js(`document.body.innerText.includes('[invalid-feed]')`)); await capture('source-error');
   await input('[role="dialog"] input[type="url"]', 'https://new.example/feed'); await click('检测链接');
   await js('new Promise(resolve => setTimeout(resolve, 100))'); await click('保存'); await ready('.rss-source-card');
+  await input('.rss-toolbar input', 'New research feed'); await readyCount(1);
   assert.ok(await js(`document.body.innerText.includes('New research feed')`));
   await click('总结与选题偏好'); await ready('[role="dialog"] textarea'); await capture('preferences');
   const textarea = await js(`document.querySelector('[role="dialog"] textarea').value`); assert.match(textarea, /产品设计/);
@@ -202,6 +209,6 @@ app.whenReady().then(async () => {
   assert.equal(await js("document.querySelector('.settings-page').dataset.settingsSection"), 'sources');
   await click('返回应用'); await ready('.app-nav');
   assert.equal(await js("!!document.querySelector('.settings-page')"), false, 'Settings must return to the original application page');
-  const report = { platform: process.platform, captures, settingsNavigation: true, convertedRssLocation: true, addErrorRetry: true, preferences: true, keyboard: true, longListLayout: true, categories: true, categoryCreation: true, catalogSources: catalog.sources.length, catalogTopics: 8, scopedTasks: true, detailTabs: true, detailFooterRemoved: true, sourceCount: 213, filtering, overflow: false };
+  const report = { platform: process.platform, captures, settingsNavigation: true, convertedRssLocation: true, addErrorRetry: true, preferences: true, keyboard: true, longListLayout: true, sourcePagination: true, mountedSourceLimit: 30, categories: true, categoryCreation: true, catalogSources: catalog.sources.length, catalogTopics: 8, scopedTasks: true, detailTabs: true, detailFooterRemoved: true, sourceCount: 213, filtering, overflow: false };
   fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report)); win.destroy();
 }).catch(error => { console.error(error); process.exitCode = 1; }).finally(() => { for (const win of BrowserWindow.getAllWindows()) win.destroy(); app.quit(); });

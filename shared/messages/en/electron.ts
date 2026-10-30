@@ -37,7 +37,7 @@ export const electronMessages = {
   },
   dialogs: { importOpml: "Import OPML", selectProjectFile: "Select a project file", selectOpenmindFile: "Select an openmind file", exportMarkdown: "Export Markdown" },
   pipeline: { collect: "Content collection", summary: "Daily summary", topic: "Topic generation", writing: "Writing materials" },
-  source: { localFile: "Local file", webPage: "Web page", customFrequencyDaily: "Daily", frequencyPipeline: "Daily pipeline" },
+  source: { localFile: "Local file", webPage: "Web page", customFrequencyDaily: "Daily", frequencyPipeline: "Daily pipeline", collectorInterrupted: "Collection was interrupted. Please retry." },
   brief: { recommendation: (title: string) => `Gather materials about “${title}” and start drafting.` },
   provider: { nativeLabel: (label: string) => `${label} · Local`, wslLabel: (label: string, distro: string) => `${label} · WSL ${distro}` },
   settings: { defaultPlatform: "WeChat Official Account" },

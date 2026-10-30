@@ -1,6 +1,9 @@
 import { RssRepository } from "../rss/rss-repository";
 import { readRssCatalog } from "../rss/rss-service";
 import fs from "node:fs";
+import crypto from "node:crypto";
+import { RedditSourceStatusSchema } from "../../shared/reddit-source-status";
+import { rssPrivateDirectory } from "../rss/file-lock";
 import path from "node:path";
 import { XMLBuilder, XMLParser } from "fast-xml-parser";
 import {
@@ -8,6 +11,8 @@ import {
   SourceDefinitionSchema,
   SourcePatchSchema,
   SourceRunSchema,
+  SourceQuerySchema,
+  type SourceQuery,
   type AddRssSourceInput,
   type SourceDefinition,
   type SourcePatch,
@@ -241,23 +246,28 @@ export class SourceRegistry {
     return bindings;
   }
 
-  listSources(): SourceDefinition[] {
+  listSources(rawQuery: SourceQuery = {}): SourceDefinition[] {
+    const query = SourceQuerySchema.parse(rawQuery);
+    const accepts = (kind: SourceDefinition["kind"], skillId: string | null) => (!query.kind || query.kind === kind) && (!query.skillId || query.skillId === skillId);
     const date = compactDate(new Date().toISOString().slice(0, 10));
-    const rss = this.readRssSources(date);
-    const skillSources = this.skillSources();
+    const rss = accepts("rss", "rss-article-saver") ? this.readRssSources(date) : [];
+    const skillSources = this.skillSources().filter(source => accepts(source.kind, source.skillId));
     const redditBinding = skillSources.find((source) => source.kind === "reddit");
-    const reddit = redditBinding ? this.readRedditSources(date, redditBinding) : [];
+    const reddit = redditBinding ? this.readRedditSources(redditBinding, query.kind === "reddit" || query.skillId === "reddit-fetcher") : [];
+    if (query.kind === "reddit" || query.skillId === "reddit-fetcher") return reddit;
     const generated: SourceDefinition[] = skillSources
       .filter((source) => source.kind !== "reddit")
       .map((source) => this.skillBackedSource(source.sourceId, source.sourceName, source.kind, source.skillId, date, source.artifactRoot));
     const settings = this.readSourceSettings();
     const runs = this.listSourceRuns();
-    const custom = settings.customSources.map((source) => this.customSource(source));
+    const custom = settings.customSources.filter(source => accepts(source.kind, null)).map((source) => this.customSource(source));
     return [...rss, ...reddit, ...generated, ...custom].map((source) => {
       // Reddit entries are fully owned by user-sources.yaml so their enabled
       // state is also consumed by the Skill runner. Legacy app-only overrides
       // must not win over that persistent per-Skill configuration.
-      const override = source.kind === "reddit" || source.kind === "rss" ? {} : settings.sources[source.id] || {};
+      // Reddit status comes from source-specific collector output, never the batch.
+      if (source.kind === "reddit") return source;
+      const override = source.kind === "rss" ? {} : settings.sources[source.id] || {};
       const enabled = override.enabled ?? source.enabled;
       const recentRuns = runs.filter((run) => run.sourceId === source.id || run.skillId === source.skillId).slice(0, 20);
       const latest = recentRuns[0];
@@ -282,7 +292,8 @@ export class SourceRegistry {
 
   updateSource(id: string, rawPatch: SourcePatch): SourceDefinition {
     const patch = SourcePatchSchema.parse(rawPatch);
-    const existing = this.listSources().find((source) => source.id === id);
+    const isReddit = this.loadRedditSourceEntries(false).some(source => source.id === id);
+    const existing = this.listSources(isReddit ? { kind: "reddit" } : {}).find(source => source.id === id);
     if (!existing) throw new Error(messages.errors.source.updateNotFound);
     if (existing.kind === "reddit") return this.updateRedditSource(existing, patch);
     if (existing.kind === "rss") {
@@ -434,25 +445,39 @@ export class SourceRegistry {
     }));
   }
 
-  private readRedditSources(date: string, binding: SkillSourceBinding): SourceDefinition[] {
-    const status = this.skillBackedSource(
-      binding.sourceId,
-      binding.sourceName,
-      "reddit",
-      binding.skillId,
-      date,
-      binding.artifactRoot
-    );
-    return this.loadRedditSourceEntries(false).map((source) => SourceDefinitionSchema.parse({
-      ...status,
-      id: source.id,
-      name: source.name,
-      url: source.url,
-      enabled: source.enabled,
-      frequency: source.frequency,
-      tags: source.tags,
-      status: source.enabled ? status.status : "disabled"
-    }));
+  private readRedditSources(binding: SkillSourceBinding, strict: boolean): SourceDefinition[] {
+    const sources = this.loadRedditSourceEntries(strict);
+    const directory = rssPrivateDirectory(this.openmindRoot, ".agent", "skill-data", "reddit-fetcher", "source-status");
+    const hasResults = fs.existsSync(directory);
+    const root = fs.realpathSync(this.openmindRoot);
+    return sources.map(source => {
+      const state = hasResults ? this.readRedditStatus(source.url, directory, root) : null;
+      return SourceDefinitionSchema.parse({
+        ...source, kind: "reddit", skillId: binding.skillId,
+        status: !source.enabled ? "disabled" : state?.status || "idle",
+        lastRunAt: state?.startedAt || null, lastSuccessAt: state?.lastSuccessAt || null,
+        recentError: state?.error || null, itemCount: state?.itemCount || 0
+      });
+    });
+  }
+
+  private readRedditStatus(url: string, directory: string, root: string) {
+    const name = crypto.createHash("sha256").update(url).digest("hex") + ".json";
+    const file = path.join(directory, name);
+    try {
+      const actual = fs.realpathSync(file);
+      if (!actual.startsWith(root + path.sep)) return null;
+      if (fs.statSync(actual).size > 32 * 1024) return null;
+      const state = RedditSourceStatusSchema.parse(JSON.parse(fs.readFileSync(actual, "utf8")));
+      if (state.url !== url) return null;
+      if (state.status === "running") {
+        try { process.kill(state.pid, 0); }
+        catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ESRCH") return { ...state, status: "failed" as const, error: messages.source.collectorInterrupted };
+        }
+      }
+      return state;
+    } catch { return null; } // Old installations have no source-scoped results yet.
   }
 
   private loadRedditSourceEntries(strict: boolean): RedditSourceEntry[] {
@@ -491,7 +516,7 @@ export class SourceRegistry {
     const sources = this.loadRedditSourceEntries(true);
     const duplicate = sources.find((source) => source.url === input.url);
     if (duplicate) {
-      const existing = this.listSources().find((source) => source.id === duplicate.id);
+      const existing = this.listSources({ kind: "reddit" }).find((source) => source.id === duplicate.id);
       if (existing) return existing;
     }
     const entry: RedditSourceEntry = {
@@ -503,7 +528,7 @@ export class SourceRegistry {
       tags: input.tags
     };
     this.writeRedditSourceEntries([...sources, entry]);
-    const created = this.listSources().find((source) => source.id === entry.id);
+    const created = this.listSources({ kind: "reddit" }).find((source) => source.id === entry.id);
     if (!created) throw new Error(messages.errors.source.refreshFailed);
     return created;
   }
@@ -526,7 +551,7 @@ export class SourceRegistry {
       ...(patch.tags ? { tags: patch.tags } : {})
     };
     this.writeRedditSourceEntries(sources);
-    const updated = this.listSources().find((source) => source.id === existing.id);
+    const updated = this.listSources({ kind: "reddit" }).find((source) => source.id === existing.id);
     if (!updated) throw new Error(messages.errors.source.refreshFailed);
     return updated;
   }

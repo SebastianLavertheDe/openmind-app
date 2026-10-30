@@ -268,6 +268,9 @@ export class InstalledSkillExecutionResolver {
     const script = resolvePackageFile(packageRoot, manifest.entrypoint.script);
     const runtime = this.runtimes.resolve(manifest, packageRoot, record.digest);
     const auxiliary: Record<string, string> = {
+      // Keep local-day output (especially X, which has no date input) aligned
+      // with the CLI's explicit cron timezone despite the minimal child env.
+      ...(process.env.TZ ? { TZ: process.env.TZ } : {}),
       PLAYWRIGHT_BROWSERS_PATH: path.join(this.packages.appPaths.runtimes, "browser-playwright"),
       XDG_CACHE_HOME: path.join(this.packages.appPaths.cache, "python")
     };

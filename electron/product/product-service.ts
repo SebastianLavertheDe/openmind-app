@@ -9,6 +9,7 @@ import type {
   CreativeTopicDay,
   GlobalSearchResult,
   SourceDefinition,
+  SourceQuery,
   SourcePatch,
   UserPreferences
 } from "../../shared/contracts";
@@ -137,8 +138,8 @@ export class ProductService {
     this.dateCache.delete(date);
   }
 
-  listSources(): SourceDefinition[] {
-    return this.sources.listSources();
+  listSources(query?: SourceQuery): SourceDefinition[] {
+    return this.sources.listSources(query);
   }
 
   updateSource(id: string, patch: SourcePatch): SourceDefinition {

@@ -3,7 +3,7 @@ import { FeedbackProvider } from "../src/feedback-context";
 import { RssSourceSchema, type RssDocumentView } from "../../shared/rss-contracts";
 import type { DesktopApi } from "../../shared/contracts";
 
-export function installRssCatalogApi() {
+export function installRssCatalogApi(count = 0) {
   let document: RssDocumentView = { schemaVersion: 1, initialized: true, revision: 1, rootKey: "catalog-root", deletedPresetIds: [], migrationWarnings: [], sources: [
     { id: "design", name: "Design research", group: "product", enabled: true, itemCount: 120, lastSyncAt: "2026-10-28T08:00:00Z", lastError: { stage: "collect", code: "access-denied", message: "HTTP 403 returned by the article endpoint. No login requirement inferred.", retryable: false } },
     { id: "wechat", name: "Agent workflows", group: "agents", enabled: true },
@@ -11,6 +11,7 @@ export function installRssCatalogApi() {
     { id: "ungrouped", name: "An uncategorized feed", group: "", enabled: true },
     { id: "pending", name: "Source awaiting setup", group: "", enabled: false, inputUrl: "" }
   ].map(row => ({ ...RssSourceSchema.parse({ kind: "feed", revision: 1, inputUrl: `https://${row.id}.example/research/long-path/with-publications.xml`, ...row }), localFeed: { path: `/fixtures/content/.agent/skill-data/rss-article-saver/feeds/${row.id}.xml`, status: row.id === "design" ? "ready" : row.id === "custom" ? "outdated" : "missing" } })) };
+  if (count) document.sources = Array.from({ length: count }, (_, index) => ({ ...document.sources[index % document.sources.length], id: `scale-${index}`, name: `Source ${index}`, inputUrl: `https://source${index}.example/feed` }));
   const api = {
     getRssSources: async () => structuredClone(document),
     getRssSourceEntries: async () => ({ entries: [{ title: "A synthetic local RSS entry", url: "https://design.example/article", publishedAt: "2026-10-28T08:00:00Z" }], total: 1, version: "catalog-1", status: "ready", nextCursor: null, reset: false }),

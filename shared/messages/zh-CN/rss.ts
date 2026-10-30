@@ -1,4 +1,5 @@
 export const rssMessages = { rss: {
+  sourcePage: (page: number, pages: number, total: number) => `第 ${page} / ${pages} 页 · ${total} 个源`,
   category: "分类", categories: "源分类", blog: "博客与网站", wechat: "公众号", ungrouped: "未分类",
   topicLabels: { ai: "AI", agents: "Agent", prompts: "Prompt", engineering: "编程技术", product: "产品设计", business: "商业创业", tech: "科技资讯", life: "生活思考" },
   newCategory: "新建分类…", categoryName: "新分类名称", categoryPlaceholder: "例如：摄影、阅读", categoryHint: "选择已有主题，或在保存来源时创建新分类。", categoryReuse: (name: string) => `将使用已有的「${name}」分类。`,

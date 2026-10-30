@@ -16,6 +16,7 @@ import {
   CreativeStageSchema,
   ProjectFileSearchResultSchema,
   SourcePatchSchema,
+  SourceQuerySchema,
   SessionPatchSchema,
   StartRunInputSchema,
   AiTurnListParamsSchema,
@@ -56,6 +57,7 @@ import { WorkflowResumeRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
 import { RssService } from "./rss/rss-service";
 import { RssSourceReader } from "./rss/rss-source-reader";
+import { RssEntriesService } from "./rss/rss-entries-service";
 import { RssSourceInputSchema, RssSourcePatchSchema, RssRunInputSchema, RssUrlSchema, RssEntriesQuerySchema, RssRunsQuerySchema, RssRunEventsQuerySchema } from "../shared/rss-contracts";
 import { installBuiltinDefault } from "./skills/builtin-default-packages";
 import { SaveDailyBriefPreferencesSchema } from "../shared/daily-brief-preferences";
@@ -231,10 +233,14 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     return new RssService(root, skillPackages(), sharedPython(), resolveSkillLibraryBundleRoot(), stateRoot ? [path.join(stateRoot, ".openmind")] : []);
   };
   const rssReader = () => new RssSourceReader(rss().repository, skillPackages().appPaths.runs);
+  const rssEntries = new RssEntriesService();
 
   return [
     { channel: C.getRssSources, handler: () => rss().repository.view() },
-    { channel: C.getRssSourceEntries, handler: input => rssReader().entries(RssEntriesQuerySchema.parse(input)) },
+    { channel: C.getRssSourceEntries, handler: input => {
+      const stateRoot = ctx.resolveAiStateRoot?.();
+      return rssEntries.entries(rss().repository, RssEntriesQuerySchema.parse(input), stateRoot ? [path.join(stateRoot, ".openmind")] : []);
+    } },
     { channel: C.getRssSourceRuns, handler: input => rssReader().runs(RssRunsQuerySchema.parse(input)) },
     { channel: C.getRssSourceRunEvents, handler: input => rssReader().events(RssRunEventsQuerySchema.parse(input)) },
     { channel: C.detectRssSource, handler: input => projectAdmission.run(() => { const value = z.object({ inputUrl: RssUrlSchema, selectedFeedUrl: RssUrlSchema.optional() }).parse(input); return rss().detect(value.inputUrl, value.selectedFeedUrl); }) },
@@ -385,7 +391,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       channel: C.saveXFollowingCurls,
       handler: (rawContents) => product().saveXFollowingCurls(XFollowingCurlsSchema.parse(rawContents))
     },
-    { channel: C.listSources, handler: () => product().listSources() },
+    { channel: C.listSources, handler: query => query === undefined ? product().listSources() : product().listSources(SourceQuerySchema.parse(query)) },
     { channel: C.updateSource, handler: (id, patch) => product().updateSource(parseString(id), SourcePatchSchema.parse(patch)) },
     { channel: C.addRssSource, handler: async (input) => { const value = AddRssSourceInputSchema.parse(input); if (value.kind !== "rss") return product().addRssSource(value); await rss().add({ name: value.name, inputUrl: value.url, enabled: true }); return product().listSources().find(row => row.url === value.url); } },
     {

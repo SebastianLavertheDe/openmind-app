@@ -88,6 +88,9 @@ app.whenReady().then(async () => {
     }
     if (scenario.id.startsWith("skill-library-")) await waitForSelector(".skill-library-card");
     if (scenario.id.startsWith("rss-source-")) await waitForSelector(".rss-source-card");
+    if (scenario.id.startsWith("collector-source-")) await waitForSelector(".collector-source-card");
+    if (scenario.id === "collector-source-editor") { await click('.collector-source-card:nth-child(4) .collector-source-edit button'); await waitForSelector('.ui-dialog [role="switch"]'); }
+    if (scenario.id === "rss-source-editor") { await click('.rss-source-card button[aria-label^="Edit source:"]'); await waitForSelector('.rss-editor [role="switch"]'); }
     if (scenario.id === "rss-source-details") { await click('.rss-card-subject'); await waitForSelector('.rss-detail-dialog'); }
     if (scenario.id === "rss-source-menu") { await click('.rss-source-card [aria-haspopup="menu"]'); await waitForSelector('.ui-popover-surface[role="menu"]'); }
     if (scenario.id === "new-task-home") await waitForSelector(".new-task-skill-card");
@@ -106,13 +109,13 @@ app.whenReady().then(async () => {
         const page = document.querySelector('.rss-sources'), cards = [...page.querySelectorAll('.rss-source-card')];
         const dialog = document.querySelector('.rss-detail-dialog');
         return { cards: cards.length, pageWidth: page.clientWidth, overflow: page.scrollWidth - page.clientWidth,
-          controlsSeparate: cards.every(card => !card.querySelector('.rss-card-subject button, .rss-card-subject a')),
+          controlsSeparate: cards.every(card => !card.querySelector('.rss-card-subject button, .rss-card-subject a, [role="switch"]')),
           pillTabs: !!page.querySelector('[data-ui-control="tabs"][data-variant="pill"]'),
           dialog: !!dialog, fixedLayout: !dialog || dialog.dataset.layout === 'fixed', dialogContained: !dialog || dialog.getBoundingClientRect().right <= innerWidth && dialog.getBoundingClientRect().left >= 0 && dialog.getBoundingClientRect().top >= 0 && dialog.getBoundingClientRect().bottom <= innerHeight };
       })()`);
-      assert.equal(rss.cards, 5, `${name}: source fixtures missing`);
+      assert.equal(rss.cards, scenario.id === "rss-source-scale" ? 30 : 5, `${name}: source fixtures missing`);
       assert.ok(rss.overflow <= 1 && rss.controlsSeparate && rss.pillTabs && rss.fixedLayout && rss.dialogContained, `${name}: RSS layout contract`);
-      assert.equal(rss.dialog, scenario.id === "rss-source-details");
+      assert.equal(rss.dialog, scenario.id === "rss-source-details" || scenario.id === "rss-source-editor");
       if (scenario.id === "rss-source-embedded") assert.ok(rss.pageWidth <= 390);
       report.geometry.push({ name, rss });
       if (scenario.id === "rss-source-menu") {
@@ -125,6 +128,31 @@ app.whenReady().then(async () => {
         assert.ok(menu.width <= 160 && menu.height <= 52 && menu.itemHeight >= 32 && menu.focused && menu.contained, `${name}: compact source menu contract`);
         report.geometry.push({ name, menu });
       }
+    }
+    if (scenario.id.startsWith("collector-source-")) {
+      assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('.collector-source-card [role=\"switch\"]').length"), 0, `${name}: card enablement belongs in the editor`);
+      const failures = await win.webContents.executeJavaScript(`(() => {
+        const cards = [...document.querySelectorAll('.collector-source-card')];
+        return { dots: cards.filter(card => card.querySelector('.collector-source-failure-dot')).length, onlyDots: cards.every((card, index) => Boolean(card.querySelector('.collector-source-failure-dot')) === (index % 3 === 0)), labels: cards.some(card => /Healthy|Running|Failed|Disabled/.test(card.textContent)), tiny: [...document.querySelectorAll('.collector-source-failure-dot')].every(dot => dot.getBoundingClientRect().width === 8 && dot.getBoundingClientRect().height === 8) };
+      })()`);
+      assert.equal(failures.dots, 10); assert.ok(failures.onlyDots && failures.tiny && !failures.labels, `${name}: only failed collections show a small red dot`);
+      report.geometry.push({ name, failures });
+    }
+    if (scenario.id === "rss-source-editor" || scenario.id === "collector-source-editor") {
+      const editor = await win.webContents.executeJavaScript(`(() => { const dialog = document.querySelector('.ui-dialog'), box = dialog.getBoundingClientRect(), toggle = dialog.querySelector('[role="switch"]'); return { switches: dialog.querySelectorAll('[role="switch"]').length, checked: toggle.getAttribute('aria-checked'), focused: dialog.contains(document.activeElement), contained: box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight }; })()`);
+      assert.equal(editor.switches, 1); assert.equal(editor.checked, scenario.id === "rss-source-editor" ? "true" : "false");
+      assert.ok(editor.focused && editor.contained, `${name}: source editor geometry and focus`);
+      report.geometry.push({ name, editor });
+    }
+    if (scenario.id === "rss-source-scale" || scenario.id === "collector-source-scale") {
+      const selector = scenario.id === "rss-source-scale" ? ".rss-source-card" : ".collector-source-card";
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelectorAll('${selector}').length`), 30);
+      await win.webContents.executeJavaScript("document.querySelector('.rss-pagination button:last-child').scrollIntoView({ block: 'center' })"); await settled();
+      await click('.rss-pagination button:last-child'); await settled();
+      assert.ok((await win.webContents.executeJavaScript(`document.querySelector('${selector}').textContent`)).includes('30'), `${name}: next source page`);
+      await win.webContents.executeJavaScript("document.querySelector('.rss-pagination button:first-child').scrollIntoView({ block: 'center' })"); await settled();
+      await click('.rss-pagination button:first-child'); await settled();
+      report.geometry.push({ name, sourcePageSize: 30, totalSources: 75 });
     }
     if (scenario.id === "new-task-home") {
       const home = await win.webContents.executeJavaScript(`(() => {

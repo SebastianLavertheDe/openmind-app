@@ -2,6 +2,14 @@
 set -eu
 resources_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 app_dir=$(CDPATH= cd -- "$resources_dir/.." && pwd)
+if [ -f "$app_dir/package.json" ] && [ -f "$app_dir/electron/cli/openmind.ts" ]; then
+  cli="$app_dir/.build/electron/electron/cli/openmind.js"
+  if [ ! -f "$cli" ]; then
+    echo 'OpenMind CLI is not built. Run npm run prepare:skill-library and npm run build:electron in the app checkout.' >&2
+    exit 1
+  fi
+  exec "${OPENMIND_NODE_EXECUTABLE:-node}" "$cli" "$@"
+fi
 if [ -x "$app_dir/MacOS/OpenMind" ]; then
   app_binary="$app_dir/MacOS/OpenMind"
 else

@@ -2,14 +2,15 @@
 .collector-source-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 12px; margin-top: var(--space-4); }
 .collector-source-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; align-items: center; gap: 8px 4px; min-width: 0; padding: 12px; }
 .collector-source-heading { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
-.collector-source-heading > :last-child { flex-shrink: 0; }
 .collector-source-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: var(--fs-base); }
+.collector-source-failure-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--danger-500); }
+.collector-source-failure-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .collector-source-meta { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
 .collector-source-meta > span:last-child { color: var(--muted); font-size: var(--fs-xs); }
 .collector-source-address { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .collector-source-address > a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--reader-link); font-size: var(--fs-xs); }
 .collector-source-edit { display: flex; align-items: center; }
-.collector-source-error { grid-column: 1 / -1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; margin: 0; color: var(--danger-500); font-size: var(--fs-xs); }
+.collector-source-error-detail { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 
 .rss-sources { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; height: 100%; padding: 24px; overflow: auto; }
 .rss-sources.rss-sources-embedded { padding: 0; }
@@ -25,7 +26,6 @@
 .rss-source-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 12px; flex-shrink: 0; }
 .rss-source-card { display: flex; flex-direction: column; min-width: 0; padding: 12px; gap: 6px; }
 .rss-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; min-height: var(--control-height-sm); }
-.rss-card-heading > :last-child { flex-shrink: 0; }
 .rss-card-error-message { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .rss-card-subject { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; text-align: start; color: inherit; font: inherit; background: transparent; border: 0; border-radius: var(--radius-sm); padding: 0; cursor: pointer; }
 .rss-card-subject:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }

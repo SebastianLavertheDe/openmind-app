@@ -81,7 +81,7 @@ export const electronMessages = {
     localFile: "本地文件",
     webPage: "网页",
     customFrequencyDaily: "每天",
-    frequencyPipeline: "每日流水线"
+    frequencyPipeline: "每日流水线", collectorInterrupted: "采集已中断，请重试。"
   },
 
   brief: {

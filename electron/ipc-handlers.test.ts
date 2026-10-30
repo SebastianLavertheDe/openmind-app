@@ -317,6 +317,15 @@ describe("handler forwarding — 源列表", () => {
     expect(spy).toHaveBeenCalledWith("listSources");
   });
 
+  it("validates and forwards source query scope", () => {
+    const { product, spy } = makeProductSpy();
+    const ctx = makeCtx({ ensureProductService: () => product as never });
+    invokeHandler(ctx, IPC_METHOD_CHANNELS.listSources, { kind: "reddit", skillId: "reddit-fetcher" });
+    expect(spy).toHaveBeenCalledWith("listSources", { kind: "reddit", skillId: "reddit-fetcher" });
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.listSources, { kind: "invalid" })).toThrow();
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.listSources, { path: "/tmp/other" })).toThrow();
+  });
+
   it("X cURL 通过专用私有配置接口读写", () => {
     const { product, spy } = makeProductSpy();
     const ctx = makeCtx({ ensureProductService: () => product as never });

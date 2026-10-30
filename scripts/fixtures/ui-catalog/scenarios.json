@@ -157,5 +157,33 @@
     "height": 900,
     "navigation": false,
     "pixelPlatforms": []
+  },
+  {
+    "id": "rss-source-scale",
+    "title": "RSS source pagination",
+    "height": 1800,
+    "navigation": false,
+    "pixelPlatforms": []
+  },
+  {
+    "id": "rss-source-editor",
+    "title": "RSS source settings",
+    "height": 900,
+    "navigation": false,
+    "pixelPlatforms": []
+  },
+  {
+    "id": "collector-source-editor",
+    "title": "Reddit source settings",
+    "height": 900,
+    "navigation": false,
+    "pixelPlatforms": []
+  },
+  {
+    "id": "collector-source-scale",
+    "title": "Reddit source pagination",
+    "height": 1800,
+    "navigation": false,
+    "pixelPlatforms": []
   }
 ]

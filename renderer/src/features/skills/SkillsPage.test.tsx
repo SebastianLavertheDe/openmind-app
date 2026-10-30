@@ -183,8 +183,11 @@ describe("SkillsPage", () => {
     expect(await screen.findByRole("heading", { name: "RSS 文章采集" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "订阅源 1" }));
     expect(await screen.findByRole("link", { name: "https://sspai.com/feed" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("switch", { name: /少数派/ }));
-    await waitFor(() => expect(editRssSource).toHaveBeenCalledWith({ id: "rss-1", revision: 1, enabled: false }));
+    fireEvent.click(screen.getByRole("button", { name: "编辑源: 少数派" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("switch"));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(editRssSource).toHaveBeenCalledWith(expect.objectContaining({ id: "rss-1", revision: 1, enabled: false })));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await waitFor(() => expect((screen.getByRole("button", { name: "导入 OPML" }) as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(screen.getByRole("button", { name: "导入 OPML" }));
     await waitFor(() => expect(importRssOpml).toHaveBeenCalled());
@@ -250,15 +253,14 @@ describe("SkillsPage", () => {
     expect(screen.getByRole("link", { name: "https://www.reddit.com/r/LocalLLaMA/hot.json" })).toBeTruthy();
     expect(screen.queryByText("Reddit 订阅")).toBeNull();
 
-    fireEvent.click(screen.getByRole("switch", { name: "停用 r/LocalLLaMA" }));
-    await waitFor(() => expect(updateSource).toHaveBeenCalledWith("reddit-local-llama", { enabled: false }));
-
     fireEvent.click(screen.getByRole("button", { name: "编辑 r/LocalLLaMA" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("switch"));
     fireEvent.change(screen.getByRole("textbox", { name: "社区名称" }), { target: { value: "Local LLM" } });
     fireEvent.change(screen.getByRole("textbox", { name: "Reddit JSON 地址" }), { target: { value: "https://www.reddit.com/r/LocalLLaMA/new.json" } });
     fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
     await waitFor(() => expect(updateSource).toHaveBeenCalledWith("reddit-local-llama", expect.objectContaining({
       name: "Local LLM",
+      enabled: false,
       url: "https://www.reddit.com/r/LocalLLaMA/new.json"
     })));
 

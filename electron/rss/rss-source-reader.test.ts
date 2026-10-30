@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { RssRepository } from "./rss-repository";
 import { RssSourceReader, parseEntries } from "./rss-source-reader";
 import { RunStore } from "../execution/run-store";
@@ -52,6 +52,21 @@ describe("bounded local RSS entries", () => {
     write(file, "x".repeat(8 * 1024 * 1024 + 1)); expect(() => reader.entries({ sourceId: "one" })).toThrow(/size limit/);
     fs.unlinkSync(file); const outside = path.join(temp(), "feed.xml"); write(outside, xml()); fs.symlinkSync(outside, file);
     expect(() => reader.entries({ sourceId: "one" })).toThrow(/escapes/);
+  });
+  it("reuses a parsed feed across readers, but invalidates replacements and rejects new escaping symlinks", () => {
+    const { root, runs, repository, reader } = fixture(); const file = feed(repository, xml());
+    const read = vi.spyOn(fs, "openSync");
+    try {
+      const first = reader.entries({ sourceId: "one" });
+      const count = () => read.mock.calls.filter(args => args[0] === fs.realpathSync(file)).length;
+      const before = count();
+      new RssSourceReader(repository, runs).entries({ sourceId: "one", cursor: first.nextCursor! });
+      expect(count()).toBe(before);
+      const replacement = path.join(root, "replacement.xml"); write(replacement, xml(3)); fs.renameSync(replacement, file);
+      expect(reader.entries({ sourceId: "one", cursor: first.nextCursor! })).toMatchObject({ total: 3, reset: true });
+      fs.unlinkSync(file); const outside = path.join(temp(), "outside.xml"); write(outside, xml()); fs.symlinkSync(outside, file);
+      expect(() => reader.entries({ sourceId: "one" })).toThrow(/escapes/);
+    } finally { read.mockRestore(); }
   });
   it("accepts Atom and RDF dates, resolves links and rejects executable URLs", () => {
     const entries = parseEntries('<feed xmlns="http://www.w3.org/2005/Atom"><entry><title>A &amp; B</title><link rel="self" href="https://one.test/feed"/><link rel="alternate" href="/article"/><updated>2026-10-28</updated></entry><entry><title>Bad</title><link href="javascript:alert(1)"/></entry></feed>', "https://one.test/");

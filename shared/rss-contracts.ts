@@ -47,6 +47,8 @@ export type RssRunsQuery = z.input<typeof RssRunsQuerySchema>;
 export type RssRunEventsQuery = z.input<typeof RssRunEventsQuerySchema>;
 export type RssEntry = { title: string; url: string; publishedAt: string | null };
 export type RssEntriesPage = { entries: RssEntry[]; total: number; version: string | null; status: RssSourceView["localFeed"]["status"]; nextCursor: string | null; reset: boolean };
+export type RssEntriesWorkerRequest = { id: number; root: string; catalog: RssCatalog; legacyStateRoots: string[]; query: RssEntriesQuery };
+export type RssEntriesWorkerReply = { id: number; result: RssEntriesPage } | { id: number; error: string };
 export type RssSourceRun = {
   id: string; mode: RssRunInput["mode"]; createdAt: string; completedAt: string | null; state: BrokerRunState;
   outcome: "succeeded" | "failed" | "skipped" | null; updated: number | null; collected: number | null;

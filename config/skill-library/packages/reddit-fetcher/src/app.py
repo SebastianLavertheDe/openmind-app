@@ -10,6 +10,7 @@ from .config import load_config
 from .fetcher import fetch_listing
 from .runtime_paths import RuntimePathError, optional_run_dir, require_skill_data_dir, require_content_root
 from .storage import write_subreddit_markdown
+from .source_status import SourceStatus
 
 
 def _ensure_local_cron_bindings() -> None:
@@ -39,7 +40,7 @@ def run() -> int:
     try:
         _ensure_local_cron_bindings()
         content_root = require_content_root(args.content_root)
-        require_skill_data_dir(args.skill_data_dir)
+        data_dir = require_skill_data_dir(args.skill_data_dir)
         optional_run_dir(args.run_dir)
         config = load_config(args.config, str(content_root), args.skill_data_dir)
     except RuntimePathError as exc:
@@ -61,6 +62,7 @@ def run() -> int:
 
     for source_url in config.fetch.sources:
         print(f"\nFetching: {source_url}")
+        status = SourceStatus(data_dir, source_url)
         try:
             listing = fetch_listing(
                 source_url,
@@ -83,6 +85,7 @@ def run() -> int:
                 if not cache.has_post(listing.subreddit, post.post_id)
             ]
             if not new_posts:
+                status.finish()
                 print(f"No new posts for r/{listing.subreddit}")
                 continue
 
@@ -103,9 +106,11 @@ def run() -> int:
             cache.mark_posts(listing.subreddit, [post.post_id for post in new_posts])
             cache.save()
             written_count += 1
+            status.finish(len(new_posts))
             print(f"Saved {len(new_posts)} new posts for r/{listing.subreddit} -> {md_path}")
         except Exception as exc:
             failed_count += 1
+            status.finish(error=str(exc))
             print(f"Failed to fetch {source_url}: {exc}")
 
     print(f"\nSummary: fetched={fetched_count}, written={written_count}, failed={failed_count}")

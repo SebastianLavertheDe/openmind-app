@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
 import { RssSourceSchema, type RssDetection, type RssDocument, type RssDocumentView, type RssSourceInput, type RssSourceView } from "@shared/rss-contracts";
 import { messages as m } from "@shared/messages";
+import * as presentation from "./rss-source-presentation";
 import { SourcesPage } from "./SourcesPage";
 import { DailyPreferences } from "./DailyPreferences";
 
@@ -53,8 +54,21 @@ describe("RSS sources and daily preferences", () => {
     expect(await screen.findByRole("link", { name: "https://design.test/" })).toBeTruthy();
     expect(screen.queryByText("https://design.test/rss.xml")).toBeNull();
     expect(screen.getByRole("link", { name: "https://science.test/feed" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("switch", { name: `Design — ${m.rss.enabled}` }));
-    await waitFor(() => expect(api.editRssSource).toHaveBeenCalledWith({ id: "design", revision: 1, enabled: false }));
+    expect(within(screen.getByRole("article", { name: "Science" })).getByText(m.rss.disabled)).toBeTruthy();
+    expect(screen.queryByRole("switch")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
+    fireEvent.click(screen.getByRole("switch", { name: m.rss.enabled }));
+    expect(api.editRssSource).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: m.rss.cancel }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(feedback.confirm).toHaveBeenCalled();
+    expect(api.editRssSource).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
+    expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
+    await waitFor(() => expect(api.editRssSource).toHaveBeenCalledWith({ id: "design", revision: 1, name: "Design", group: "", enabled: false }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     fireEvent.change(screen.getByLabelText(m.rss.search), { target: { value: "science" } });
     expect(screen.queryByText("Design")).toBeNull();
     expect(screen.getByText("Science")).toBeTruthy();
@@ -189,7 +203,7 @@ describe("RSS sources and daily preferences", () => {
     fireEvent.change(screen.getByLabelText(m.rss.categoryName), { target: { value: input } });
     expect(screen.getByText(m.rss.categoryReuse(expected === "ai" ? m.rss.topicLabels.ai : expected))).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
-    await waitFor(() => expect(api.editRssSource).toHaveBeenCalledWith({ id: "design", revision: 1, name: "Design", group: expected }));
+    await waitFor(() => expect(api.editRssSource).toHaveBeenCalledWith({ id: "design", revision: 1, name: "Design", group: expected, enabled: true }));
     expect(api.detectRssSource).not.toHaveBeenCalled();
   });
   it.each(["page", "settings", "embedded"] as const)("supports %s with category filtering and source-scoped manual execution", async presentation => {
@@ -251,12 +265,14 @@ describe("RSS sources and daily preferences", () => {
     render(<SourcesPage />); await screen.findByText("Design"); fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
     const shell = screen.getByRole("dialog");
     fireEvent.change(screen.getByLabelText(m.rss.name), { target: { value: "Draft" } });
+    fireEvent.click(screen.getByRole("switch", { name: m.rss.enabled }));
     document.sources[0].revision = 2; fireEvent.click(screen.getByLabelText(m.rss.refresh));
     await waitFor(() => expect(api.getRssSources).toHaveBeenCalledTimes(2));
     expect((screen.getByLabelText(m.rss.name) as HTMLInputElement).value).toBe("Draft");
+    expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("false");
     api.editRssSource.mockRejectedValueOnce(new Error("Revision conflict"));
     fireEvent.click(screen.getByRole("button", { name: m.rss.save })); await screen.findByText("Revision conflict");
-    expect(api.editRssSource).toHaveBeenLastCalledWith({ id: "design", revision: 1, name: "Draft", group: "product" });
+    expect(api.editRssSource).toHaveBeenLastCalledWith({ id: "design", revision: 1, name: "Draft", group: "product", enabled: false });
     feedback.confirm.mockResolvedValueOnce(false); fireEvent.click(screen.getByRole("button", { name: m.rss.cancel }));
     await waitFor(() => expect(feedback.confirm).toHaveBeenCalled()); expect(screen.getByRole("dialog")).toBe(shell);
     fireEvent.click(screen.getByRole("button", { name: m.rss.cancel })); await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -264,7 +280,7 @@ describe("RSS sources and daily preferences", () => {
     fireEvent.click(screen.getByRole("button", { name: new RegExp(m.rss.category) })); fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: m.rss.topicLabels.ai }));
     fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); expect(api.detectRssSource).not.toHaveBeenCalled();
-    expect(api.editRssSource).toHaveBeenLastCalledWith({ id: "design", revision: 2, name: "Design", group: "ai" });
+    expect(api.editRssSource).toHaveBeenLastCalledWith({ id: "design", revision: 2, name: "Design", group: "ai", enabled: true });
   });
   it("shows external deletion and drops an open detail when the content root changes", async () => {
     const api = fixture(); render(<SourcesPage />); await screen.findByText("Design");
@@ -287,4 +303,33 @@ describe("RSS sources and daily preferences", () => {
     expect(api.saveDailyBriefPreferences).toHaveBeenCalledWith({ revision: 2, text: "Design, exclude funding, English, one recommendation" });
     expect(api.generateDailyBrief).not.toHaveBeenCalled();
   });
+});
+
+
+it("bounds large source lists, skips unchanged card renders and preserves page/focus through refresh", async () => {
+  const api = fixture();
+  document.sources = Array.from({ length: 227 }, (_, index) => ({ ...document.sources[0], id: `source-${index}`, name: `Source ${index}`, inputUrl: `https://source${index}.test/` }));
+  const time = vi.spyOn(presentation, "sourceTime");
+  try {
+    const view = render(<SourcesPage />); await screen.findByText("Source 0");
+    expect(view.container.querySelectorAll(".rss-source-card")).toHaveLength(30);
+    expect(screen.queryByText("Source 30")).toBeNull();
+    time.mockClear();
+    await act(async () => { fireEvent.click(screen.getByLabelText(m.rss.refresh)); });
+    expect(time).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText(m.rss.next));
+    expect(screen.getByText("Source 30")).toBeTruthy();
+    expect(screen.queryByText("Source 0")).toBeNull();
+    expect(window.document.activeElement).toBe(screen.getByRole("region", { name: m.rss.title }));
+    time.mockClear();
+    await act(async () => { fireEvent.click(screen.getByLabelText(m.rss.refresh)); });
+    expect(time).not.toHaveBeenCalled();
+    document.sources[30].itemCount++;
+    await act(async () => { fireEvent.click(screen.getByLabelText(m.rss.refresh)); });
+    expect(time).toHaveBeenCalledTimes(2); // Only the changed card formats its two time labels.
+    fireEvent.change(screen.getByLabelText(m.rss.search), { target: { value: "Source 226" } });
+    expect(screen.getByText("Source 226")).toBeTruthy();
+    expect(view.container.querySelectorAll(".rss-source-card")).toHaveLength(1);
+    expect(api.getRssSources).toHaveBeenCalledTimes(4);
+  } finally { time.mockRestore(); }
 });

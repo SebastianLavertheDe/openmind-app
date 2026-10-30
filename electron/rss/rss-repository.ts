@@ -66,10 +66,20 @@ export class RssRepository {
   rootKey(): string { return crypto.createHash("sha256").update(fs.realpathSync(this.root)).digest("hex"); }
   view(): RssDocumentView {
     const document = this.read();
+    // Validate shared ancestors once; still check every feed's real path so a
+    // substituted symlink cannot escape the selected content root.
+    const root = fs.realpathSync(this.root);
+    const feeds = rssPrivateDirectory(this.root, ".agent", "skill-data", "rss-article-saver", "feeds");
+    const feedsExist = fs.existsSync(feeds);
     return { ...document, rootKey: this.rootKey(), sources: document.sources.map(source => {
-      const file = rssPrivateDirectory(this.root, ".agent", "skill-data", "rss-article-saver", "feeds", `${source.id}.xml`);
-      const status = !fs.existsSync(file) ? "missing" : source.feedRevision === source.revision ? "ready" : "outdated";
-      const stat = status === "missing" ? null : fs.statSync(file);
+      const file = path.join(feeds, `${source.id}.xml`);
+      let stat: fs.Stats | null = null;
+      try { if (feedsExist && fs.existsSync(file)) {
+        const actual = fs.realpathSync(file);
+        if (!actual.startsWith(root + path.sep)) throw new Error("Private path escapes the content root");
+        stat = fs.statSync(actual);
+      } } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+      const status = !stat ? "missing" : source.feedRevision === source.revision ? "ready" : "outdated";
       return { ...source, localFeed: { path: file, status, ...(stat ? { version: `${stat.mtimeMs}:${stat.ctimeMs}:${stat.size}:${stat.ino}` } : {}) } };
     }) };
   }
