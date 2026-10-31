@@ -146,7 +146,7 @@ describe("SettingsPage", () => {
     expect(getXFollowingCurls).not.toHaveBeenCalled();
   });
 
-  it("manages RSS sources in settings with one heading and preferences in the toolbar", async () => {
+  it("manages RSS sources with preferences available only in Data and sessions navigation", async () => {
     const getRssSources = vi.fn(async () => ({ schemaVersion: 1 as const, initialized: true as const, revision: 1, deletedPresetIds: [], migrationWarnings: [], sources: [] }));
     window.openmind = makeApi({ getRssSources });
     render(<AiProvider initial={snapshot} skills={[]}><SettingsPage repoRoot="/repo" providers={providers} onRepo={vi.fn()} onBack={vi.fn()} initialSection="sources" /><FeedbackHost /></AiProvider>);
@@ -156,8 +156,47 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("button", { name: "RSS 源" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("button", { name: "添加源" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "导入 OPML" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "总结与选题偏好" }).closest(".rss-toolbar")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "总结与选题偏好" }).closest(".settings-nav-group")?.textContent).toContain("数据与会话");
+    expect(document.querySelector('.rss-toolbar [data-action="daily-preferences"]')).toBeNull();
     for (const name of ["定时任务", "运行记录", "更新 RSS", "采集文章", "更新并采集"]) expect(screen.queryByRole("button", { name })).toBeNull();
+  });
+
+  it("edits preferences directly in their data settings section and guards unsaved navigation", async () => {
+    let preferences = { schemaVersion: 1 as const, revision: 2, text: "Saved preference", updatedAt: null as string | null };
+    const getDailyBriefPreferences = vi.fn(async () => preferences);
+    const saveDailyBriefPreferences = vi.fn(async (input: Parameters<DesktopApi["saveDailyBriefPreferences"]>[0]) => { preferences = { ...preferences, ...input, revision: input.revision + 1 }; return preferences; });
+    window.openmind = makeApi({ getDailyBriefPreferences, saveDailyBriefPreferences, getRssSources: async () => ({ schemaVersion: 1, initialized: true, revision: 1, deletedPresetIds: [], migrationWarnings: [], sources: [] }) });
+    renderSettings(); await screen.findByRole("heading", { name: "常规" });
+    openCategory(messages.rss.preferences);
+    const instructions = await screen.findByRole("textbox", { name: messages.rss.summaryInstructions });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByText(messages.settings.saveStatus.saved)).toBeNull();
+    expect(getDailyBriefPreferences).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("tab", { name: messages.rss.topicRules }));
+    expect(screen.getByRole("textbox", { name: messages.rss.topicPrompt })).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: messages.rss.summaryPrompt }));
+    fireEvent.change(screen.getByRole("textbox", { name: messages.rss.summaryInstructions }), { target: { value: "A draft summary prompt" } });
+    openCategory("RSS 源");
+    const confirmation = await screen.findByRole("alertdialog");
+    fireEvent.click(within(confirmation).getByRole("button", { name: messages.feedback.cancel }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect((screen.getByRole("textbox", { name: messages.rss.summaryInstructions }) as HTMLTextAreaElement).value).toBe("A draft summary prompt");
+    fireEvent.click(screen.getByRole("button", { name: messages.rss.save }));
+    await screen.findByText(messages.rss.saved);
+    expect(saveDailyBriefPreferences).toHaveBeenCalledWith(expect.objectContaining({ revision: 2, text: "Saved preference", summaryPrompt: expect.objectContaining({ instructions: "A draft summary prompt" }) }));
+    openCategory("RSS 源"); await screen.findByText(messages.rss.noSources);
+    openCategory(messages.rss.preferences);
+    await waitFor(() => expect((screen.getByRole("textbox", { name: messages.rss.summaryInstructions }) as HTMLTextAreaElement).value).toBe("A draft summary prompt"));
+    expect(instructions).not.toBe(screen.getByRole("textbox", { name: messages.rss.summaryInstructions }));
+  });
+
+  it("requires a content folder before reading summary and topic preferences", async () => {
+    const getDailyBriefPreferences = vi.fn();
+    window.openmind = makeApi({ getPreferences: async () => ({ ...defaultPrefs, openmindRoot: "" }), getDailyBriefPreferences });
+    renderSettings(); await screen.findByRole("heading", { name: "常规" });
+    openCategory(messages.rss.preferences);
+    expect(await screen.findByText(messages.rss.preferencesRootRequired)).toBeTruthy();
+    expect(getDailyBriefPreferences).not.toHaveBeenCalled();
   });
 
   it("asks for a content folder before loading RSS sources in an unbound workspace", async () => {

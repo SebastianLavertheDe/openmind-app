@@ -1,4 +1,22 @@
 export const rssMessages = { rss: {
+  preferencesRootRequired: "请先选择 OpenMind 内容目录，再设置总结与选题偏好。",
+  topicPrompt: "通用选题提示词", topicPromptHint: "填写关注方向、选题标准、语言和数量。只按这里与各平台填写的规则选题；留空不添加额外限制。",
+  topicPromptPlaceholder: "例如：关注产品设计，选择有实际案例、值得深入讨论的内容，用中文输出。",
+  platformRules: "平台规则", addPlatform: "添加平台", platformRulesHint: "每个平台填写名称和提示词，单独生成对应平台的选题。同一主题可以适合多个平台。",
+  platformNumber: (index: number) => `平台 ${index}`, platformName: "平台名",
+  platformPrompt: "选题提示词", removePlatform: (name: string) => `删除平台：${name}`,
+  platformNameRequired: "请填写平台名称。", platformNameDuplicate: "平台名称不能重复。", platformNamePlaceholder: "例如：小红书、微信公众号、视频号",
+  platformPromptPlaceholder: "描述这个平台的目标读者、选题标准和内容侧重点。",
+  noPlatformRules: "未添加平台时，只按通用提示词生成一组选题。",
+  topicOutputHint: "输出继续保留标题、核心观点、选题理由、适合人群、内容结构、开头钩子、配图建议、互动引导、风险点和推荐指数。",
+  previewTopicRules: "查看组装后的选题规则", assembledTopicRules: "完整选题规则（只读）",
+  summaryPrompt: "总结提示词", topicRules: "选题规则", additionalPreferences: "补充偏好",
+  summaryInstructions: "总结要求与表达风格",
+  summaryContractHint: "总结输出的字段名和数据类型固定，可编辑总结要求与分类规则。",
+  summaryFieldLabels: { translated_title: "标题要求 · 文本", summary: "摘要要求 · 文本", key_points: "关键点要求 · 文本数组", category: "分类要求 · 文本", score: "评分要求 · 0–100 的整数" },
+  emptyRuleHint: "清空某项并保存，会恢复该项的默认要求。",
+  additionalPreferencesHint: "填写额外要求，与上面规则冲突时以这里的明确要求为准。留空继续使用已配置的规则；总结字段名和类型始终固定。",
+  restoreDefaultRules: "恢复默认 prompt",
   sourcePage: (page: number, pages: number, total: number) => `第 ${page} / ${pages} 页 · ${total} 个源`,
   category: "分类", categories: "源分类", blog: "博客与网站", wechat: "公众号", ungrouped: "未分类",
   topicLabels: { ai: "AI", agents: "Agent", prompts: "Prompt", engineering: "编程技术", product: "产品设计", business: "商业创业", tech: "科技资讯", life: "生活思考" },
@@ -13,5 +31,5 @@ export const rssMessages = { rss: {
   detectHint: "检测只验证文章解析，不会更新本地 RSS 文件。", collectHint: "请先更新 RSS，再采集文章。",
   rootRequired: "请先选择 OpenMind 内容目录，再管理 RSS 源。", selectRoot: "选择内容目录",
   convertedFeed: "转换后的 RSS 地址（本地文件）", feedReady: "采集文章时读取此 RSS 文件。", feedMissing: "尚未生成，请先更新 RSS。", feedOutdated: "来源已变更，请保存后重新更新 RSS。", feedAfterSave: "保存来源后显示本地 RSS 地址。",
-  manage: "管理来源", title: "RSS 源", description: "管理自己的订阅。启用后可手动采集，定时任务单独设置。", search: "搜索名称、网站或标签", add: "添加源", edit: "编辑源", remove: "删除源", removeBody: "删除后停止更新和采集，已保存的文章、摘要和选题会保留。", name: "名称", url: "网站或 RSS 地址", enabled: "启用", disabled: "停用", all: "全部", failed: "异常", pending: "待配置", noSources: "没有符合条件的源", import: "导入 OPML", sync: "更新 RSS", collect: "采集文章", pipeline: "更新并采集", tasks: "定时任务", runs: "运行记录", save: "保存", cancel: "取消", detect: "检测链接", detecting: "正在解析文章…", detected: "检测通过，已解析出文章", candidate: "选择订阅频道", candidateHint: "此网站提供多个订阅，请选择一个后重新检测。", lastSuccess: "最近成功", never: "尚未更新", busy: "处理中…", queued: "任务已提交，可在运行记录中查看结果。", preferences: "总结与选题偏好", preferencesHint: "填写关注主题、排除项、输出语言和推荐条数。留空时按信息质量与时效整理。", preferencesPlaceholder: "例如：关注产品设计与交互研究，排除融资快讯，用中文简洁总结，每天推荐最多 10 条并说明理由。", saved: "偏好已保存，下次生成时生效。", generate: "生成总结", topics: "生成选题", date: "生成日期", discard: "放弃未保存的修改？", discardBody: "离开后将丢失当前输入。", refresh: "刷新", syncTask: "RSS 更新", syncDescription: "将启用的订阅更新为本地 RSS。", collectTask: "RSS 文章采集", collectDescription: "从已更新的本地 RSS 保存文章。", summaryTask: "每日总结", summaryDescription: "按已保存的偏好总结当天内容。", taskHint: "新建任务默认停用。设置周期、时区并启用后才会自动执行。", updated: "已更新", count: (value: number) => `${value} 个源`, items: (value: number) => `${value} 篇`, source: "来源", error: "错误", status: "状态"
+  manage: "管理来源", title: "RSS 源", description: "管理自己的订阅。启用后可手动采集，定时任务单独设置。", search: "搜索名称、网站或标签", add: "添加源", edit: "编辑", remove: "删除", removeBody: "删除后停止更新和采集，已保存的文章、摘要和选题会保留。", name: "名称", url: "网站或 RSS 地址", enabled: "启用", disabled: "停用", all: "全部", failed: "异常", pending: "待配置", noSources: "没有符合条件的源", import: "导入 OPML", sync: "更新 RSS", collect: "采集文章", pipeline: "更新并采集", tasks: "定时任务", runs: "运行记录", save: "保存", cancel: "取消", detect: "检测链接", detecting: "正在解析文章…", detected: "检测通过，已解析出文章", candidate: "选择订阅频道", candidateHint: "此网站提供多个订阅，请选择一个后重新检测。", lastSuccess: "最近成功", never: "尚未更新", busy: "处理中…", queued: "任务已提交，可在运行记录中查看结果。", preferences: "总结与选题偏好", preferencesHint: "分别编辑总结要求与选题提示词。选题由通用提示词和各平台规则组成，保存后下次生成时生效。", preferencesPlaceholder: "例如：关注产品设计与交互研究，排除融资快讯，用中文简洁总结，每天推荐最多 10 条并说明理由。", saved: "偏好已保存，下次生成时生效。", generate: "生成总结", topics: "生成选题", date: "生成日期", discard: "放弃未保存的修改？", discardBody: "离开后将丢失当前输入。", refresh: "刷新", syncTask: "RSS 更新", syncDescription: "将启用的订阅更新为本地 RSS。", collectTask: "RSS 文章采集", collectDescription: "从已更新的本地 RSS 保存文章。", summaryTask: "每日总结", summaryDescription: "按已保存的偏好总结当天内容。", taskHint: "新建任务默认停用。设置周期、时区并启用后才会自动执行。", updated: "已更新", count: (value: number) => `${value} 个源`, items: (value: number) => `${value} 篇`, source: "来源", error: "错误", status: "状态"
 } };

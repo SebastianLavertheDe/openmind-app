@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopApi } from "@shared/contracts";
+import { DEFAULT_SUMMARY_PROMPT, DEFAULT_TOPIC_PROMPT, DEFAULT_TOPIC_PLATFORMS, SUMMARY_FIELDS, resolveDailyBriefPreferences, type DailyBriefPreferences, type SaveDailyBriefPreferences } from "@shared/daily-brief-preferences";
 import { RssSourceSchema, type RssDetection, type RssDocument, type RssDocumentView, type RssSourceInput, type RssSourceView } from "@shared/rss-contracts";
 import { messages as m } from "@shared/messages";
 import * as presentation from "./rss-source-presentation";
@@ -11,7 +12,7 @@ import { DailyPreferences } from "./DailyPreferences";
 const feedback = vi.hoisted(() => ({ confirm: vi.fn(async (_options: unknown) => true), notify: vi.fn() }));
 vi.mock("../../feedback-context", () => ({ useFeedback: () => feedback }));
 let document: RssDocument;
-function fixture(feedStatus: RssSourceView["localFeed"]["status"] = "missing") {
+function fixture(feedStatus: RssSourceView["localFeed"]["status"] = "missing", withErrors = false) {
   document = { schemaVersion: 1, initialized: true, revision: 1, deletedPresetIds: [], migrationWarnings: [], sources: [RssSourceSchema.parse({ id: "design", name: "Design", inputUrl: "https://design.test/", resolvedFeedUrl: "https://design.test/rss.xml", kind: "website", enabled: true, revision: 1 }), RssSourceSchema.parse({ id: "science", name: "Science", inputUrl: "https://science.test/feed", kind: "feed", enabled: false, revision: 1 })] };
   const api = {
     getRssSources: vi.fn(async (): Promise<RssDocumentView> => ({ ...structuredClone(document), rootKey: "fixture-root", sources: document.sources.map(row => ({ ...structuredClone(row), localFeed: { path: `/fixtures/content/.agent/skill-data/rss-article-saver/feeds/${row.id}.xml`, status: feedStatus } })) })),
@@ -24,23 +25,38 @@ function fixture(feedStatus: RssSourceView["localFeed"]["status"] = "missing") {
     removeRssSource: vi.fn(async ({ id }: { id: string }) => { document.sources = document.sources.filter(row => row.id !== id); return document; }),
     importRssOpml: vi.fn(async () => document), runRss: vi.fn(async () => ({})),
     getDefaultSkillsEnabled: vi.fn(async () => true), setDefaultSkillsEnabled: vi.fn(async () => true),
-    getDailyBriefPreferences: vi.fn(async () => ({ schemaVersion: 1, revision: 2, text: "", updatedAt: null })),
-    saveDailyBriefPreferences: vi.fn(async ({ text }: { text: string }) => ({ schemaVersion: 1, revision: 3, text, updatedAt: "2026-10-27T00:00:00Z" })),
+    getDailyBriefPreferences: vi.fn(async (): Promise<DailyBriefPreferences> => ({ schemaVersion: 1, revision: 2, text: "", updatedAt: null })),
+    saveDailyBriefPreferences: vi.fn(async (input: SaveDailyBriefPreferences): Promise<DailyBriefPreferences> => ({ schemaVersion: 1, ...input, revision: input.revision + 1, updatedAt: "2026-10-27T00:00:00Z" })),
     generateDailyBrief: vi.fn(async () => ({})), openExternal: vi.fn()
   };
   window.openmind = api as unknown as DesktopApi;
+  if (withErrors) for (const row of document.sources) row.lastError = { stage: "collect", code: "access-denied", message: "Fixture collection failure", retryable: false };
   return api;
 }
+async function openSourceEditor(name = "Design") {
+  const trigger = screen.getByRole("button", { name: `${m.rss.edit}: ${name}` });
+  fireEvent.click(trigger);
+  return trigger;
+}
+async function openSourceDetails(name = "Design") {
+  fireEvent.click(screen.getByRole("button", { name: `${m.rss.technicalError}: ${name}` }));
+  await screen.findByRole("tab", { name: m.rss.overview });
+}
+
 beforeEach(() => { feedback.confirm.mockResolvedValue(true); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("RSS sources and daily preferences", () => {
   it.each(["ready", "missing", "outdated"] as const)("shows the actual converted RSS location read-only in the source editor (%s)", async status => {
     const api = fixture(status); render(<SourcesPage />); await screen.findByText("Design");
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
-    const feed = screen.getByLabelText(m.rss.convertedFeed) as HTMLTextAreaElement;
+    await openSourceEditor();
+    const feed = screen.getByLabelText(m.rss.convertedFeed) as HTMLInputElement;
     expect(feed.readOnly).toBe(true);
     expect(feed.value).toBe("/fixtures/content/.agent/skill-data/rss-article-saver/feeds/design.xml");
+    expect(feed.title).toBe(feed.value);
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).queryByRole("button", { name: m.rss.details })).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: new RegExp(`^${m.rss.copy}`) })).toBeNull();
     expect((screen.getByLabelText(m.rss.url) as HTMLInputElement).value).toBe("https://design.test/");
     expect(screen.getByText(status === "ready" ? m.rss.feedReady : status === "outdated" ? m.rss.feedOutdated : m.rss.feedMissing)).toBeTruthy();
     fireEvent.change(screen.getByLabelText(m.rss.url), { target: { value: "https://changed.test/" } });
@@ -56,14 +72,14 @@ describe("RSS sources and daily preferences", () => {
     expect(screen.getByRole("link", { name: "https://science.test/feed" })).toBeTruthy();
     expect(within(screen.getByRole("article", { name: "Science" })).getByText(m.rss.disabled)).toBeTruthy();
     expect(screen.queryByRole("switch")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
+    await openSourceEditor();
     fireEvent.click(screen.getByRole("switch", { name: m.rss.enabled }));
     expect(api.editRssSource).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: m.rss.cancel }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(feedback.confirm).toHaveBeenCalled();
     expect(api.editRssSource).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
+    await openSourceEditor();
     expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("true");
     fireEvent.click(screen.getByRole("switch"));
     fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
@@ -133,26 +149,23 @@ describe("RSS sources and daily preferences", () => {
   it("keeps saved articles when deleting a source and respects cancellation", async () => {
     const api = fixture(); render(<SourcesPage />); await screen.findByText("Design");
     feedback.confirm.mockResolvedValueOnce(false);
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.more}: Design` }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: m.rss.remove }));
+    await openSourceEditor();
+    fireEvent.click(screen.getByRole("button", { name: m.rss.remove }));
     await waitFor(() => expect(feedback.confirm).toHaveBeenCalled());
     expect(api.removeRssSource).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.more}: Design` }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: m.rss.remove }));
+    fireEvent.click(screen.getByRole("button", { name: m.rss.remove }));
     await waitFor(() => expect(api.removeRssSource).toHaveBeenCalledWith({ id: "design", revision: 1 }));
     expect(feedback.confirm.mock.calls[0][0]).toMatchObject({ body: m.rss.removeBody });
   });
-  it("keeps preferences in the toolbar and removes the secondary management row", async () => {
+  it("keeps RSS management focused on sources without a preferences toolbar entry", async () => {
     const api = fixture(); render(<SourcesPage />);
     await screen.findByText("Design");
-    expect(screen.getByRole("button", { name: m.rss.preferences }).closest(".rss-toolbar")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: m.rss.preferences })).toBeNull();
     for (const name of [m.rss.tasks, m.rss.runs]) expect(screen.queryByRole("button", { name })).toBeNull();
     expect(screen.queryByRole("button", { name: m.rss.status })).toBeNull();
     expect(screen.queryByRole("button", { name: m.rss.sort })).toBeNull();
     expect(screen.queryByText(m.rss.results(2, 2))).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: m.rss.preferences }));
-    await screen.findByRole("textbox", { name: m.rss.preferences });
-    expect(api.getDailyBriefPreferences).toHaveBeenCalledOnce();
+    expect(api.getDailyBriefPreferences).not.toHaveBeenCalled();
     expect(api.setDefaultSkillsEnabled).not.toHaveBeenCalled();
   });
   it("selects an existing topic when adding a source without repeating feed detection", async () => {
@@ -197,7 +210,7 @@ describe("RSS sources and daily preferences", () => {
   });
   it.each([[" reading ", "Reading"], ["ＡＩ", "ai"]])("reuses an existing category for %s in the new-category flow", async (input, expected) => {
     const api = fixture(); document.sources[0].group = "Reading"; render(<SourcesPage />); await screen.findByText("Design");
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
+    await openSourceEditor();
     fireEvent.click(screen.getByRole("button", { name: new RegExp(`^${m.rss.category}`) }));
     fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: m.rss.newCategory }));
     fireEvent.change(screen.getByLabelText(m.rss.categoryName), { target: { value: input } });
@@ -213,19 +226,25 @@ describe("RSS sources and daily preferences", () => {
     fireEvent.click(screen.getByRole("tab", { name: m.rss.topicLabels.product }));
     expect(screen.queryByText("Science")).toBeNull(); expect(screen.queryByText(m.rss.results(1, 2))).toBeNull();
     for (const name of [m.rss.sync, m.rss.collect, m.rss.pipeline]) expect(screen.queryByRole("button", { name })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.pipeline}: Design` }));
+    await openSourceEditor();
+    fireEvent.click(screen.getByRole("button", { name: m.rss.pipeline }));
     await waitFor(() => expect(api.runRss).toHaveBeenCalledWith({ mode: "pipeline", sourceId: "design" }));
     expect(api.runRss).toHaveBeenCalledTimes(1);
   });
-  it("opens details without fetching and keeps links and actions separate from the subject button", async () => {
+  it("opens technical error information without fetching and keeps links separate from the card action", async () => {
     const api = fixture("ready"); document.sources[0].lastError = { stage: "collect", code: "access-denied", message: "403 evidence", retryable: false };
     render(<SourcesPage />); await screen.findByText("Design");
     const article = screen.getByRole("article", { name: "Design" });
-    expect(within(article).getByText(m.rss.rssReady)).toBeTruthy(); expect(within(article).queryByText(new RegExp(m.rss.collectFailed))).toBeNull();
+    expect(within(article).queryByText(m.rss.rssReady)).toBeNull();
+    expect(within(article).queryByRole("img", { name: m.rss.rssReady })).toBeNull();
+    const healthyArticle = screen.getByRole("article", { name: "Science" });
+    expect(within(healthyArticle).getByRole("img", { name: m.rss.rssReady })).toBeTruthy();
+    expect(within(healthyArticle).queryByRole("button", { name: `${m.rss.technicalError}: Science` })).toBeNull();
+    expect(within(article).queryByText(new RegExp(m.rss.collectFailed))).toBeNull();
     fireEvent.focus(within(article).getByRole("button", { name: `${m.rss.technicalError}: Design` }));
     expect(screen.getByRole("tooltip").textContent).toContain(m.rss.collectFailed);
     fireEvent.click(within(article).getByRole("link")); expect(api.openExternal).toHaveBeenCalledWith("https://design.test/"); expect(screen.queryByRole("dialog")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.details}: Design` }));
+    await openSourceDetails();
     const dialog = await screen.findByRole("dialog"); expect(within(dialog).getByText(m.rss.localFile)).toBeTruthy();
     expect(dialog.querySelector(".ui-dialog-footer")).toBeNull();
     for (const name of [m.rss.edit, m.rss.more, m.rss.pipeline]) expect(within(dialog).queryByRole("button", { name })).toBeNull();
@@ -234,8 +253,8 @@ describe("RSS sources and daily preferences", () => {
     expect(api.editRssSource).not.toHaveBeenCalled(); expect(api.runRss).not.toHaveBeenCalled();
   });
   it("paginates only the active tab, retries locally and discards entries after closing", async () => {
-    const api = fixture("ready"); api.getRssSourceEntries.mockRejectedValueOnce(new Error("XML unavailable"));
-    render(<SourcesPage />); await screen.findByText("Design"); fireEvent.click(screen.getByRole("button", { name: `${m.rss.details}: Design` }));
+    const api = fixture("ready", true); api.getRssSourceEntries.mockRejectedValueOnce(new Error("XML unavailable"));
+    render(<SourcesPage />); await screen.findByText("Design"); await openSourceDetails();
     fireEvent.click(screen.getByRole("tab", { name: m.rss.entries })); await screen.findByText("XML unavailable");
     fireEvent.click(screen.getByRole("button", { name: m.common.retry })); await screen.findByText("Local index entry");
     expect(screen.getByRole("list").getAttribute("start")).toBe("1");
@@ -257,12 +276,12 @@ describe("RSS sources and daily preferences", () => {
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: m.common.close }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     await act(async () => resolve({ entries: [{ title: "Stale entry", url: "https://design.test/stale", publishedAt: null }], total: 1, version: "old", status: "ready", nextCursor: null, reset: false }));
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.details}: Science` }));
+    await openSourceDetails("Science");
     expect(screen.queryByText("Stale entry")).toBeNull();
   });
   it("edits from the card, preserves the draft on polling and retains optimistic conflicts", async () => {
     const api = fixture("ready"); document.sources[0].group = "product"; document.sources[1].group = "ai";
-    render(<SourcesPage />); await screen.findByText("Design"); fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
+    render(<SourcesPage />); await screen.findByText("Design"); await openSourceEditor();
     const shell = screen.getByRole("dialog");
     fireEvent.change(screen.getByLabelText(m.rss.name), { target: { value: "Draft" } });
     fireEvent.click(screen.getByRole("switch", { name: m.rss.enabled }));
@@ -276,32 +295,142 @@ describe("RSS sources and daily preferences", () => {
     feedback.confirm.mockResolvedValueOnce(false); fireEvent.click(screen.getByRole("button", { name: m.rss.cancel }));
     await waitFor(() => expect(feedback.confirm).toHaveBeenCalled()); expect(screen.getByRole("dialog")).toBe(shell);
     fireEvent.click(screen.getByRole("button", { name: m.rss.cancel })); await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.edit}: Design` }));
+    await openSourceEditor();
     fireEvent.click(screen.getByRole("button", { name: new RegExp(m.rss.category) })); fireEvent.click(within(await screen.findByRole("listbox")).getByRole("option", { name: m.rss.topicLabels.ai }));
     fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull()); expect(api.detectRssSource).not.toHaveBeenCalled();
     expect(api.editRssSource).toHaveBeenLastCalledWith({ id: "design", revision: 2, name: "Design", group: "ai", enabled: true });
   });
   it("shows external deletion and drops an open detail when the content root changes", async () => {
-    const api = fixture(); render(<SourcesPage />); await screen.findByText("Design");
-    fireEvent.click(screen.getByRole("button", { name: `${m.rss.details}: Design` })); document.sources = document.sources.filter(row => row.id !== "design");
+    const api = fixture("missing", true); render(<SourcesPage />); await screen.findByText("Design");
+    await openSourceDetails(); document.sources = document.sources.filter(row => row.id !== "design");
     fireEvent.click(screen.getByLabelText(m.rss.refresh)); await screen.findByText(m.rss.deleted);
     expect(within(screen.getByRole("dialog")).queryByRole("button", { name: m.rss.pipeline })).toBeNull();
     const other = await api.getRssSources(); api.getRssSources.mockResolvedValue({ ...other, rootKey: "other-root" });
     fireEvent.click(screen.getByLabelText(m.rss.refresh)); await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
   it("only edits and saves preference revisions and works in StrictMode", async () => {
-    const api = fixture(); render(<StrictMode><DailyPreferences /></StrictMode>);
+    const api = fixture();
+    api.getDailyBriefPreferences.mockResolvedValue({ schemaVersion: 1, revision: 2, text: "Existing preference", updatedAt: null });
+    render(<StrictMode><DailyPreferences /></StrictMode>);
     fireEvent.click(screen.getByRole("button", { name: m.rss.preferences }));
-    await waitFor(() => expect((screen.getByRole("textbox", { name: m.rss.preferences }) as HTMLTextAreaElement).disabled).toBe(false));
-    fireEvent.change(screen.getByRole("textbox", { name: m.rss.preferences }), { target: { value: "Design, exclude funding, English, one recommendation" } });
+    const instructions = await screen.findByRole("textbox", { name: m.rss.summaryInstructions });
+    await waitFor(() => expect((instructions as HTMLTextAreaElement).disabled).toBe(false));
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+    expect(screen.queryByRole("tab", { name: m.rss.additionalPreferences })).toBeNull();
+    fireEvent.change(instructions, { target: { value: "Use concise English." } });
     expect(screen.queryByLabelText(m.rss.date)).toBeNull();
     expect(screen.queryByRole("button", { name: m.rss.generate })).toBeNull();
     expect(screen.queryByRole("button", { name: m.rss.topics })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
     await screen.findByText(m.rss.saved);
-    expect(api.saveDailyBriefPreferences).toHaveBeenCalledWith({ revision: 2, text: "Design, exclude funding, English, one recommendation" });
+    expect(api.saveDailyBriefPreferences).toHaveBeenCalledWith({ revision: 2, text: "Existing preference", summaryPrompt: { ...DEFAULT_SUMMARY_PROMPT, instructions: "Use concise English." }, topicPrompt: DEFAULT_TOPIC_PROMPT, topicPlatforms: DEFAULT_TOPIC_PLATFORMS });
     expect(api.generateDailyBrief).not.toHaveBeenCalled();
+  });
+
+  it("edits instructions and category across tabs while preserving hidden summary requirements", async () => {
+    const api = fixture();
+    const summaryPrompt = { ...DEFAULT_SUMMARY_PROMPT, fields: { ...DEFAULT_SUMMARY_PROMPT.fields, summary: "Write 3 concise sentences." } };
+    api.getDailyBriefPreferences.mockResolvedValue({ schemaVersion: 1, revision: 2, text: "", updatedAt: null, summaryPrompt });
+    api.saveDailyBriefPreferences.mockImplementation(async input => ({ schemaVersion: 1, updatedAt: null, ...input, revision: input.revision + 1 }));
+    render(<DailyPreferences />);
+    fireEvent.click(screen.getByRole("button", { name: m.rss.preferences }));
+    const instructions = await screen.findByRole("textbox", { name: m.rss.summaryInstructions });
+    await waitFor(() => expect((instructions as HTMLTextAreaElement).value).toBe(DEFAULT_SUMMARY_PROMPT.instructions));
+    expect((screen.getByRole("button", { name: m.rss.save }) as HTMLButtonElement).disabled).toBe(true);
+    for (const field of SUMMARY_FIELDS.filter(field => field !== "category")) expect(screen.queryByRole("textbox", { name: field })).toBeNull();
+    expect((screen.getByRole("textbox", { name: "category" }) as HTMLTextAreaElement).value).toBe(DEFAULT_SUMMARY_PROMPT.fields.category);
+    fireEvent.change(instructions, { target: { value: "Use clear factual English." } });
+    fireEvent.change(screen.getByRole("textbox", { name: "category" }), { target: { value: "Prefer Frontend for interface engineering articles." } });
+    fireEvent.click(screen.getByRole("tab", { name: m.rss.topicRules }));
+    expect((screen.getByRole("textbox", { name: m.rss.topicPrompt }) as HTMLTextAreaElement).value).toBe(DEFAULT_TOPIC_PROMPT);
+    fireEvent.change(screen.getByRole("textbox", { name: m.rss.topicPrompt }), { target: { value: "Select design research, including WeChat sources." } });
+    fireEvent.click(screen.getByRole("tab", { name: m.rss.summaryPrompt }));
+    expect((screen.getByRole("textbox", { name: "category" }) as HTMLTextAreaElement).value).toBe("Prefer Frontend for interface engineering articles.");
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
+    await screen.findByText(m.rss.saved);
+    expect(api.saveDailyBriefPreferences).toHaveBeenCalledWith({
+      revision: 2, text: "", topicPrompt: "Select design research, including WeChat sources.", topicPlatforms: DEFAULT_TOPIC_PLATFORMS,
+      summaryPrompt: { instructions: "Use clear factual English.", fields: { ...summaryPrompt.fields, category: "Prefer Frontend for interface engineering articles." } }
+    });
+  });
+
+  it("restores only the current rules and preserves unsaved drafts when dismissal is cancelled", async () => {
+    const api = fixture();
+    const original = resolveDailyBriefPreferences({ schemaVersion: 1, revision: 2, text: "My preference", updatedAt: null });
+    const custom = { ...original, topicPrompt: "Custom topic rules", summaryPrompt: { ...original.summaryPrompt, instructions: "Custom summary rules" } };
+    api.getDailyBriefPreferences.mockResolvedValue(custom);
+    render(<DailyPreferences />);
+    fireEvent.click(screen.getByRole("button", { name: m.rss.preferences }));
+    await waitFor(() => expect((screen.getByRole("textbox", { name: m.rss.summaryInstructions }) as HTMLTextAreaElement).value).toBe("Custom summary rules"));
+    fireEvent.click(screen.getByRole("button", { name: m.rss.restoreDefaultRules }));
+    feedback.confirm.mockResolvedValueOnce(false);
+    fireEvent.click(screen.getByRole("button", { name: m.feedback.cancel }));
+    await waitFor(() => expect(feedback.confirm).toHaveBeenCalledOnce());
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: m.rss.topicRules }));
+    expect((screen.getByRole("textbox", { name: m.rss.topicPrompt }) as HTMLTextAreaElement).value).toBe("Custom topic rules");
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
+    await screen.findByText(m.rss.saved);
+    expect(api.saveDailyBriefPreferences).toHaveBeenCalledWith({ revision: 2, text: "My preference", summaryPrompt: DEFAULT_SUMMARY_PROMPT, topicPrompt: "Custom topic rules", topicPlatforms: DEFAULT_TOPIC_PLATFORMS });
+  });
+
+  it("restores default topic prompts and platforms without changing the summary draft or saving automatically", async () => {
+    const api = fixture();
+    const summaryPrompt = { ...DEFAULT_SUMMARY_PROMPT, instructions: "My summary instructions" };
+    api.getDailyBriefPreferences.mockResolvedValue({ schemaVersion: 1, revision: 2, text: "", updatedAt: null, summaryPrompt, topicPrompt: "My topics", topicPlatforms: [{ id: "custom", name: "Custom platform", prompt: "My platform prompt" }] });
+    render(<DailyPreferences />);
+    fireEvent.click(screen.getByRole("button", { name: m.rss.preferences }));
+    await waitFor(() => expect((screen.getByRole("textbox", { name: m.rss.summaryInstructions }) as HTMLTextAreaElement).value).toBe(summaryPrompt.instructions));
+    fireEvent.change(screen.getByRole("textbox", { name: m.rss.summaryInstructions }), { target: { value: "Unsaved summary instructions" } });
+    fireEvent.click(screen.getByRole("tab", { name: m.rss.topicRules }));
+    fireEvent.click(screen.getByRole("button", { name: m.rss.restoreDefaultRules }));
+    expect((screen.getByRole("textbox", { name: m.rss.topicPrompt }) as HTMLTextAreaElement).value).toBe(DEFAULT_TOPIC_PROMPT);
+    expect(screen.queryByRole("region", { name: "Custom platform" })).toBeNull();
+    for (const platform of DEFAULT_TOPIC_PLATFORMS) {
+      const section = within(screen.getByRole("region", { name: platform.name }));
+      expect((section.getByRole("textbox", { name: m.rss.platformName }) as HTMLInputElement).value).toBe(platform.name);
+      expect((section.getByRole("textbox", { name: m.rss.platformPrompt }) as HTMLTextAreaElement).value).toBe(platform.prompt);
+    }
+    expect(api.saveDailyBriefPreferences).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("tab", { name: m.rss.summaryPrompt }));
+    expect((screen.getByRole("textbox", { name: m.rss.summaryInstructions }) as HTMLTextAreaElement).value).toBe("Unsaved summary instructions");
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save }));
+    await screen.findByText(m.rss.saved);
+    expect(api.saveDailyBriefPreferences).toHaveBeenCalledWith({ revision: 2, text: "", summaryPrompt: { ...summaryPrompt, instructions: "Unsaved summary instructions" }, topicPrompt: DEFAULT_TOPIC_PROMPT, topicPlatforms: DEFAULT_TOPIC_PLATFORMS });
+  });
+
+  it("adds, renames and removes platform prompts, previews exactly the assembled rules and preserves an empty list", async () => {
+    const api = fixture(); render(<DailyPreferences />);
+    fireEvent.click(screen.getByRole("button", { name: m.rss.preferences }));
+    await waitFor(() => expect((screen.getByRole("textbox", { name: m.rss.summaryInstructions }) as HTMLTextAreaElement).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("tab", { name: m.rss.topicRules }));
+    fireEvent.change(screen.getByRole("textbox", { name: m.rss.topicPrompt }), { target: { value: "Only independent design research." } });
+    for (const platform of DEFAULT_TOPIC_PLATFORMS) fireEvent.click(screen.getByRole("button", { name: m.rss.removePlatform(platform.name) }));
+    expect(screen.getByText(m.rss.noPlatformRules)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: m.rss.addPlatform }));
+    expect((screen.getByRole("button", { name: m.rss.save }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByRole("textbox", { name: m.rss.platformName }), { target: { value: "nameA" } });
+    fireEvent.change(screen.getByRole("textbox", { name: m.rss.platformPrompt }), { target: { value: "Prompt A: practical experiments." } });
+    fireEvent.click(screen.getByRole("button", { name: m.rss.addPlatform }));
+    fireEvent.change(screen.getAllByRole("textbox", { name: m.rss.platformName })[1], { target: { value: "nameA" } });
+    expect(screen.getAllByText(m.rss.platformNameDuplicate)).toHaveLength(2);
+    expect((screen.getByRole("button", { name: m.rss.save }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getAllByRole("textbox", { name: m.rss.platformName })[1], { target: { value: "nameB" } });
+    fireEvent.change(within(screen.getByRole("region", { name: "nameB" })).getByRole("textbox", { name: m.rss.platformPrompt }), { target: { value: "Prompt B: long-form analysis." } });
+    fireEvent.click(screen.getByRole("button", { name: m.rss.previewTopicRules }));
+    const preview = screen.getByRole("textbox", { name: m.rss.assembledTopicRules }) as HTMLTextAreaElement;
+    expect(preview.readOnly).toBe(true);
+    expect(preview.value).toContain("## 平台：nameA\n\nPrompt A: practical experiments.");
+    expect(preview.value).toContain("## 平台：nameB\n\nPrompt B: long-form analysis.");
+    expect(preview.value).not.toMatch(/fit_score|breakout_score|@dotey/);
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save })); await screen.findByText(m.rss.saved);
+    expect(api.saveDailyBriefPreferences).toHaveBeenLastCalledWith(expect.objectContaining({ topicPrompt: "Only independent design research.", topicPlatforms: [expect.objectContaining({ name: "nameA", prompt: "Prompt A: practical experiments." }), expect.objectContaining({ name: "nameB", prompt: "Prompt B: long-form analysis." })] }));
+    fireEvent.click(screen.getByRole("button", { name: m.rss.removePlatform("nameA") }));
+    fireEvent.click(screen.getByRole("button", { name: m.rss.removePlatform("nameB") }));
+    fireEvent.change(screen.getByRole("textbox", { name: m.rss.topicPrompt }), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: m.rss.save })); await screen.findByText(m.rss.saved);
+    expect(api.saveDailyBriefPreferences).toHaveBeenLastCalledWith(expect.objectContaining({ topicPrompt: "", topicPlatforms: [] }));
   });
 });
 

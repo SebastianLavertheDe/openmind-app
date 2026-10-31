@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useId, useRef, useState, type RefObject } from "react";
 import type { RssDocumentView, RssEntriesPage, RssRunInput, RssSourceView } from "@shared/rss-contracts";
 import { messages as m } from "@shared/messages";
-import { AnimatedDisclosure, Button, CopyButton, Dialog, DialogBody, DialogHeader, EmptyState, ErrorState, LoadingState, StatusBadge, Tabs } from "../../design-system/components";
+import { AnimatedDisclosure, Button, Dialog, DialogBody, DialogHeader, EmptyState, ErrorState, LoadingState, StatusBadge, Tabs } from "../../design-system/components";
 import { categoryLabel, errorSummary, feedLabel, sourceGroups, sourceTime } from "./rss-source-presentation";
 import { SourceEditor } from "./SourceEditor";
 import { SourceRuns } from "./SourceRuns";
@@ -9,21 +9,27 @@ import { SourceRuns } from "./SourceRuns";
 const DetailsActive = createContext(false);
 const ENTRIES_PAGE_SIZE = 30;
 export type SourceSelection = { id: string | null; mode: "details" | "edit"; error?: boolean; token: number };
-export function RssSourceDetails({ selection, document, triggerRef, busy, onClose, onSaved, onRun }: {
+export function RssSourceDetails({ selection, document, triggerRef, busy, requestError, onClose, onSaved, onRun, onRemove }: {
   selection: SourceSelection | null; document: RssDocumentView | null; triggerRef: RefObject<HTMLElement | null>; busy?: string;
   onClose(): void; onSaved(): Promise<void>;
   onRun(mode: RssRunInput["mode"], id: string): void;
+  onRemove(source: RssSourceView): void;
+  requestError?: string;
 }) {
   const source = document?.sources.find(row => row.id === selection?.id);
   const titleId = useId();
   const guard = useRef<() => Promise<boolean>>(async () => true);
   const [editorBusy, setEditorBusy] = useState(false);
   const current = useRef(selection); current.current = selection;
+  const lastMode = useRef<SourceSelection["mode"]>("details");
+  if (selection) lastMode.current = selection.mode;
   const close = async () => { const selected = selection; if (await guard.current() && current.current === selected) onClose(); };
   const editing = selection?.mode === "edit";
-  return <DetailsActive.Provider value={Boolean(selection)}><Dialog open={Boolean(selection)} onClose={() => void close()} triggerRef={triggerRef} size="lg" layout="fixed" className="rss-detail-dialog" aria-labelledby={titleId} dismissDisabled={editorBusy} initialFocusSelector={editing ? "input" : '[role="tab"][aria-selected="true"]'}>
+  return <DetailsActive.Provider value={Boolean(selection)}><Dialog open={Boolean(selection)} onClose={() => void close()} triggerRef={triggerRef} size="lg" layout={lastMode.current === "edit" ? "content" : "fixed"} className="rss-detail-dialog" aria-labelledby={titleId} dismissDisabled={editorBusy} initialFocusSelector={editing ? "input" : '[role="tab"][aria-selected="true"]'}>
     <DialogHeader titleId={titleId} title={editing ? selection?.id === null ? m.rss.add : m.rss.edit : source?.name || m.rss.title} description={!editing && source ? `${categoryLabel(source.group)} · ${source.enabled ? m.rss.enabled : m.rss.disabled}` : undefined} onClose={() => void close()} closeDisabled={editorBusy} />
-    {selection?.id && !source ? <DialogBody><EmptyState title={m.rss.deleted} /></DialogBody> : editing ? <SourceEditor key={selection?.token} source={source || null} groups={sourceGroups(document?.sources || [])} guard={guard} onBusy={setEditorBusy} onCancel={() => void close()} onSaved={async () => { const selected = selection; await onSaved(); if (current.current === selected) onClose(); }} /> : source && selection ? <SourceDetailContent key={`${document?.rootKey || ""}:${selection.token}`} source={source} rootKey={document?.rootKey} showError={selection.error} busy={busy} onRun={mode => onRun(mode, source.id)} /> : null}
+    {selection?.id && !source ? <DialogBody><EmptyState title={m.rss.deleted} /></DialogBody> : editing ? <SourceEditor key={selection?.token} source={source || null} groups={sourceGroups(document?.sources || [])} guard={guard} onBusy={setEditorBusy} requestBusy={busy} requestError={requestError}
+      onRun={() => { if (source) onRun("pipeline", source.id); }} onRemove={() => { if (source) onRemove(source); }}
+      onCancel={() => void close()} onSaved={async () => { const selected = selection; await onSaved(); if (current.current === selected) onClose(); }} /> : source && selection ? <SourceDetailContent key={`${document?.rootKey || ""}:${selection.token}`} source={source} rootKey={document?.rootKey} showError={selection.error} busy={busy} onRun={mode => onRun(mode, source.id)} /> : null}
   </Dialog></DetailsActive.Provider>;
 }
 
@@ -75,7 +81,7 @@ function SourceOverview({ source, showError, busy, onRun }: { source: RssSourceV
 }
 
 function Address({ label, value, external }: { label: string; value: string; external?: boolean }) {
-  return <div><dt>{label}</dt><dd className="rss-source-address">{value ? <>{external ? <a href={value} onClick={event => { event.preventDefault(); void window.openmind.openExternal(value); }}>{value}</a> : <code>{value}</code>}<CopyButton text={value} label={`${m.rss.copy}: ${label}`} /></> : m.rss.pending}</dd></div>;
+  return <div><dt>{label}</dt><dd className="rss-source-address">{value ? external ? <a href={value} onClick={event => { event.preventDefault(); void window.openmind.openExternal(value); }}>{value}</a> : <code>{value}</code> : m.rss.pending}</dd></div>;
 }
 
 function SourceEntries({ source, rootKey, open, busy, onSync }: { source: RssSourceView; rootKey?: string; open: boolean; busy?: string; onSync(): void }) {

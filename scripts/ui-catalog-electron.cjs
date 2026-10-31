@@ -88,11 +88,29 @@ app.whenReady().then(async () => {
     }
     if (scenario.id.startsWith("skill-library-")) await waitForSelector(".skill-library-card");
     if (scenario.id.startsWith("rss-source-")) await waitForSelector(".rss-source-card");
+    if (scenario.id.startsWith("rss-preferences-")) {
+      await waitForSelector('.daily-preferences-editor textarea:not(:disabled)');
+      if (scenario.id === "rss-preferences-topics" || scenario.id === "rss-preferences-platforms") await click('.daily-preferences-editor [data-value="topics"]');
+      await settled();
+      const editor = await win.webContents.executeJavaScript(`(() => {
+        const dialog = document.querySelector('.daily-preferences-settings'), panel = dialog.querySelector('[role="tabpanel"]');
+        const rect = dialog.getBoundingClientRect();
+        return { labels: [...panel.querySelectorAll('label')].map(label => label.textContent), fields: panel.querySelectorAll('textarea').length,
+          hasDefaults: [...panel.querySelectorAll('textarea')].every(input => input.value.trim().length > 0),
+          contained: rect.left >= 0 && rect.right <= innerWidth,
+          inline: !document.querySelector('[role="dialog"]'), tabs: dialog.querySelectorAll('[role="tab"]').length };
+      })()`);
+      assert.equal(editor.fields, scenario.id === 'rss-preferences-summary' ? 2 : 4);
+      assert.equal(editor.tabs, 2); assert.ok(editor.contained && editor.inline);
+      assert.ok(editor.hasDefaults);
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelectorAll('.daily-preferences-actions button').length`), 1);
+      if (scenario.id === 'rss-preferences-summary') assert.deepEqual(editor.labels.slice(1), ['category']);
+      if (scenario.id === 'rss-preferences-platforms') assert.deepEqual(await win.webContents.executeJavaScript(`[...document.querySelectorAll('.topic-platform-editor input')].map(input => input.value)`), ['nameA', 'nameB']);
+    }
     if (scenario.id.startsWith("collector-source-")) await waitForSelector(".collector-source-card");
-    if (scenario.id === "collector-source-editor") { await click('.collector-source-card:nth-child(4) .collector-source-edit button'); await waitForSelector('.ui-dialog [role="switch"]'); }
-    if (scenario.id === "rss-source-editor") { await click('.rss-source-card button[aria-label^="Edit source:"]'); await waitForSelector('.rss-editor [role="switch"]'); }
-    if (scenario.id === "rss-source-details") { await click('.rss-card-subject'); await waitForSelector('.rss-detail-dialog'); }
-    if (scenario.id === "rss-source-menu") { await click('.rss-source-card [aria-haspopup="menu"]'); await waitForSelector('.ui-popover-surface[role="menu"]'); }
+    if (scenario.id === "collector-source-editor") { await click('.collector-source-card:nth-child(4) .collector-card-open'); await waitForSelector('.ui-dialog [role="switch"]'); }
+    if (scenario.id === "rss-source-editor") { await click('.rss-card-open'); await waitForSelector('.rss-editor [role="switch"]'); }
+    if (scenario.id === "rss-source-details") { await click('.rss-card-indicators button'); await waitForSelector('.rss-detail-tabs'); }
     if (scenario.id === "new-task-home") await waitForSelector(".new-task-skill-card");
     if (scenario.id === "skill-composer-menu") { await click('.composer-skill-picker [aria-haspopup="dialog"]'); await waitForSelector(".composer-skill-options"); }
     if (scenario.id === "action-menu") await click('.ui-dropdown-trigger');
@@ -111,23 +129,13 @@ app.whenReady().then(async () => {
         return { cards: cards.length, pageWidth: page.clientWidth, overflow: page.scrollWidth - page.clientWidth,
           controlsSeparate: cards.every(card => !card.querySelector('.rss-card-subject button, .rss-card-subject a, [role="switch"]')),
           pillTabs: !!page.querySelector('[data-ui-control="tabs"][data-variant="pill"]'),
-          dialog: !!dialog, fixedLayout: !dialog || dialog.dataset.layout === 'fixed', dialogContained: !dialog || dialog.getBoundingClientRect().right <= innerWidth && dialog.getBoundingClientRect().left >= 0 && dialog.getBoundingClientRect().top >= 0 && dialog.getBoundingClientRect().bottom <= innerHeight };
+          dialog: !!dialog, fixedLayout: !dialog || dialog.dataset.layout === (dialog.querySelector('.rss-editor') ? 'content' : 'fixed'), dialogContained: !dialog || dialog.getBoundingClientRect().right <= innerWidth && dialog.getBoundingClientRect().left >= 0 && dialog.getBoundingClientRect().top >= 0 && dialog.getBoundingClientRect().bottom <= innerHeight };
       })()`);
       assert.equal(rss.cards, scenario.id === "rss-source-scale" ? 30 : 5, `${name}: source fixtures missing`);
       assert.ok(rss.overflow <= 1 && rss.controlsSeparate && rss.pillTabs && rss.fixedLayout && rss.dialogContained, `${name}: RSS layout contract`);
       assert.equal(rss.dialog, scenario.id === "rss-source-details" || scenario.id === "rss-source-editor");
       if (scenario.id === "rss-source-embedded") assert.ok(rss.pageWidth <= 390);
       report.geometry.push({ name, rss });
-      if (scenario.id === "rss-source-menu") {
-        const menu = await win.webContents.executeJavaScript(`(() => {
-          const surface = document.querySelector('.ui-popover-surface[role="menu"]'), box = surface.getBoundingClientRect();
-          const item = surface.querySelector('[role="menuitem"]');
-          return { width: box.width, height: box.height, itemHeight: item.getBoundingClientRect().height, focused: item === document.activeElement,
-            contained: box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight };
-        })()`);
-        assert.ok(menu.width <= 160 && menu.height <= 52 && menu.itemHeight >= 32 && menu.focused && menu.contained, `${name}: compact source menu contract`);
-        report.geometry.push({ name, menu });
-      }
     }
     if (scenario.id.startsWith("collector-source-")) {
       assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('.collector-source-card [role=\"switch\"]').length"), 0, `${name}: card enablement belongs in the editor`);

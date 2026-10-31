@@ -53,9 +53,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks, upgrades and read-only Skill previews.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(162);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(162);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(162);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(163);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(163);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(163);
   });
 
   it("does not expose or register the removed Skill copy operation", () => {
@@ -945,6 +945,18 @@ describe("handler forwarding — 剩余创作类 passthrough", () => {
     const ctx = makeCtx({ ensureProductService: () => product as never });
     invokeHandler(ctx, IPC_METHOD_CHANNELS.updateSource, "src-1", { enabled: false });
     expect(spy).toHaveBeenCalledWith("updateSource", "src-1", expect.objectContaining({ enabled: false }));
+  });
+
+  it("validates Reddit source deletion before forwarding only its ID", () => {
+    const { product, spy } = makeProductSpy();
+    const ctx = makeCtx({ ensureProductService: () => product as never });
+    invokeHandler(ctx, IPC_METHOD_CHANNELS.removeRedditSource, { id: "reddit-one" });
+    expect(spy).toHaveBeenCalledWith("removeRedditSource", "reddit-one");
+    spy.mockClear();
+    for (const input of [{ id: "" }, { id: "x".repeat(257) }, { id: "reddit-one", path: "/other" }, "reddit-one"]) {
+      expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.removeRedditSource, input)).toThrow();
+    }
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it("detects an RSS address before saving through the shared source service", async () => {

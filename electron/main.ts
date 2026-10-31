@@ -29,6 +29,7 @@ import { loadWindowState, normalizeWindowState, saveWindowState, type WindowBoun
 import { browserSkillStatus, resolveBrowserSkillExecutable, installBrowserSkillPackage } from "./browser-skill";
 import { buildAiWorkerEnvironment } from "./ai/worker-environment";
 import { windowAppearance, windowsTitleBarOverlay } from "./window-appearance";
+import { prepareWindowPreload } from "./window-preload";
 import { buildAppPaths, ensureAppPaths, getAppPaths, resolveSkillStoreRoot, type AppPaths } from "./paths/app-paths-service";
 import { ensureClaudeAgentLink, ensureClaudeSkillAliases } from "./paths/claude-agent-link";
 import { SkillPackageService } from "./skills/skill-package-service";
@@ -520,6 +521,15 @@ function registerWindowStatePersistence(window: BrowserWindow): void {
 }
 
 function createWindow(): void {
+  let devServerUrl: URL | null = null;
+  try {
+    const candidate = process.env.OPENMIND_DEV_SERVER_URL ? new URL(process.env.OPENMIND_DEV_SERVER_URL) : null;
+    if (candidate?.protocol === "http:" || candidate?.protocol === "https:") devServerUrl = candidate;
+  } catch {
+    devServerUrl = null;
+  }
+  const preload = prepareWindowPreload(path.join(__dirname, "preload.js"),
+    devServerUrl && !app.isPackaged ? path.join(app.getPath("userData"), "tmp", "preloads") : undefined);
   syncWindowTheme(settings.getPreferences().themeMode);
   const workAreas = displayWorkAreas();
   const restoredState = PACKAGED_SMOKE_TEST || DESKTOP_E2E_TEST
@@ -533,11 +543,15 @@ function createWindow(): void {
     ...windowAppearance(process.platform, nativeTheme.shouldUseDarkColors),
     show: false,
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: preload.path,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true
     }
+  });
+  window.once("closed", () => {
+    try { preload.dispose(); }
+    catch (error) { console.warn("Could not remove development preload snapshot:", logRedactor.redact(String(error))); }
   });
   mainWindow = window;
   registerYoutubeEmbedRequestPolicy(window.webContents.session);
@@ -601,13 +615,7 @@ function createWindow(): void {
   }
   // 开发模式：OPENMIND_DEV_SERVER_URL 指向 vite dev server（npm run dev）时走热更新，
   // 其余情况始终加载构建产物。
-  let devServerUrl: URL | null = null;
-  try {
-    devServerUrl = process.env.OPENMIND_DEV_SERVER_URL ? new URL(process.env.OPENMIND_DEV_SERVER_URL) : null;
-  } catch {
-    devServerUrl = null;
-  }
-  if (devServerUrl && (devServerUrl.protocol === "http:" || devServerUrl.protocol === "https:")) {
+  if (devServerUrl) {
     void window.loadURL(devServerUrl.toString());
   } else {
     void window.loadFile(path.join(APP_ROOT, ".build", "renderer", "index.html"));

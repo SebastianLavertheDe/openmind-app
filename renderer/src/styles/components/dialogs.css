@@ -38,6 +38,9 @@
 .ui-dialog[data-layout="fixed"] { height: min(var(--dialog-height-fixed), calc(100dvh - 2 * var(--dialog-viewport-inset))); }
 .ui-dialog[data-layout="fixed"] > .ui-dialog-header { flex: 0 0 auto; }
 .ui-dialog[data-layout="fixed"] > .ui-dialog-body { flex: 1 1 auto; }
+.ui-dialog[data-layout="fixed"] > .ui-dialog-form { flex: 1 1 auto; }
+.ui-dialog[data-layout="fixed"] > .ui-dialog-form > .ui-dialog-header { flex: 0 0 auto; }
+.ui-dialog[data-layout="fixed"] > .ui-dialog-form > .ui-dialog-body { flex: 1 1 auto; }
 .ui-dialog-form { display: flex; flex-direction: column; min-height: 0; max-height: inherit; margin: 0; }
 .ui-dialog-header { display: flex; flex: 0 1 auto; min-height: 0; align-items: flex-start; gap: var(--space-3); padding: var(--dialog-padding); border-bottom: 1px solid var(--border); overflow: auto; overscroll-behavior: contain; }
 .ui-dialog-heading { flex: 1; min-width: 0; }

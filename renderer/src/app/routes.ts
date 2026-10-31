@@ -32,7 +32,7 @@ export type AppRouteState = {
   stage?: "today" | "drafting" | "review" | "ready" | "published";
   openSkillImport?: boolean;
   providerCategory?: "text" | "image";
-  settingsSection?: "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "sources" | "x-sources" | "reddit-sources" | "sessions";
+  settingsSection?: "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "sources" | "x-sources" | "reddit-sources" | "brief-preferences" | "sessions";
 };
 
 export type Navigate = (page: AppPage, state?: AppRouteState) => void;

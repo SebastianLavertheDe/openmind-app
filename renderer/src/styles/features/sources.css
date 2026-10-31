@@ -9,7 +9,6 @@
 .collector-source-meta > span:last-child { color: var(--muted); font-size: var(--fs-xs); }
 .collector-source-address { display: flex; align-items: center; gap: 2px; min-width: 0; }
 .collector-source-address > a { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--reader-link); font-size: var(--fs-xs); }
-.collector-source-edit { display: flex; align-items: center; }
 .collector-source-error-detail { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 
 .rss-sources { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; height: 100%; padding: 24px; overflow: auto; }
@@ -25,16 +24,16 @@
 .rss-category-label { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rss-source-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr)); gap: 12px; flex-shrink: 0; }
 .rss-source-card { display: flex; flex-direction: column; min-width: 0; padding: 12px; gap: 6px; }
-.rss-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; min-height: var(--control-height-sm); }
+.rss-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; min-width: 0; min-height: var(--control-height-sm); }
+.rss-card-indicators { display: flex; align-items: center; gap: 4px; flex-shrink: 0; height: 1lh; font-size: var(--fs-base); }
+.rss-card-ready-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--success-500); }
 .rss-card-error-message { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.rss-card-subject { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; text-align: start; color: inherit; font: inherit; background: transparent; border: 0; border-radius: var(--radius-sm); padding: 0; cursor: pointer; }
-.rss-card-subject:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.rss-card-subject { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
 .rss-card-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: var(--fs-base); }
 .rss-card-category { display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; color: var(--muted); font-size: var(--fs-xs); }
 .rss-card-category > svg { flex-shrink: 0; }
 .rss-card-category > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rss-card-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
-.rss-card-error-action { margin-inline-start: auto; }
 .rss-card-count, .rss-card-time { font-size: var(--fs-xs); }
 .rss-source-address { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
 .rss-source-address > a, .rss-source-address > code { min-width: 0; overflow-wrap: anywhere; }
@@ -42,8 +41,28 @@
 .rss-source-card .rss-source-address { align-items: center; }
 .rss-source-card .rss-source-address > a { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); }
 .rss-source-error { color: var(--danger-500); overflow-wrap: anywhere; margin: 0; }
-.rss-card-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-top: auto; }
-.rss-card-footer > :first-child { margin-right: auto; }
+.source-card-open { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
+.source-card-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.workspace-card.rss-source-card, .workspace-card.collector-source-card { position: relative; transition: transform var(--dur-normal) var(--ease-standard), box-shadow var(--dur-normal) var(--ease-standard), border-color var(--dur-normal) var(--ease-standard); }
+.rss-source-address > a, .collector-source-address > a, .collector-source-failure-dot { position: relative; z-index: 2; }
+.rss-card-indicators { position: relative; z-index: 2; pointer-events: none; }
+.rss-card-indicators button { pointer-events: auto; }
+.collector-source-address { grid-column: 1 / -1; }
+.source-editor-secondary-actions { display: flex; margin-inline-end: auto; }
+.daily-preferences-editor, .daily-preferences-panel { display: grid; gap: var(--space-4); min-width: 0; }
+.daily-preferences-settings { display: grid; gap: var(--space-4); min-width: 0; }
+.daily-preferences-actions { display: flex; justify-content: flex-start; }
+.topic-rules-editor, .topic-platform-editor { display: grid; gap: var(--space-3); min-width: 0; }
+.topic-platform-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.topic-platform-name { flex: 1; min-width: 0; }
+.topic-platform-editor { border-top: 1px solid var(--border); padding-top: var(--space-4); }
+@media (hover: hover) and (pointer: fine) {
+  .rss-source-card:hover, .collector-source-card:hover { transform: translateY(-2px); border-color: var(--border-strong); box-shadow: 0 4px 12px color-mix(in srgb, var(--text) 6%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-card.rss-source-card, .workspace-card.collector-source-card { transition: none; }
+  .rss-source-card:hover, .collector-source-card:hover { transform: none; }
+}
 .rss-detail-dialog { min-width: 0; }
 .rss-detail-tabs { padding: 0 24px; min-width: 0; flex: 0 0 auto; }
 .rss-detail-body { display: flex; flex-direction: column; flex: 1 1 auto; gap: 16px; min-width: 0; overflow-wrap: anywhere; }

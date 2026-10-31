@@ -179,6 +179,8 @@ export const featureMessages = {
       nameAndAddress: (reddit: boolean) => `Name and ${reddit ? "community URL" : "feed URL"}`,
       statusAndLastRun: "Status and last fetch",
       operation: "Actions",
+      deleteTitle: (name: string) => `Delete ${name}?`,
+      deleteBody: "Stop fetching this community. Previously saved content will be kept.",
       edit: (name: string) => `Edit ${name}`,
       toggle: (enabled: boolean, name: string) => `${enabled ? "Disable" : "Enable"} ${name}`,
       saved: (reddit: boolean, added: boolean) => `${reddit ? "Community" : "Subscription"} ${added ? "added" : "updated"}.`,

@@ -32,6 +32,33 @@ it("lists, updates and adds Reddit sources even when RSS is corrupt, without rea
   expect(getContent).not.toHaveBeenCalled();
 });
 
+it("persists community deletion without removing content or restoring package defaults", () => {
+  const { registry, root, write, status, getContent } = fixture();
+  write(".agent/skills/reddit-fetcher/config.yaml", { fetch: { sources: ["https://reddit.com/r/A/hot.json"] } });
+  write("reddit/20261030/saved.md", "Saved community content");
+  write(".agent/skill-data/rss-article-saver/sources.json", "invalid JSON");
+  status(0, "success");
+  registry.removeRedditSource("A");
+  expect(registry.listSources({ kind: "reddit" }).map(source => source.id)).toEqual(["B"]);
+  registry.removeRedditSource("B");
+  const restarted = new SourceRegistry(root, {} as ContentApi);
+  expect(restarted.listSources({ kind: "reddit" })).toEqual([]);
+  expect(fs.readFileSync(path.join(root, "reddit/20261030/saved.md"), "utf8")).toBe("Saved community content");
+  expect(fs.readdirSync(path.join(root, ".agent/skill-data/reddit-fetcher/source-status"))).toHaveLength(1);
+  expect(getContent).not.toHaveBeenCalled();
+});
+
+it("leaves community configuration intact when deletion targets are missing or configuration is invalid", () => {
+  const { registry, root, write } = fixture();
+  const config = path.join(root, ".agent/skill-data/reddit-fetcher/user-sources.yaml");
+  const original = fs.readFileSync(config, "utf8");
+  expect(() => registry.removeRedditSource("missing")).toThrow();
+  expect(fs.readFileSync(config, "utf8")).toBe(original);
+  write(".agent/skill-data/reddit-fetcher/user-sources.yaml", "invalid YAML configuration");
+  expect(() => registry.removeRedditSource("A")).toThrow("Reddit");
+  expect(fs.readFileSync(config, "utf8")).toBe("invalid YAML configuration");
+});
+
 it("keeps community outcomes separate from batch history and invalidates results when its URL changes", () => {
   const { registry, status } = fixture();
   status(0, "success"); status(1, "failed");

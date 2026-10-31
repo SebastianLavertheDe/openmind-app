@@ -45,6 +45,7 @@ export const IPC = {
   APP_X_FOLLOWING_CURLS_SAVE: "app:x-following-curls-save",
   APP_LIST_SOURCES: "app:list-sources",
   APP_UPDATE_SOURCE: "app:update-source",
+  APP_REMOVE_REDDIT_SOURCE: "app:remove-reddit-source",
   APP_ADD_RSS_SOURCE: "app:add-rss-source",
   APP_IMPORT_OPML: "app:import-opml",
   APP_SEARCH_WORKSPACE: "app:search-workspace",

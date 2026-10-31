@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pencil, Plus, X } from "lucide-react";
 import type { SourceDefinition } from "@shared/contracts";
 import { getLocale, messages } from "@shared/messages";
-import { Button, CopyButton, Dialog, DialogBody, DialogFooter, DialogHeader, FormField, IconButton, Input, SearchInput, Textarea, ToggleSwitch, Tooltip } from "../../design-system/components";
+import { Button, ConfirmDialog, Dialog, DialogBody, DialogFooter, DialogHeader, FormField, IconButton, Input, SearchInput, Textarea, ToggleSwitch, Tooltip } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { useExitPresence } from "../../design-system/use-exit-presence";
 import { SourcesPage } from "./SourcesPage";
@@ -24,6 +24,12 @@ export function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadS
   const locale = useLocale();
   const [query, setQuery] = useState("");
   const [editor, setEditor] = useState<SourceEditorState | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const editorTriggerRef = useRef<HTMLElement | null>(null);
+  const deleteTriggerRef = useRef<HTMLElement | null>(null);
+  const [deleting, setDeleting] = useState<SourceDefinition | null>(null);
+  const lastDeleting = useRef<SourceDefinition | null>(null);
+  if (deleting) lastDeleting.current = deleting;
   const editorSequence = useRef(0);
   const pending = useRef(new Set<string>());
   const [busyIds, setBusyIds] = useState<Set<string>>(() => new Set());
@@ -51,7 +57,36 @@ export function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadS
   }, [sources, query, locale]);
   const pagination = useSourcePage(visibleSources, `${summary.id}:${query}`);
   const resultsRef = useRef<HTMLDivElement>(null);
-  const editSource = useCallback((source: SourceDefinition) => setEditor({ mode: "edit", source, token: ++editorSequence.current }), []);
+  const editSource = useCallback((source: SourceDefinition, trigger?: HTMLElement) => {
+    editorTriggerRef.current = trigger || null;
+    setEditor({ mode: "edit", source, token: ++editorSequence.current });
+  }, []);
+  const requestRemove = useCallback((source: SourceDefinition, trigger: HTMLElement) => {
+    deleteTriggerRef.current = trigger;
+    setDeleting(source);
+  }, []);
+  const removeSource = async () => {
+    if (!deleting || pending.current.has(deleting.id)) return;
+    const source = deleting, ticket = generation.current;
+    pending.current.add(source.id); setBusyIds(new Set(pending.current)); setFeedback(null);
+    try {
+      await window.openmind.removeRedditSource({ id: source.id });
+      if (ticket !== generation.current) return;
+      deleteTriggerRef.current = panelRef.current;
+      setDeleting(null);
+      setEditor(current => current?.mode === "edit" && current.source.id === source.id ? null : current);
+      await onReloadSources();
+      if (ticket === generation.current) panelRef.current?.focus();
+    } catch (cause) {
+      if (ticket === generation.current) {
+        setDeleting(null);
+        setFeedback({ tone: "error", message: cause instanceof Error ? cause.message : String(cause) });
+      }
+    } finally {
+      pending.current.delete(source.id);
+      if (ticket === generation.current) setBusyIds(new Set(pending.current));
+    }
+  };
   const toggleSource = useCallback(async (source: SourceDefinition) => {
     if (pending.current.has(source.id)) return;
     const ticket = generation.current;
@@ -78,7 +113,7 @@ export function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadS
     onToggle={sources[0] ? () => void toggleSource(sources[0]) : undefined}
   />;
 
-  return <section className="skills-owned-sources">
+  return <section ref={panelRef} tabIndex={-1} className="skills-owned-sources">
     <header className="skills-owned-sources-header">
       <div><h3>{copy.title}</h3><p>{copy.description}</p></div>
       <div className="skills-owned-sources-toolbar">
@@ -96,7 +131,7 @@ export function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadS
       <span>{query ? m.ownedSources.noMatch : copy.empty}</span>
       {!query && canEditSources ? <Button variant="ghost" type="button" data-motion="action" onClick={() => setEditor({ mode: "add", token: ++editorSequence.current })}>{m.ownedSources.addFirst(isReddit)}</Button> : null}
     </div> : isReddit ? <div ref={resultsRef} tabIndex={-1} className="collector-source-grid" role="list">
-      {pagination.rows.map(source => <RedditSourceCard key={source.id} source={source} onEdit={editSource} />)}
+      {pagination.rows.map(source => <RedditSourceCard key={source.id} source={source} selected={editor?.mode === "edit" && editor.source.id === source.id} onEdit={editSource} />)}
     </div> : <div ref={resultsRef} tabIndex={-1} className="skills-source-list" role="list">
       <div className="skills-source-list-head" aria-hidden><span /><span>{m.ownedSources.nameAndAddress(isReddit)}</span><span>{m.ownedSources.statusAndLastRun}</span><span>{m.ownedSources.operation}</span></div>
       {pagination.rows.map((source) => <article key={source.id} className="skills-source-row" role="listitem">
@@ -126,6 +161,9 @@ export function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadS
       kind={isReddit ? "reddit" : "rss"}
       active={Boolean(editor)}
       leaving={editorPresence.leaving}
+      triggerRef={editorTriggerRef}
+      requestError={feedback?.tone === "error" ? feedback.message : undefined}
+      onRemove={trigger => { if (renderedEditor.mode === "edit") requestRemove(renderedEditor.source, trigger); }}
       onClose={() => setEditor(null)}
       onSaved={async () => {
         setEditor(null);
@@ -133,6 +171,9 @@ export function SkillSourcesPanel({ summary, sources, onSourceUpdated, onReloadS
         setFeedback({ tone: "success", message: m.ownedSources.saved(isReddit, renderedEditor.mode === "add") });
       }}
     /> : null}
+    <ConfirmDialog open={Boolean(deleting)} title={m.ownedSources.deleteTitle(lastDeleting.current?.name || "")} description={m.ownedSources.deleteBody}
+      confirmLabel={m.common.delete} cancelLabel={m.common.cancel} tone="danger" busy={Boolean(deleting && busyIds.has(deleting.id))}
+      triggerRef={deleteTriggerRef} onClose={() => setDeleting(null)} onConfirm={removeSource} />
   </section>;
 }
 
@@ -274,7 +315,7 @@ function SkillXCurlEditor({ initialCurls, active, leaving, onClose, onSaved }: {
     </Dialog>;
 }
 
-function SkillSourceEditor({ state, kind, active, leaving, onClose, onSaved }: { state: SourceEditorState; kind: "rss" | "reddit"; active: boolean; leaving: boolean; onClose(): void; onSaved(): Promise<void> }) {
+function SkillSourceEditor({ state, kind, active, leaving, triggerRef, onClose, onSaved, onRemove, requestError }: { state: SourceEditorState; kind: "rss" | "reddit"; active: boolean; leaving: boolean; triggerRef: React.RefObject<HTMLElement | null>; onClose(): void; onSaved(): Promise<void>; onRemove(trigger: HTMLElement): void; requestError?: string }) {
   useLocale();
   const editing = state.mode === "edit" ? state.source : null;
   const isReddit = kind === "reddit";
@@ -309,15 +350,15 @@ function SkillSourceEditor({ state, kind, active, leaving, onClose, onSaved }: {
     }
   };
 
-  return <Dialog size="md" as="section" open={active} presence={{ visible: true, leaving }} onClose={dismiss} dismissDisabled={saving}  containerRef={dialogRef}  aria-labelledby="skill-source-editor-title">
+  return <Dialog size="md" as="section" open={active} presence={{ visible: true, leaving }} onClose={dismiss} dismissDisabled={saving} containerRef={dialogRef} triggerRef={triggerRef} aria-labelledby="skill-source-editor-title">
       <DialogHeader title={m.sourceEditor.title(Boolean(editing), isReddit)} titleId="skill-source-editor-title" description={m.sourceEditor.description(isReddit)} onClose={dismiss} closeDisabled={saving} closeLabel={m.common.close} />
       <form className="ui-dialog-form" onSubmit={(event) => { event.preventDefault(); void save(); }}><DialogBody>
         <FormField label={m.sourceEditor.name(isReddit)}><Input ref={inputRef} value={name} onChange={(event) => setName(event.target.value)} placeholder={m.sourceEditor.namePlaceholder(isReddit)} /></FormField>
         {editing ? <FormField label={messages.rss.enabled}><ToggleSwitch checked={enabled} disabled={saving} label={messages.rss.enabled} onChange={setEnabled} /></FormField> : null}
         <FormField label={m.sourceEditor.url(isReddit)}><Input type="url" value={url} onChange={(event) => setUrl(event.target.value)} placeholder={isReddit ? "https://www.reddit.com/r/LocalLLaMA/hot.json" : "https://example.com/feed.xml"} /></FormField>
         <FormField label={m.sourceEditor.tags}><Input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={m.sourceEditor.tagsPlaceholder(isReddit)} /></FormField>
-        {failure ? <p className="skills-source-editor-error" role="alert">{failure}</p> : null}
-        </DialogBody><DialogFooter><Button variant="ghost" type="button" data-motion="action" onClick={dismiss} disabled={saving}>{m.common.cancel}</Button><Button variant="primary" type="submit"  data-motion="action" disabled={saving || !name.trim() || !url.trim()} aria-busy={saving || undefined}>{saving ? m.common.saving : editing ? m.sourceEditor.saveChanges : m.sourceEditor.add(isReddit)}</Button></DialogFooter>
+        {failure || requestError ? <p className="skills-source-editor-error" role="alert">{failure || requestError}</p> : null}
+        </DialogBody><DialogFooter>{editing && isReddit ? <div className="source-editor-secondary-actions"><Button variant="ghost" tone="danger" disabled={saving} onClick={event => onRemove(event.currentTarget)}>{m.common.delete}</Button></div> : null}<Button variant="ghost" type="button" data-motion="action" onClick={dismiss} disabled={saving}>{m.common.cancel}</Button><Button variant="primary" type="submit"  data-motion="action" disabled={saving || !name.trim() || !url.trim()} aria-busy={saving || undefined}>{saving ? m.common.saving : editing ? m.sourceEditor.saveChanges : m.sourceEditor.add(isReddit)}</Button></DialogFooter>
       </form>
     </Dialog>;
 }
@@ -364,10 +405,11 @@ function sourceLastRun(source: SourceDefinition): string {
 }
 
 
-export const RedditSourceCard = memo(function RedditSourceCard({ source, onEdit }: { source: SourceDefinition; onEdit(source: SourceDefinition): void }) {
+export const RedditSourceCard = memo(function RedditSourceCard({ source, selected, onEdit }: { source: SourceDefinition; selected?: boolean; onEdit(source: SourceDefinition, trigger: HTMLElement): void }) {
   useLocale();
   const lastFailed = source.status === "failed" || source.status !== "success" && Boolean(source.recentError);
   return <article className="workspace-card collector-source-card" role="listitem" aria-label={source.name}>
+        <button type="button" className="source-card-open collector-card-open" data-motion="selection" aria-haspopup="dialog" aria-pressed={Boolean(selected)} aria-label={m.ownedSources.edit(source.name)} onClick={event => onEdit(source, event.currentTarget)} />
         <div className="collector-source-heading">
           <strong className="collector-source-name" title={source.name}>{source.name}</strong>
           {lastFailed ? <Tooltip content={<>{m.sourceStatus.lastFailed}{source.recentError ? <span className="collector-source-error-detail">{source.recentError}</span> : null}</>}><span className="collector-source-failure-dot" role="img" aria-label={m.sourceStatus.lastFailed} tabIndex={0} /></Tooltip> : null}
@@ -375,8 +417,6 @@ export const RedditSourceCard = memo(function RedditSourceCard({ source, onEdit 
         <div className="collector-source-meta"><span>{sourceLastRun(source)}</span></div>
         <div className="collector-source-address">{source.url ? <>
           <a href={source.url} title={source.url} aria-label={source.url} onClick={event => { event.preventDefault(); void window.openmind.openExternal(event.currentTarget.href); }}>{shortUrl(source.url)}</a>
-          <CopyButton text={source.url} label={`${messages.ai.message.copy}: ${source.name}`} />
         </> : <span>{source.frequency}</span>}</div>
-        <div className="collector-source-edit"><IconButton label={m.ownedSources.edit(source.name)} onClick={() => onEdit(source)}><Pencil size={16} aria-hidden /></IconButton></div>
       </article>;
 });

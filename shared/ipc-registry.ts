@@ -48,6 +48,7 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "saveXFollowingCurls", channel: IPC.APP_X_FOLLOWING_CURLS_SAVE },
   { method: "listSources", channel: IPC.APP_LIST_SOURCES },
   { method: "updateSource", channel: IPC.APP_UPDATE_SOURCE },
+  { method: "removeRedditSource", channel: IPC.APP_REMOVE_REDDIT_SOURCE },
   { method: "addRssSource", channel: IPC.APP_ADD_RSS_SOURCE },
   { method: "importOpml", channel: IPC.APP_IMPORT_OPML },
   { method: "searchWorkspace", channel: IPC.APP_SEARCH_WORKSPACE },

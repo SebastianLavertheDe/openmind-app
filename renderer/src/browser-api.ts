@@ -1,5 +1,6 @@
 import { RssSourceSchema, type RssDocument } from "@shared/rss-contracts";
 import { messages } from "@shared/messages";
+import { resolveDailyBriefPreferences } from "@shared/daily-brief-preferences";
 import type {
   AiEvent,
   AiSnapshot,
@@ -389,7 +390,7 @@ export function installBrowserPreviewApi(): boolean {
     getRssSourceRunEvents: async () => ({ events: [], nextAfter: null }),
     runRss: async () => { throw new Error(messages.browserPreview.sourceMissing); },
     getDailyBriefPreferences: async () => ({ ...briefPreferences }),
-    saveDailyBriefPreferences: async input => { if (input.revision !== briefPreferences.revision) throw new Error("Preferences changed"); briefPreferences = { ...briefPreferences, text: input.text, revision: input.revision + 1, updatedAt: new Date().toISOString() }; return { ...briefPreferences }; },
+    saveDailyBriefPreferences: async input => { if (input.revision !== briefPreferences.revision) throw new Error("Preferences changed"); briefPreferences = resolveDailyBriefPreferences({ ...briefPreferences, ...input, revision: input.revision + 1, updatedAt: new Date().toISOString() }); return structuredClone(briefPreferences); },
     generateDailyBrief: async () => { throw new Error(messages.browserPreview.sourceMissing); },
     getBootstrap: async () => ({
       repoRoot: snapshot.projectRoot,
@@ -446,6 +447,7 @@ export function installBrowserPreviewApi(): boolean {
     getXFollowingCurls: async () => [...previewXFollowingCurls],
     saveXFollowingCurls: async (contents) => { previewXFollowingCurls = contents.map((content) => content.trim()); },
     listSources: async query => previewSources.filter(source => (!query?.kind || source.kind === query.kind) && (!query?.skillId || source.skillId === query.skillId)),
+    removeRedditSource: async ({ id }) => { previewSources = previewSources.filter(source => source.kind !== "reddit" || source.id !== id); },
     updateSource: async (id, patch) => {
       const current = previewSources.find((source) => source.id === id);
       if (!current) throw new Error(messages.browserPreview.sourceMissing);

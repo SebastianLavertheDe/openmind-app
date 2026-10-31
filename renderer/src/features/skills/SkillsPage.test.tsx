@@ -183,7 +183,7 @@ describe("SkillsPage", () => {
     expect(await screen.findByRole("heading", { name: "RSS 文章采集" })).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "订阅源 1" }));
     expect(await screen.findByRole("link", { name: "https://sspai.com/feed" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "编辑源: 少数派" }));
+    fireEvent.click(screen.getByRole("button", { name: "编辑: 少数派" }));
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("switch"));
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "保存" }));
     await waitFor(() => expect(editRssSource).toHaveBeenCalledWith(expect.objectContaining({ id: "rss-1", revision: 1, enabled: false })));

@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const briefLabels = JSON.parse(fs.readFileSync(path.join(__dirname, '../tests/rss/fixtures/brief-labels.json'), 'utf8')).en;
+const topicProviderResponse = require('./fixtures/topic-provider-response.cjs');
 const sourceMode = process.argv[2] === '--source';
 const appRoot = sourceMode ? path.resolve(__dirname, '..') : path.resolve(process.argv[2] || 'dist/linux-arm64-unpacked');
 const binary = sourceMode ? process.execPath : path.join(appRoot, 'openmind-desktop');
@@ -43,11 +44,17 @@ const server = http.createServer((request, response) => {
         const prompt = payload.messages.map(message => message.content).join('\n');
         providerCalls.push(prompt);
         let answer;
-        if (prompt.includes('SOURCE:\n')) {
+        const topicAnswer = topicProviderResponse(prompt, 'en', candidates => [candidates.findIndex(item => item.title.toLowerCase().includes('science') === prompt.includes('Science only')) + 1]);
+        if (topicAnswer) answer = topicAnswer;
+        else if (prompt.includes('SOURCE:\n')) {
           const source = JSON.parse(prompt.split('SOURCE:\n')[1]);
           const science = source.title.toLowerCase().includes('science');
-          answer = { keep: science === prompt.includes('Science only'), translated_title: source.title, summary: 'English research summary', key_points: ['Evidence'], category: science ? 'Science' : 'Design', score: 90, reason: 'Matches the saved preference' };
-        } else answer = { items: [{ index: 1, reason: 'Relevant evidence' }], document: briefLabels };
+          answer = { translated_title: source.title, summary: 'English research summary', key_points: ['Evidence'], category: science ? 'Science' : 'Design', score: 90 };
+        } else {
+          const candidates = JSON.parse(prompt.split('CANDIDATES:\n')[1]);
+          const index = candidates.findIndex(item => item.title.toLowerCase().includes('science') === prompt.includes('Science only')) + 1;
+          answer = { items: [{ index, reason: 'Relevant evidence' }], document: briefLabels };
+        }
         response.setHeader('content-type', 'application/json');
         response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(answer) } }] }));
       } catch (error) { response.statusCode = 400; response.end(String(error)); }
@@ -110,7 +117,7 @@ const server = http.createServer((request, response) => {
   assert.equal(fs.readdirSync(path.join(userData, 'runs')).length, runCount, 'checks must not submit collection runs');
   const preferencesDirectory = path.join(content, '.agent/preferences');
   fs.mkdirSync(preferencesDirectory, { recursive: true });
-  const savePreferences = (revision, text) => fs.writeFileSync(path.join(preferencesDirectory, 'daily-brief.json'), JSON.stringify({ schemaVersion: 1, revision, text, updatedAt: null }));
+  const savePreferences = (revision, text) => fs.writeFileSync(path.join(preferencesDirectory, 'daily-brief.json'), JSON.stringify({ schemaVersion: 1, revision, text, updatedAt: null, topicPlatforms: [] }));
   savePreferences(1, 'Design only, exclude science, English, at most 1 item');
   const first = JSON.parse((await cli('brief', 'generate')).trim()); outputs.push(first);
   assert.equal(first.result.selected, 1); assert.equal(first.result.preferencesRevision, 1);
@@ -129,9 +136,9 @@ const server = http.createServer((request, response) => {
   const topic = JSON.parse((await cli('brief', 'generate', '--topics')).trim()); outputs.push(topic);
   assert.equal(topic.result.selected, 1); assert.equal(topic.result.preferencesRevision, 2);
   const topicText = fs.readFileSync(path.join(content, topic.result.path), 'utf8');
-  assert.match(topicText, /### Science measurements/); assert.doesNotMatch(topicText, /### Product design research/);
+  assert.match(topicText, /Science measurements/); assert.doesNotMatch(topicText, /Product design research/);
   assert.match(topicText, /openmind-topics/);
-  assert.match(topicText, /# 20261027 Daily topics/);
+  assert.match(topicText, /# Daily editorial topics - 2026-10-27/);
   assert.doesNotMatch(topicText, /[\u4e00-\u9fff]/);
   assert.ok(providerCalls.length > callsBefore, 'changed preferences invalidate model cache');
   outputs.push(JSON.parse((await cli('brief', 'generate')).trim()));

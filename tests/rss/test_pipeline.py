@@ -19,6 +19,7 @@ sys.path.insert(0, str(PACKAGES))
 from src import rss_pipeline as rss
 from _shared import brief_generation as brief
 from _shared.brief_preferences import preference_digest
+from brief_fixtures import editorial_reply, TOPIC_LABELS
 
 BRIEF_LABELS = json.loads((Path(__file__).parent / 'fixtures/brief-labels.json').read_text(encoding='utf-8'))
 
@@ -253,10 +254,14 @@ class PreferencesTests(unittest.TestCase):
             calls = []
             def model(provider, prompt, **kwargs):
                 calls.append(prompt)
+                editorial = editorial_reply(prompt, choose=lambda candidates: [next(i for i, item in enumerate(candidates, 1) if ('design' in item['title'].lower()) == ('Design only' in prompt))])
+                if editorial is not None: return json.dumps(editorial)
                 if 'SOURCE:\n' in prompt:
-                    source = json.loads(prompt.split('SOURCE:\n')[1]); chosen = ('design' in source['title'].lower()) == ('Design only' in prompt)
-                    return json.dumps({'keep': chosen, 'translated_title': source['title'], 'summary': 'English research summary', 'key_points': ['Evidence'], 'category': source['title'], 'score': 90, 'reason': 'Matches preference'})
-                return json.dumps({'items': [{'index': 1, 'reason': 'Relevant evidence'}], 'document': BRIEF_LABELS['en']})
+                    source = json.loads(prompt.split('SOURCE:\n')[1])
+                    return json.dumps({'translated_title': source['title'], 'summary': 'English research summary', 'key_points': ['Evidence'], 'category': source['title'], 'score': 90})
+                candidates = json.loads(prompt.split('CANDIDATES:\n')[1])
+                chosen = next(i for i, item in enumerate(candidates, 1) if ('design' in item['translated_title'].lower()) == ('Design only' in prompt))
+                return json.dumps({'items': [{'index': chosen, 'reason': 'Relevant evidence'}], 'document': BRIEF_LABELS['en']})
             provider = brief.resolve_provider if False else type('Provider', (), {'name': 'fixture', 'base_url': 'http://localhost', 'model': 'fixture-v1'})()
             first = {'schemaVersion': 1, 'revision': 1, 'text': 'Design only, exclude science, English, at most 1 item', 'updatedAt': None}
             second = {**first, 'revision': 2, 'text': 'Science only, exclude design, English, at most 1 item'}
@@ -264,8 +269,8 @@ class PreferencesTests(unittest.TestCase):
                 brief.generate(root, '20261027', 'summary', first, provider=provider); before = len(calls)
                 brief.generate(root, '20261027', 'summary', first, provider=provider); self.assertEqual(len(calls), before)
                 brief.generate(root, '20261027', 'topics', second, provider=provider)
-                result = (root / 'daily-topic/20261027_daily_topic.md').read_text(); self.assertIn('### Science', result); self.assertNotIn('### Design', result)
-                self.assertIn('Preferences revision**: 2', result); self.assertGreater(len(calls), before)
+                result = (root / 'daily-topic/20261027_daily_topic.md').read_text(); self.assertIn('Science', result); self.assertNotIn('Design', result)
+                self.assertIn('Preferences revision: 2', result); self.assertGreater(len(calls), before)
                 writing = subprocess.run([sys.executable, str(PACKAGES / 'daily-writing-orchestrator/scripts/create_writing_package.py'), '--date', '20261027', '--content-root', str(root), '--platform', 'wechat'], capture_output=True, text=True)
                 self.assertEqual(writing.returncode, 0, writing.stderr)
                 manifests = list((root / 'creative').rglob('manifest.json'))
@@ -284,21 +289,27 @@ class PreferencesTests(unittest.TestCase):
                     with self.subTest(language=language, mode=mode, keep=keep), tempfile.TemporaryDirectory() as temporary:
                         root = Path(temporary); folder = root / 'post/20261027'; folder.mkdir(parents=True)
                         (folder / 'posts.json').write_text(json.dumps([{'content': 'Research with original observations.', 'url': 'https://example.org/research', 'author_name': 'Example Author'}]))
-                        snapshot = {'schemaVersion': 1, 'revision': 1, 'text': preference, 'updatedAt': None}
+                        snapshot = {'schemaVersion': 1, 'revision': 1, 'text': preference, 'updatedAt': None, 'topicPlatforms': []}
                         labels = BRIEF_LABELS[language]
                         def model(provider, prompt, **kwargs):
-                            self.assertIn(preference, prompt)
+                            if 'Extract sufficient factual detail' not in prompt: self.assertIn(preference, prompt)
+                            editorial = editorial_reply(prompt, language, choose=lambda candidates: [1] if keep else [])
+                            if editorial is not None: return json.dumps(editorial)
                             if 'SOURCE:\n' in prompt:
-                                return json.dumps({'keep': keep, 'translated_title': labels['summary'], 'summary': labels['summary'], 'key_points': [labels['key_points']], 'category': '', 'score': 90, 'reason': labels['reason']})
+                                return json.dumps({'translated_title': labels['summary'], 'summary': labels['summary'], 'key_points': [labels['key_points']], 'category': '', 'score': 90})
                             return json.dumps({'items': [{'index': 1, 'reason': labels['reason']}] if keep else [], 'document': labels})
                         provider = type('Provider', (), {'name': 'fixture', 'base_url': 'http://localhost', 'model': 'v1'})()
                         with patch.object(brief, 'call_provider_text', model):
                             result = brief.generate(root, '20261027', mode, snapshot, provider=provider)
                         text = (root / result['path']).read_text()
-                        self.assertIn(f"# 20261027 {labels['summary_title' if mode == 'summary' else 'topics_title']}", text)
-                        self.assertIn(f"**{labels['item_count']}**: {int(keep)}", text)
-                        for key in ['generated_at', 'preferences_revision'] + (['score', 'summary', 'key_points', 'reason', 'author', 'link', 'source_file'] if keep else []):
-                            self.assertIn(f'**{labels[key]}**:', text)
+                        if mode == 'summary':
+                            self.assertIn(f"# 20261027 {labels['summary_title']}", text)
+                            self.assertIn(f"**{labels['item_count']}**: {int(keep)}", text)
+                            for key in ['generated_at', 'preferences_revision'] + (['score', 'summary', 'key_points', 'reason', 'author', 'link', 'source_file'] if keep else []):
+                                self.assertIn(f'**{labels[key]}**:', text)
+                        else:
+                            self.assertIn(TOPIC_LABELS[language]['report_title'], text)
+                            self.assertIn(f"> {TOPIC_LABELS[language]['item_count']}: {int(keep)}", text)
                         if language != 'zh': self.assertFalse(any('\u4e00' <= character <= '\u9fff' for character in text))
                         if mode == 'topics' and keep:
                             metadata = json.loads(text.split('<!-- openmind-topics ', 1)[1].split(' -->', 1)[0])
@@ -316,7 +327,7 @@ class PreferencesTests(unittest.TestCase):
             def model(provider, prompt, **kwargs):
                 calls.append(prompt)
                 if 'SOURCE:\n' in prompt:
-                    return json.dumps({'keep': True, 'translated_title': 'Research', 'summary': 'Evidence', 'key_points': [], 'category': 'Research', 'score': 90})
+                    return json.dumps({'translated_title': 'Research', 'summary': 'Evidence', 'key_points': [], 'category': 'Research', 'score': 90})
                 return json.dumps(answer)
             with patch.object(brief, 'call_provider_text', model):
                 with self.assertRaisesRegex(ValueError, 'document'):
@@ -337,8 +348,10 @@ class PreferencesTests(unittest.TestCase):
             snapshot = {'schemaVersion': 1, 'revision': 1, 'text': 'Répondre uniquement en français', 'updatedAt': None}
             provider = type('Provider', (), {'name': 'fixture', 'base_url': 'http://localhost', 'model': 'v1'})()
             def model(provider, prompt, **kwargs):
+                editorial = editorial_reply(prompt, 'fr')
+                if editorial is not None: return json.dumps(editorial)
                 if 'SOURCE:\n' in prompt:
-                    return json.dumps({'keep': True, 'translated_title': 'Recherche', 'summary': 'Observations originales', 'key_points': [], 'category': 'Recherche', 'score': 90})
+                    return json.dumps({'translated_title': 'Recherche', 'summary': 'Observations originales', 'key_points': [], 'category': 'Recherche', 'score': 90})
                 return json.dumps({'items': [{'index': 1, 'reason': 'Pertinent'}], 'document': BRIEF_LABELS['fr']})
             with patch.object(brief, 'call_provider_text', model):
                 brief.generate(root, '20261027', 'summary', snapshot, provider=provider)
@@ -347,7 +360,7 @@ class PreferencesTests(unittest.TestCase):
                 self.assertEqual(candidates[0]['url'], 'https://example.org/research')
                 result = brief.generate(root, '20261027', 'topics', snapshot, provider=provider)
             self.assertIn('https://example.org/research', (root / result['path']).read_text())
-    def test_no_personal_gate_and_failures_preserve_existing_document(self):
+    def test_summary_defaults_and_failures_preserve_existing_document(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); folder = root / 'article/20261027'; folder.mkdir(parents=True)
             (folder / 'a.md').write_text('# Gardening\nDetailed observations from a local garden.')
@@ -357,6 +370,8 @@ class PreferencesTests(unittest.TestCase):
             with patch.object(brief, 'call_provider_text', side_effect=RuntimeError('failed')):
                 with self.assertRaises(RuntimeError): brief.generate(root, '20261027', 'summary', snapshot, provider=provider)
             self.assertEqual(output.read_text(), 'My edited summary')
-            self.assertIn('any subject', brief.summarize_prompt({'content': 'Gardening'}, snapshot))
+            prompt = brief.summarize_prompt({'content': 'Gardening'}, snapshot)
+            self.assertIn('中文', prompt)
+            self.assertNotIn('fit_score', prompt)
 
 if __name__ == '__main__': unittest.main()

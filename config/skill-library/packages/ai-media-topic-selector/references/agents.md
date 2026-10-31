@@ -1,10 +1,7 @@
-# Optional editorial perspectives
+# Editorial perspectives
 
-Apply only the perspectives relevant to the user's requested output. They do not require spawning agents or changing execution mechanisms.
+For each configured platform, apply the user's common topic prompt and that platform's prompt. These are perspectives in the current session, not separate runtime agents. Do not infer criteria from the platform name or add default scoring thresholds, author lists, domain restrictions or source exclusions.
 
-- Reading brief: organize concise summaries by information quality, relevance and recency.
-- Long-form article: identify a supported central argument, useful evidence, an outline and the intended reader.
-- Short social post or visual cards: choose a concrete angle and explain how to express it in limited space.
-- Platform-specific publication: adapt language, structure and length to the platform the user named. Evaluate virality or emotional hooks only when requested.
+Develop each selected topic into the fixed output fields in `output-template.md`. Explain why it suits the actual user rules. The recommendation index is a displayed editorial assessment, not a selection gate.
 
-The shared preferences decide topics, exclusions, language and total recommendation count. Never score authors automatically or add hidden subject bonuses.
+Finally compare the selected topics under the same user rules to give the editor recommendation, writing angle, risks, follow-up directions and evergreen themes. Do not introduce new criteria in the editor pass.

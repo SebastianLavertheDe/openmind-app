@@ -12,6 +12,7 @@ import {
   SourcePatchSchema,
   SourceRunSchema,
   SourceQuerySchema,
+  RemoveRedditSourceInputSchema,
   type SourceQuery,
   type AddRssSourceInput,
   type SourceDefinition,
@@ -332,6 +333,14 @@ export class SourceRegistry {
     return updated;
   }
 
+
+  removeRedditSource(id: string): void {
+    RemoveRedditSourceInputSchema.parse({ id });
+    const sources = this.loadRedditSourceEntries(true);
+    const remaining = sources.filter(source => source.id !== id);
+    if (remaining.length === sources.length) throw new Error(messages.errors.source.updateNotFound);
+    this.writeRedditSourceEntries(remaining);
+  }
 
   addRssSource(rawInput: AddRssSourceInput): SourceDefinition {
     const input = AddRssSourceInputSchema.parse(rawInput);

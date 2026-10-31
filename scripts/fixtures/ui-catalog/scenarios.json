@@ -134,6 +134,27 @@
     "pixelPlatforms": []
   },
   {
+    "id": "rss-preferences-summary",
+    "title": "Editable summary requirements",
+    "height": 900,
+    "navigation": false,
+    "pixelPlatforms": []
+  },
+  {
+    "id": "rss-preferences-topics",
+    "title": "Editable topic rules",
+    "height": 900,
+    "navigation": false,
+    "pixelPlatforms": []
+  },
+  {
+    "id": "rss-preferences-platforms",
+    "title": "Custom platform topic prompts",
+    "height": 900,
+    "navigation": false,
+    "pixelPlatforms": []
+  },
+  {
     "id": "rss-source-cards",
     "title": "RSS source cards",
     "height": 1400,
@@ -149,13 +170,6 @@
     "id": "rss-source-embedded",
     "title": "RSS embedded sources",
     "height": 1800,
-    "pixelPlatforms": []
-  },
-  {
-    "id": "rss-source-menu",
-    "title": "RSS source actions",
-    "height": 900,
-    "navigation": false,
     "pixelPlatforms": []
   },
   {

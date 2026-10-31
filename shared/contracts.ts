@@ -37,7 +37,7 @@ import type { ProvidersYamlInput, ProvidersYamlView } from "./providers-yaml";
 import type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord, WorkflowResumeRequest } from "./execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "./automation-contracts";
 import type { RssDocument, RssDocumentView, RssDetection, RssSourceInput, RssSourcePatch, RssRunInput, RssEntriesQuery, RssEntriesPage, RssRunsQuery, RssRunsPage, RssRunEventsQuery, RssRunEventsPage } from "./rss-contracts";
-import type { DailyBriefPreferences } from "./daily-brief-preferences";
+import type { DailyBriefPreferences, SaveDailyBriefPreferences } from "./daily-brief-preferences";
 import { RuntimeTargetSchema } from "./runtime-targets";
 
 export type { BrokerRunEvent, BrokerRunRecord, RunArtifact, WorkflowRunRecord, WorkflowResumeRequest } from "./execution-contracts";
@@ -661,6 +661,8 @@ export type ContentKind = z.infer<typeof ContentKindSchema>;
 export const SourceKindSchema = z.enum(["rss", "web", "x", "reddit", "manual", "api"]);
 export const SourceQuerySchema = z.object({ kind: SourceKindSchema.optional(), skillId: z.string().max(160).optional() }).strict();
 export type SourceQuery = z.infer<typeof SourceQuerySchema>;
+export const RemoveRedditSourceInputSchema = z.object({ id: z.string().min(1).max(256) }).strict();
+export type RemoveRedditSourceInput = z.infer<typeof RemoveRedditSourceInputSchema>;
 
 export const SourceDefinitionSchema = z.object({
   schemaVersion: z.number().default(SCHEMA_VERSION),
@@ -1243,9 +1245,10 @@ export interface DesktopApi {
   importRssOpml(): Promise<RssDocument | null>;
   runRss(input: RssRunInput): Promise<BrokerRunRecord>;
   getDailyBriefPreferences(): Promise<DailyBriefPreferences>;
-  saveDailyBriefPreferences(input: { revision: number; text: string }): Promise<DailyBriefPreferences>;
+  saveDailyBriefPreferences(input: SaveDailyBriefPreferences): Promise<DailyBriefPreferences>;
   generateDailyBrief(input: { date: string; topics?: boolean }): Promise<BrokerRunRecord>;
   updateSource(id: string, patch: SourcePatch): Promise<SourceDefinition>;
+  removeRedditSource(input: RemoveRedditSourceInput): Promise<void>;
   addRssSource(input: AddRssSourceInput): Promise<SourceDefinition>;
   importOpml(): Promise<number>;
   searchWorkspace(query: string): Promise<GlobalSearchResult[]>;

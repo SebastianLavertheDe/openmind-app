@@ -17,6 +17,7 @@ import {
   ProjectFileSearchResultSchema,
   SourcePatchSchema,
   SourceQuerySchema,
+  RemoveRedditSourceInputSchema,
   SessionPatchSchema,
   StartRunInputSchema,
   AiTurnListParamsSchema,
@@ -393,6 +394,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     },
     { channel: C.listSources, handler: query => query === undefined ? product().listSources() : product().listSources(SourceQuerySchema.parse(query)) },
     { channel: C.updateSource, handler: (id, patch) => product().updateSource(parseString(id), SourcePatchSchema.parse(patch)) },
+    { channel: C.removeRedditSource, handler: input => product().removeRedditSource(RemoveRedditSourceInputSchema.parse(input).id) },
     { channel: C.addRssSource, handler: async (input) => { const value = AddRssSourceInputSchema.parse(input); if (value.kind !== "rss") return product().addRssSource(value); await rss().add({ name: value.name, inputUrl: value.url, enabled: true }); return product().listSources().find(row => row.url === value.url); } },
     {
       channel: C.importOpml,

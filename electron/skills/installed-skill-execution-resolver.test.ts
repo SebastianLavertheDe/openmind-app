@@ -1079,9 +1079,17 @@ describe("InstalledSkillExecutionResolver", () => {
             themes: ["Provider Profile 连接"],
             highlights: []
           };
+          const summaryResponse = {
+            translated_title: response.translated_title, summary: response.summary, key_points: response.key_points,
+            category: response.category, score: response.score
+          };
+          const body = JSON.parse(providerRequests.at(-1)!.body);
+          const prompt = (body.messages || []).map((message: { content: string }) => message.content).join("\n");
+          const editorial = require("../../scripts/fixtures/topic-provider-response.cjs")(prompt, "zh");
+          const result = editorial || (prompt.includes("SOURCE:\n") ? summaryResponse : response);
           res.writeHead(200, { "Content-Type": "application/json" });
           res.end(JSON.stringify({
-            choices: [{ message: { content: JSON.stringify(response) } }]
+            choices: [{ message: { content: JSON.stringify(result) } }]
           }));
         });
         return;

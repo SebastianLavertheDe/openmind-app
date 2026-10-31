@@ -1,0 +1,64 @@
+{
+  "summaryPrompt": {
+    "instructions": "请忠实总结文章或帖子，并对原文信息质量进行评分。\n\n忠实性要求：\n- 严格基于原文总结，不要根据标题、链接、图片 URL、Reddit 板块名、常识、历史知识或外部新闻补全信息。\n- 不要加入自己的理解、判断、背景解释、行业意义、战略意图、延伸分析或未在原文出现的结论。\n- 原文只有标题、链接、图片或视频 URL、占位文本、空正文时，直接说明原文信息不足以及无法总结的具体原因，关键点留空，分类用 Other，评分给 0–20。\n\n表达风格：\n- 用简洁自然的中文复述原文事实，不要加工成观点文。\n- 不要使用这些模板化句式：不是…但是…、应该…而非…、在于…而非…、不在于…而在于…、不…而…、不…而是…、不…而在于…、更多是…而非…、不应是…而应该是…、不只是…还有…、不只有…还有…、不是…而是…、不再是…而是…、之所以…是因为…、既是…也是…。\n- 不要先否定再用“而／而是／而在于”转折，直接陈述事实和结论。\n- 摘要和关键点可以短，不要为凑字数添加原文没有的信息。",
+    "fields": {
+      "translated_title": "翻译后的中文标题，准确概括原文，不要扩写成原文没有表达的主题。",
+      "summary": "80–200 字的中文摘要，只概括原文明确写出的内容；信息不足时写“原文信息不足，无法总结：…”并说明原因。",
+      "key_points": "0–5 个关键点，每条只写原文明确出现的信息；信息不足时使用空数组。",
+      "category": "只能从 AI、System Design、Backend、Frontend、DevOps、Science、Writing、Startup、Prompt、Other 中选择一个分类。",
+      "score": "原文信息质量评分（0–100 的整数），重点看信息是否充足、事实是否清楚、是否值得阅读；信息不足时给 0–20。"
+    }
+  },
+  "topicPrompt": "关注 AI、Agent 和开发者工具，从当天资料中选择有信息增量、值得创作的选题。兼顾新闻事件、实用经验和深度思考，说明为什么值得写。用中文输出，不凑数。",
+  "topicPlatforms": [
+    {
+      "id": "xiaohongshu",
+      "name": "小红书",
+      "prompt": "面向 AI 用户和创作者，优先有具体用途、讨论空间、视觉表现力或收藏价值的选题。给出适合图文笔记的标题、内容结构和互动切入点。"
+    },
+    {
+      "id": "wechat",
+      "name": "微信公众号",
+      "prompt": "面向关注 AI 的从业者，优先有充分材料、清晰观点、分析深度或长期阅读价值的选题。给出适合长文的标题、论点和文章大纲。"
+    }
+  ],
+  "topicOutputLabels": {
+    "report_title": "自媒体每日选题",
+    "final_selection": "今日最终推荐",
+    "best_topic": "今日最值得优先写的主题",
+    "first_platform": "首发平台建议",
+    "editor_judgment": "主编判断",
+    "alternatives": "为什么不是其他热点",
+    "writing_angle": "写作切入建议",
+    "risk_control": "风险控制",
+    "platform_output": "选题 Agent 输出",
+    "topic_prefix": "选题",
+    "titles": "标题",
+    "core_view": "核心观点",
+    "why": "为什么可能火",
+    "audience": "适合人群",
+    "outline": "内容结构",
+    "hook": "开头钩子",
+    "visuals": "配图建议",
+    "interaction": "互动引导",
+    "risk": "风险点",
+    "recommendation": "推荐指数",
+    "candidate_pool": "今日候选热点池",
+    "topic_column": "热点",
+    "source_column": "来源",
+    "reliability": "可靠性",
+    "spread": "传播潜力",
+    "writing_value": "写作价值",
+    "framework_value": "框架价值",
+    "editor_notes": "主编备注",
+    "follow_up": "明日可追踪话题",
+    "evergreen": "可沉淀成长期内容的主题",
+    "empty": "没有符合规则的选题",
+    "generated_at": "生成时间",
+    "preferences_revision": "偏好修订号",
+    "item_count": "入选条数",
+    "link": "链接",
+    "source_file": "源文件"
+  },
+  "legacyTopicRules": "你是资深中文内容运营编辑，从资讯池中筛选 AI 相关选题，面向微信公众号发布。只根据给定候选内容判断，不可编造事实、作者、链接或源文件。\n\n文章选题：\n- 选题前排除来源为微信公众号的文章，识别来源链接或元数据中的 mp.weixin.qq.com、weixin.qq.com、微信公众号、微信公众平台、微信公众。此排除规则不影响每日总结。\n- 优先级从高到低：AI 技巧／使用技巧／产品使用技巧；AI 新产品／新功能／产品更新；新模型／能力评测／技术突破／Benchmark；Agent 工程／工作流／多智能体／评测／上下文工程；AI 新闻／公司动态／融资／收购／战略；Prompt 技巧／模板／实战方法；AI 开源项目／GitHub 项目／SDK／框架／CLI／基础设施；AI+行业；AI+伦理／版权／监管／隐私／公平性／治理；AI+安全／防护／红队／越狱／供应链安全。\n- 主体必须明确围绕 AI，附带提到 AI 的文章不入选。\n- 内部按十分制评估，四项同时达标才保留：fit_score（公众号独立成文价值）≥7；ai_score（AI 相关性）≥6；viral_score（传播价值）≥6；breakout_score（AI 圈爆款潜力）≥6。\n- 传播价值至少具备新意／反常识、冲突／争议、明确实操价值、行业趋势判断、独立成文空间之一。爆款潜力考虑标题空间、情绪张力、圈层扩散性、转发欲、鲜明观点和人物／大厂／产品影响力。\n- 普通资讯、轻量更新、参数或价格小改动，缺少方法论和讨论空间的内容排除；不确定是否达标时默认排除，宁缺毋滥，不凑数。\n- 额外关注 Claude Code、Cursor、LangChain、Codex、Anthropic、OpenAI、GLM、MiniMax、AI Agent Harness、AI 工程、Agent Engineering、Context Engineering。对 Agent／Harness／Context Engineering／开源项目／重要模型发布／重要公司动态给予更高权重。\n- 以下高优主题即使边缘也优先保留，各维度评分自动加 2：Claude Code、Anthropic、OpenAI 官方文章（claude.com/blog、anthropic.com/engineering、openai.com/index）；AI 创业方法论／AI-native 创业／商业模式；AI 与人的关系／人机协作／人的核心能力；AI 与人与组织的新关系／组织架构／管理变革／人+AI 混合团队。\n- GitHub 仓库、开源工具、插件、SDK、CLI、框架、开发者库单独作为“开源项目推荐”展示。\n\nReddit 社区信号：\n- 保留 AI 相关、讨论价值高、能补充新闻和文章视角的社区动态。\n- 优先产品／模型／功能发布、Agent／AI 工程／开发者工作流、大厂／融资／战略、AI 技巧、Prompt 技巧、行业观点。\n- 不要求单条帖子能独立支撑一篇公众号文章，但必须能反映社区关注点。\n- 过滤灌水、梗图、低信息量提问、泛泛焦虑、弱 AI 相关和纯闲聊。\n\nX／Twitter 帖子：\n- 优先 AI、开发者工具、产品发布、模型更新、Agent 工程、开源项目和有信息增量的行业讨论，互动量高低不作为筛选依据。\n- 重点作者可适度优先：@claudeai、@openai、@anthropicai、@geminiapp、@googleaistudio、@dotey、@ianneo_ai、@github_daily、@berryxia、@op7418、@xiaohu、@lxfater。重点作者不是白名单，不得因作者身份牺牲内容质量；不限制同一作者的入选条数。\n- 排除纯转发、情绪吐槽、版权抱怨等没有新增信息的内容。同一事件保留信息增量最大的一条。\n\n共同要求：\n- 默认不设固定条数上限，保留全部达标内容，不凑数。\n- 用自然简洁的中文说明选题理由，保留原文链接和源文件，事实与解读分开，不编造缺失信息。\n- 避免“不是…而是…”等先否定再转折的模板句，直接说具体产品、动作、结论和影响。"
+}

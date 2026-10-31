@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RssDetection, RssSourceView } from "@shared/rss-contracts";
 import { messages as m } from "@shared/messages";
-import { Button, DialogBody, DialogFooter, FormField, Input, Select, Textarea, ToggleSwitch } from "../../design-system/components";
+import { Button, DialogBody, DialogFooter, FormField, Input, Select, ToggleSwitch } from "../../design-system/components";
 import { useFeedback } from "../../feedback-context";
 import { useBeforeSessionNavigation } from "../../app/session-navigation";
 import { categoryId, categoryLabel, existingCategory, UNGROUPED_CATEGORY } from "./rss-source-presentation";
 
 const CREATE_CATEGORY = "action:create-category";
 
-export function SourceEditor({ source, groups, onSaved, onCancel, guard, onBusy }: {
+export function SourceEditor({ source, groups, onSaved, onCancel, guard, onBusy, requestBusy, requestError, onRun, onRemove }: {
   source: RssSourceView | null; groups: string[]; onSaved(): Promise<void>; onCancel(): void;
   guard: React.MutableRefObject<() => Promise<boolean>>; onBusy(busy: boolean): void;
+  requestBusy?: string; requestError?: string; onRun(): void; onRemove(): void;
 }) {
   const feedback = useFeedback();
   // The revision and form draft belong to this edit session, never to a poll.
@@ -67,11 +68,14 @@ export function SourceEditor({ source, groups, onSaved, onCancel, guard, onBusy 
       <FormField label={m.rss.url} error={error}><Input value={url} disabled={busy} type="url" maxLength={4096} onChange={event => { setUrl(event.target.value); setDetected(null); setValidated(false); setCandidate(""); setError(""); }} required /></FormField>
       <FormField label={m.rss.category} hint={m.rss.categoryHint}><Select size="rect" value={creatingCategory ? CREATE_CATEGORY : categoryId(group)} disabled={busy} ariaLabel={m.rss.category} onChange={value => { setCreatingCategory(value === CREATE_CATEGORY); if (value !== CREATE_CATEGORY) setGroup(value === UNGROUPED_CATEGORY ? "" : value.slice(6)); }} options={[...groupOptions.map(value => ({ value: categoryId(value), label: categoryLabel(value) })), { value: CREATE_CATEGORY, label: m.rss.newCategory }]} /></FormField>
       {creatingCategory ? <FormField label={m.rss.categoryName} hint={matchingCategory ? m.rss.categoryReuse(categoryLabel(matchingCategory)) : undefined}><Input value={newCategory} disabled={busy} maxLength={200} onChange={event => setNewCategory(event.target.value)} placeholder={m.rss.categoryPlaceholder} required autoFocus /></FormField> : null}
-      <FormField label={m.rss.convertedFeed} hint={feedHint}><Textarea value={source?.localFeed.path || ""} readOnly rows={2} placeholder={m.rss.feedAfterSave} /></FormField>
-      <div><Button loading={detecting} disabled={saving || !url.trim()} onClick={() => void detect()}>{detecting ? m.rss.detecting : m.rss.detect}</Button></div>
+      <FormField label={m.rss.convertedFeed} hint={feedHint}><Input value={source?.localFeed.path || ""} title={source?.localFeed.path} readOnly placeholder={m.rss.feedAfterSave} /></FormField>
+      <div className="rss-actions"><Button loading={detecting} disabled={saving || !url.trim()} onClick={() => void detect()}>{detecting ? m.rss.detecting : m.rss.detect}</Button>
+        {initial ? <Button loading={requestBusy === "pipeline"} disabled={busy || Boolean(requestBusy) || dirty || !initial.enabled || !initial.inputUrl} onClick={onRun}>{m.rss.pipeline}</Button> : null}
+      </div>
       {detected && detected.candidates.length > 1 ? <FormField label={m.rss.candidate} hint={m.rss.candidateHint}><Select value={candidate} disabled={busy} onChange={value => { setCandidate(value); setValidated(false); setError(""); }} placeholder={m.rss.candidate} options={detected.candidates.map(item => ({ value: item.url, label: item.title }))} /></FormField> : null}
       {validated ? <p role="status">{m.rss.detected}</p> : null}
+      {requestError ? <p className="rss-source-error" role="alert">{requestError}</p> : null}
     </DialogBody>
-    <DialogFooter><Button disabled={busy} onClick={onCancel}>{m.rss.cancel}</Button><Button type="submit" variant="primary" loading={saving} disabled={busy || !name.trim() || !url.trim() || !categoryValid || needsDetection && !validated}>{m.rss.save}</Button></DialogFooter>
+    <DialogFooter>{initial ? <div className="source-editor-secondary-actions"><Button variant="ghost" tone="danger" disabled={busy || Boolean(requestBusy)} onClick={onRemove}>{m.rss.remove}</Button></div> : null}<Button disabled={busy} onClick={onCancel}>{m.rss.cancel}</Button><Button type="submit" variant="primary" loading={saving} disabled={busy || Boolean(requestBusy) || !name.trim() || !url.trim() || !categoryValid || needsDetection && !validated}>{m.rss.save}</Button></DialogFooter>
   </form>;
 }

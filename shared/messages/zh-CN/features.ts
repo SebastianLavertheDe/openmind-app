@@ -176,6 +176,8 @@ export const featureMessages = {
       nameAndAddress: (reddit: boolean) => `名称与${reddit ? "社区地址" : "订阅地址"}`,
       statusAndLastRun: "状态与最近抓取",
       operation: "操作",
+      deleteTitle: (name: string) => `删除 ${name}？`,
+      deleteBody: "删除后不再抓取该社区，已保存的内容会保留。",
       edit: (name: string) => `编辑 ${name}`,
       toggle: (enabled: boolean, name: string) => `${enabled ? "停用" : "启用"} ${name}`,
       saved: (reddit: boolean, added: boolean) => `${reddit ? "社区" : "订阅"}已${added ? "添加" : "更新"}。`,

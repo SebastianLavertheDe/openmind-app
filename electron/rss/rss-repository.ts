@@ -3,7 +3,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { RssDocumentSchema, RssSourceSchema, rssUrlIdentity, type RssCatalog, type RssDocument, type RssDocumentView, type RssSource, type RssDetection, type RssSourceInput, type RssSourcePatch } from "../../shared/rss-contracts";
-import { DailyBriefPreferencesSchema, SaveDailyBriefPreferencesSchema, type DailyBriefPreferences } from "../../shared/daily-brief-preferences";
+import { SaveDailyBriefPreferencesSchema, resolveDailyBriefPreferences, type SaveDailyBriefPreferences } from "../../shared/daily-brief-preferences";
+import { readDailyPreferences } from "./daily-preferences";
 import { writeJsonAtomic } from "../lib/fs-utils";
 import { rssPrivateDirectory, withRssLock } from "./file-lock";
 import { legacyRssChannel, normalizeRssGroup } from "../../shared/rss-categories";
@@ -131,14 +132,21 @@ export class RssRepository {
       }
     });
   }
-  preferences(): DailyBriefPreferences {
-    const file = rssPrivateDirectory(this.root, ".agent", "preferences", "daily-brief.json");
-    return fs.existsSync(file) ? DailyBriefPreferencesSchema.parse(JSON.parse(fs.readFileSync(file, "utf8"))) : { schemaVersion: 1, revision: 0, text: "", updatedAt: null };
+  preferences() {
+    return readDailyPreferences(this.root);
   }
-  savePreferences(raw: { text: string; revision: number }): DailyBriefPreferences {
+  savePreferences(raw: SaveDailyBriefPreferences) {
     const input = SaveDailyBriefPreferencesSchema.parse(raw);
     const directory = rssPrivateDirectory(this.root, ".agent", "preferences");
-    return withRssLock(directory, "daily-brief", () => { const previous = this.preferences(); if (previous.revision !== input.revision) throw new Error("Preferences changed; refresh and retry."); const next = { schemaVersion: 1 as const, revision: previous.revision + 1, text: input.text, updatedAt: new Date().toISOString() }; writeJsonAtomic(path.join(directory, "daily-brief.json"), next); return next; });
+    return withRssLock(directory, "daily-brief", () => {
+      const previous = this.preferences();
+      if (previous.revision !== input.revision) throw new Error("Preferences changed; refresh and retry.");
+      const next = resolveDailyBriefPreferences({ ...previous, ...input,
+        topicPrompt: input.topicPrompt ?? (input.topicRules !== undefined ? undefined : previous.topicPrompt),
+        revision: previous.revision + 1, updatedAt: new Date().toISOString() });
+      writeJsonAtomic(path.join(directory, "daily-brief.json"), next);
+      return next;
+    });
   }
   private fromUrl(name: string, originalUrl: string, enabled: boolean, group = "", tags: string[] = []): RssSource {
     const preset = this.catalog.sources.find(row => row.legacyAliases.includes(originalUrl) || row.inputUrl && rssUrlIdentity(row.inputUrl) === rssUrlIdentity(originalUrl));

@@ -20,17 +20,33 @@ app.whenReady().then(async () => {
   const errors = []; win.webContents.on('console-message', event => { if (event.level >= 3) errors.push(event.message); });
   const js = code => win.webContents.executeJavaScript(code, true);
   const frame = () => js('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
-  const wait = predicate => js(`new Promise((resolve, reject) => { const end = performance.now() + 10000; function tick() { if (${predicate}) resolve(); else if (performance.now() > end) reject(new Error('Timed out: ' + ${JSON.stringify(predicate)})); else requestAnimationFrame(tick); } tick(); })`);
+  const wait = predicate => js(`new Promise((resolve, reject) => { const end = performance.now() + 10000; function tick() { if (${predicate}) resolve(); else if (performance.now() > end) reject(new Error(${JSON.stringify(phase + ': timed out: ' + predicate)})); else requestAnimationFrame(tick); } tick(); })`);
   const capture = async name => fs.writeFileSync(path.join(output, `${name}.png`), (await win.webContents.capturePage()).toPNG());
   const media = reduced => win.webContents.debugger.sendCommand('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: reduced ? 'reduce' : 'no-preference' }] });
-  const readStyle = `(() => { const node = document.querySelector('.ui-dialog'), mask = document.querySelector('[data-ui-dialog]'); if (!node) return null; const style = getComputedStyle(node), matrix = new DOMMatrix(style.transform); return { opacity: Number(style.opacity), y: matrix.m42, scale: matrix.a, mask: Number(getComputedStyle(mask).opacity), text: node.textContent.length, focused: node.contains(document.activeElement) }; })()`;
+  const readStyle = `(() => { const node = document.querySelector('.ui-dialog'), mask = document.querySelector('[data-ui-dialog]'); if (!node) return null; const style = getComputedStyle(node), matrix = new DOMMatrix(style.transform); return { opacity: Number(style.opacity), y: matrix.m42, scale: matrix.a, mask: Number(getComputedStyle(mask).opacity), text: node.textContent.length, height: node.offsetHeight, focused: node.contains(document.activeElement) }; })()`;
   const report = { platform: process.platform, dialogs: {}, tabs: {}, interruptions: null, reduced: null };
-  for (const [name, scenario, selector] of [['skills', 'skill-library-explore', '.skill-library-card-select'], ['rss', 'rss-source-cards', '.rss-card-subject']]) {
+  for (const [name, scenario, selector] of [['skills', 'skill-library-explore', '.skill-library-card-select'], ['rss', 'rss-source-cards', '.rss-card-open']]) {
     phase = `${name}: load`;
     await win.loadFile(path.join(output, 'index.html'), { query: { case: scenario, theme: 'light' } });
     if (!win.webContents.debugger.isAttached()) win.webContents.debugger.attach('1.3');
     await media(false);
     await wait(`document.querySelector(${JSON.stringify(selector)})`); await js('document.fonts.ready.then(() => true)'); await frame();
+    win.focus();
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Tab' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Tab' }); await frame();
+    if (name === 'rss') {
+      report.indicatorAlignment = await js(`(() => {
+        const cards = [...document.querySelectorAll('.rss-source-card')].filter(card => card.querySelector('.rss-card-indicators'));
+        const measure = () => cards.map(card => { const title = card.querySelector('.rss-card-title'), marker = card.querySelector('.rss-card-ready-dot, .rss-card-indicators button svg'), box = marker.getBoundingClientRect(); return { kind: marker.matches('svg') ? 'error' : 'ready', offset: Math.abs(box.top + box.height / 2 - title.getBoundingClientRect().top - parseFloat(getComputedStyle(title).lineHeight) / 2) }; });
+        const original = cards.map(card => card.querySelector('.rss-card-title').textContent), single = measure();
+        cards.forEach(card => { card.querySelector('.rss-card-title').textContent = 'A deliberately long source title that wraps across several words'; });
+        const wrapped = measure(); cards.forEach((card, index) => { card.querySelector('.rss-card-title').textContent = original[index]; });
+        return { single, wrapped };
+      })()`);
+      assert.deepEqual(report.indicatorAlignment.single.map(value => value.kind), ['error', 'ready']);
+      assert.ok([...report.indicatorAlignment.single, ...report.indicatorAlignment.wrapped].every(value => value.offset < 0.5), 'Indicators align with the first title line');
+      await capture('rss-title-indicator-alignment');
+    }
     const geometry = await js(`(() => { const node = document.querySelector(${JSON.stringify(selector)}); node.focus(); const box = node.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height, motion: node.dataset.motion, outline: getComputedStyle(node).outlineStyle }; })()`);
     assert.equal(geometry.motion, 'selection'); assert.notEqual(geometry.outline, 'none');
     await js(`document.querySelector(${JSON.stringify(selector)}).click()`); await wait("document.querySelector('.ui-dialog')");
@@ -53,7 +69,7 @@ app.whenReady().then(async () => {
     await wait("!document.querySelector('.ui-dialog')"); await capture(`${name}-exit-end`);
     const exit = await js('window.rssExitFrames');
     assert.ok(exit.some(value => !value.gone && value.opacity > 0 && value.opacity < 1), JSON.stringify({ name, exit }));
-    assert.ok(exit.filter(value => !value.gone).every(value => value.text > 0), 'Exit must retain the content snapshot');
+    assert.ok(exit.filter(value => !value.gone).every(value => value.text > 0 && value.height === end.height), 'Exit must retain the content snapshot and dialog height');
     assert.ok(exit.at(-1).gone && exit.at(-1).time >= 120 && exit.at(-1).time < 500);
     assert.equal(await js(`document.activeElement === document.querySelector(${JSON.stringify(selector)})`), true);
     report.dialogs[name] = { animations, start, middle, end, exit, geometry };
@@ -70,25 +86,66 @@ app.whenReady().then(async () => {
   }
   assert.deepEqual(report.dialogs.rss.animations, report.dialogs.skills.animations);
   assert.equal(report.tabs.rss.duration, report.tabs.skills.duration); assert.equal(report.tabs.rss.easing, report.tabs.skills.easing);
-  // Closing and reopening during the shared exit lifetime must keep the latest source.
   report.interruptions = await js(`(async () => {
     const frame = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const cards = document.querySelectorAll('.rss-card-subject'); cards[0].click(); await frame(); document.querySelector('.ui-dialog-header button').click(); await frame(); cards[1].click(); await new Promise(resolve => setTimeout(resolve, 220));
-    const dialog = document.querySelector('.ui-dialog'), heading = dialog.querySelector('h2').textContent; const before = dialog;
-    dialog.querySelectorAll('[role="tab"]')[1].click(); await frame(); dialog.querySelectorAll('[role="tab"]')[0].click(); await frame();
-    const sameShell = before === document.querySelector('.ui-dialog'), animations = before.getAnimations().filter(animation => animation.playState === 'running').length;
-    return { heading, expected: cards[1].querySelector('strong').textContent, sameShell, animations, focused: before.contains(document.activeElement) };
+    const cards = document.querySelectorAll('.rss-card-open'); cards[0].click(); await frame(); document.querySelector('.ui-dialog-header button').click(); await frame(); cards[1].click(); await new Promise(resolve => setTimeout(resolve, 220));
+    const dialog = document.querySelector('.ui-dialog'), value = dialog.querySelector('input').value;
+    const removed = ![...dialog.querySelectorAll('button')].some(node => /^(Copy|View details)/.test(node.getAttribute('aria-label') || node.textContent)); await frame();
+    const sameShell = dialog === document.querySelector('.ui-dialog');
+    return { value, expected: cards[1].closest('article').querySelector('strong').textContent, sameShell, removed, focused: dialog.contains(document.activeElement) };
   })()`);
-  assert.equal(report.interruptions.heading, report.interruptions.expected); assert.ok(report.interruptions.sameShell && report.interruptions.focused); assert.equal(report.interruptions.animations, 0);
+  assert.equal(report.interruptions.value, report.interruptions.expected); assert.ok(report.interruptions.sameShell && report.interruptions.removed && report.interruptions.focused);
   await js("document.querySelector('.ui-dialog-header button').click()"); await wait("!document.querySelector('.ui-dialog')");
-  await js("document.querySelectorAll('.rss-source-card')[1].querySelector('button[aria-label^=\"Edit source:\"]').click()");
-  await wait("document.querySelector('.rss-editor')"); await js('new Promise(resolve => setTimeout(resolve, 220))');
-  assert.ok(await js("document.querySelector('.rss-editor').contains(document.activeElement)"), 'Opening the card editor must focus its input');
-  await js("[...document.querySelectorAll('.ui-dialog button')].find(button => button.textContent === 'Cancel').click()"); await wait("!document.querySelector('.ui-dialog')");
-  await js("document.querySelector('.rss-card-subject').click()"); await wait("document.querySelector('.ui-dialog')");
-  await media(true); await frame();
-  report.reduced = await js(`(async () => { const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches; document.querySelector('.ui-dialog-header button').click(); await new Promise(resolve => requestAnimationFrame(resolve)); const noExitWait = !document.querySelector('.ui-dialog'); document.querySelector('.rss-card-subject').click(); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); const style = getComputedStyle(document.querySelector('.ui-dialog')); return { reduced, noExitWait, animation: style.animationName, transform: style.transform, focused: document.querySelector('.ui-dialog').contains(document.activeElement) }; })()`);
-  assert.deepEqual(report.reduced, { reduced: true, noExitWait: true, animation: 'none', transform: 'none', focused: true });
+  report.cards = {};
+  for (const [name, scenario, cardSelector, openSelector] of [['rss', 'rss-source-cards', '.rss-source-card', '.rss-card-open'], ['reddit', 'collector-source-scale', '.collector-source-card', '.collector-card-open']]) {
+    phase = name + ': card interaction';
+    await media(false); await win.loadFile(path.join(output, 'index.html'), { query: { case: scenario, theme: 'light' } });
+    await wait('document.querySelector(' + JSON.stringify(openSelector) + ')'); await js('document.fonts.ready.then(() => true)');
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: 0, y: 0 }); await frame();
+    const readCard = '(() => { const card = document.querySelector(' + JSON.stringify(cardSelector) + '), style = getComputedStyle(card), box = card.getBoundingClientRect(); return { y: new DOMMatrix(style.transform).m42, height: box.height, shadow: style.boxShadow }; })()';
+    await wait('new DOMMatrix(getComputedStyle(document.querySelector(' + JSON.stringify(cardSelector) + ')).transform).m42 === 0');
+    const rest = await js(readCard);
+    assert.equal(await js(`document.querySelector(${JSON.stringify(cardSelector)}).querySelectorAll('.rss-card-footer, .rss-card-hover-copy, .collector-source-copy, [aria-haspopup="menu"]').length`), 0);
+    const point = await js('(() => { const box = document.querySelector(' + JSON.stringify(cardSelector) + ').getBoundingClientRect(); return { x: Math.round(box.left + box.width / 2), y: Math.round(box.bottom - 8) }; })()');
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...point }); await frame();
+    const timings = await js('(() => { window.cardAnimations = document.querySelector(' + JSON.stringify(cardSelector) + ').getAnimations(); const result = window.cardAnimations.map(animation => ({ property: animation.transitionProperty, duration: animation.effect.getTiming().duration })); window.cardAnimations.forEach(animation => { animation.pause(); animation.currentTime = 80; }); return result; })()');
+    assert.ok(timings.some(animation => animation.property === 'transform' && animation.duration >= 150 && animation.duration <= 300), JSON.stringify({ name, timings, point, state: await js(readCard), media: await js("({ hover: matchMedia('(hover: hover)').matches, fine: matchMedia('(pointer: fine)').matches, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches })") }));
+    await frame(); const middle = await js(readCard); assert.ok(middle.y < 0 && middle.y > -2);
+    await js('window.cardAnimations.forEach(animation => animation.finish())'); await frame();
+    const end = await js(readCard); assert.equal(end.y, -2); assert.equal(end.height, rest.height); assert.notEqual(end.shadow, rest.shadow);
+    await capture(name + '-card-hover');
+    const hit = await js(`document.elementFromPoint(${point.x}, ${point.y})?.className`);
+    assert.ok(hit?.includes('source-card-open'), JSON.stringify({ name, point, hit }));
+    phase = name + ': pointer opens editor';
+    win.webContents.sendInputEvent({ type: 'mouseDown', button: 'left', clickCount: 1, ...point });
+    win.webContents.sendInputEvent({ type: 'mouseUp', button: 'left', clickCount: 1, ...point });
+    await wait("document.querySelector('.ui-dialog input')"); await frame();
+    assert.ok(await js("document.querySelector('.ui-dialog').contains(document.activeElement)"));
+    await capture(name + '-card-editor');
+    await js("[...document.querySelectorAll('.ui-dialog button')].find(node => node.textContent === 'Cancel').click()"); await wait("!document.querySelector('.ui-dialog')"); await frame();
+    assert.equal(await js('document.activeElement === document.querySelector(' + JSON.stringify(openSelector) + ')'), true);
+    phase = name + ': keyboard opens editor';
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' }); win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+    await wait("document.querySelector('.ui-dialog input')");
+    if (name === 'reddit') {
+      await js("[...document.querySelectorAll('.ui-dialog button')].find(node => node.textContent === 'Delete').click()"); await wait("document.querySelector('[role=\"alertdialog\"]')"); await frame();
+      assert.equal(await js('document.activeElement.textContent'), 'Cancel');
+      await capture('reddit-delete-confirmation');
+      await js("[...document.querySelectorAll('[role=\"alertdialog\"] button')].find(node => node.textContent === 'Cancel').click()"); await wait("!document.querySelector('[role=\"alertdialog\"]')");
+      assert.equal(await js("document.querySelectorAll('.collector-source-card').length"), 30);
+      await js("[...document.querySelectorAll('.ui-dialog button')].find(node => node.textContent === 'Delete').click()"); await wait("document.querySelector('[role=\"alertdialog\"]')");
+      await js("[...document.querySelectorAll('[role=\"alertdialog\"] button')].find(node => node.textContent === 'Delete').click()");
+      await wait("!document.querySelector('.ui-dialog') && document.querySelector('.collector-source-name').textContent === 'r/Community1'");
+    } else {
+      await js("[...document.querySelectorAll('.ui-dialog button')].find(node => node.textContent === 'Cancel').click()"); await wait("!document.querySelector('.ui-dialog')");
+    }
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: 0, y: 0 }); await frame();
+    await media(true); await frame();
+    win.webContents.sendInputEvent({ type: 'mouseMove', ...point }); await frame();
+    const reduced = await js(readCard); assert.equal(reduced.y, 0);
+    assert.equal(await js('getComputedStyle(document.querySelector(' + JSON.stringify(cardSelector) + ')).transitionDuration'), '0s');
+    report.cards[name] = { rest, timings, middle, end, reduced, clickEditor: true, keyboardEditor: true };
+  }
   assert.deepEqual(errors, []);
   fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2)); console.log(JSON.stringify(report)); clearTimeout(deadline); win.destroy();
-}).catch(error => { console.error(error); process.exitCode = 1; }).finally(() => { for (const win of BrowserWindow.getAllWindows()) win.destroy(); app.quit(); });
+}).catch(error => { console.error(error); process.exitCode = 1; }).finally(() => { for (const win of BrowserWindow.getAllWindows()) win.destroy(); app.exit(process.exitCode ?? 0); });

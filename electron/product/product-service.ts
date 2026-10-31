@@ -147,6 +147,10 @@ export class ProductService {
     return source;
   }
 
+  removeRedditSource(id: string): void {
+    this.sources.removeRedditSource(id);
+  }
+
   addRssSource(input: AddRssSourceInput): SourceDefinition {
     const source = this.sources.addRssSource(input);
     return source;

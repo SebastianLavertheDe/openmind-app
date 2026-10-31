@@ -45,8 +45,27 @@ this case in the workbench and conversation pane to validate the production layo
 Choose a variant for its meaning, rather than introducing a page-specific skin.
 Dialog supports `layout="content"` (default) and `layout="fixed"`. Fixed shells
 use the shared `--dialog-height-fixed` token, capped by the viewport inset, and
-keep the header/footer stable while the body scrolls. RSS source details and
-their editor reuse this layout so tab changes do not resize or recenter the shell.
+keep the header/footer stable while the body scrolls. RSS source details use this
+layout so tab changes do not resize or recenter the shell. Their editor uses the
+content layout to avoid unused space below the form. Read-only local RSS paths
+use a single-line Input with the full path in its title.
+Summary/topic preferences live under Data and sessions in settings, outside the
+RSS source toolbar. The inline settings editor uses shared Tabs, FormField,
+Textarea and FormActions, with manual saving and guards on section/app navigation.
+The reusable dialog presentation retains FormDialog. Summary editing exposes only
+the general instructions and category requirements; all five output field names
+and types remain fixed, and saving preserves the other field requirements.
+Topic selection has one common
+Textarea and user-defined platform names/prompts composed from shared Input,
+Textarea and IconButton controls. Platforms can be added, renamed or removed;
+each platform shows only Platform name and Topic prompt fields, without a
+duplicate name heading or a numbered visible field label.
+An AnimatedDisclosure shows the assembled rules read-only. Blank topic prompts
+and an empty platform list persist. Missing summary requirements show the legacy
+defaults. Only summary and topic tabs are shown; existing legacy preference text
+is preserved when saving.
+Both tabs offer Restore default prompt, which restores only the current tab's
+built-in prompt values (including the default topic platforms) as an unsaved draft.
 Toolbar and navigation actions use `responsiveTarget` to keep a 44px minimum
 target in windows up to 720px wide. Coarse pointers use that minimum for every
 shared action. The shared button stylesheet owns both adaptations.

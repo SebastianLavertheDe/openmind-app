@@ -11,6 +11,7 @@ export function installCollectorCatalogApi() {
   }));
   const api = {
     listSources: async () => structuredClone(sources),
+    removeRedditSource: async ({ id }) => { sources = sources.filter(source => source.id !== id); },
     updateSource: async (id, patch) => { sources = sources.map(source => source.id === id ? { ...source, ...patch } : source); return sources.find(source => source.id === id)!; },
     openExternal: async () => true
   } satisfies Partial<DesktopApi>;

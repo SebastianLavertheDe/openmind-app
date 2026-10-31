@@ -6,7 +6,6 @@ import { Button, EmptyState, ErrorState, IconButton, LoadingState, SearchInput, 
 import { readWithDeadline } from "../../request-deadline";
 import { useFeedback } from "../../feedback-context";
 import { useLocale } from "../../i18n";
-import { DailyPreferences } from "./DailyPreferences";
 import { RssSourceCard } from "./RssSourceCard";
 import { RssCategoryIcon } from "./RssCategoryIcon";
 import { RssSourceDetails, type SourceSelection } from "./RssSourceDetails";
@@ -70,14 +69,12 @@ export function SourcesPage({ presentation = "page" }: { presentation?: "page" |
   }, []);
   const edit = useCallback((id: string, trigger: HTMLElement) => open(id, "edit", trigger), [open]);
   const details = useCallback((id: string, trigger: HTMLElement, error?: boolean) => open(id, "details", trigger, error), [open]);
-  const pipeline = useCallback((id: string) => run("pipeline", id), [run]);
   const clear = () => { setQuery(""); setCategory(ALL_CATEGORY); };
   return <section className={presentation === "settings" ? "rss-sources rss-sources-settings" : presentation === "embedded" ? "rss-sources rss-sources-embedded" : "rss-sources"}>
     {presentation !== "settings" ? <header className="rss-header"><div><h1>{m.rss.title}</h1><p>{m.rss.description}</p></div></header> : null}
     <div className="rss-toolbar"><SearchInput value={query} onChange={event => setQuery(event.target.value)} aria-label={m.rss.search} placeholder={m.rss.search} /><div className="rss-actions">
       <Button onClick={event => open(null, "edit", event.currentTarget)} variant="primary">{m.rss.add}</Button>
       <Button loading={requests.import === "import"} disabled={Boolean(requests.import)} onClick={() => void action("import", "import", () => window.openmind.importRssOpml())}>{m.rss.import}</Button>
-      <DailyPreferences />
       <IconButton label={m.rss.refresh} onClick={() => void load()}><RefreshCw size={16} /></IconButton>
     </div></div>
     <div className="rss-category-scroll" onFocusCapture={event => { if (event.target.getAttribute("role") === "tab") event.target.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }}><Tabs variant="pill" value={selected} tabs={tabs.map(tab => ({ ...tab, icon: <RssCategoryIcon category={tab.value.startsWith("group:") ? tab.value.slice(6) : tab.value} />, label: <span className="rss-category-label" title={tab.label}>{tab.label}</span> }))} onChange={setCategory} label={m.rss.categories} /></div>
@@ -85,8 +82,8 @@ export function SourcesPage({ presentation = "page" }: { presentation?: "page" |
     {document?.migrationWarnings.map(warning => <p key={warning}>{warning}</p>)}
     {!document && !error ? <LoadingState /> : null}
     {document && !rows.length ? <EmptyState title={m.rss.noSources} action={<Button onClick={clear}>{m.rss.clearFilters}</Button>} /> : null}
-    <div ref={resultsRef} tabIndex={-1} role="region" aria-label={m.rss.title} className="rss-source-grid">{pagination.rows.map(row => <RssSourceCard key={row.id} source={row} busy={requests[`source:${row.id}`]} selected={selection?.id === row.id} onOpen={details} onEdit={edit} onRun={pipeline} onRemove={remove} />)}</div>
+    <div ref={resultsRef} tabIndex={-1} role="region" aria-label={m.rss.title} className="rss-source-grid">{pagination.rows.map(row => <RssSourceCard key={row.id} source={row} selected={selection?.id === row.id} onOpen={details} onEdit={edit} />)}</div>
     <SourcePagination page={pagination.page} pages={pagination.pages} total={rows.length} onChange={page => { pagination.setPage(page); resultsRef.current?.focus(); resultsRef.current?.scrollIntoView?.({ block: "start" }); }} />
-    <RssSourceDetails selection={selection} document={document} triggerRef={triggerRef} busy={selection?.id ? requests[`source:${selection.id}`] : undefined} onClose={() => setSelection(null)} onSaved={load} onRun={run} />
+    <RssSourceDetails selection={selection} document={document} triggerRef={triggerRef} busy={selection?.id ? requests[`source:${selection.id}`] : undefined} requestError={error} onClose={() => setSelection(null)} onSaved={load} onRun={run} onRemove={remove} />
   </section>;
 }

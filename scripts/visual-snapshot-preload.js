@@ -659,7 +659,7 @@ Object.assign(api, {
   removeRssSource: async ({ id }) => { visualRss.sources = visualRss.sources.filter(row => row.id !== id); return visualRss; },
   importRssOpml: async () => visualRss, runRss: async input => { rssFixtureCalls.push({ method: 'run', ...input }); return { id: 'rss-fixture-run' }; },
   getDailyBriefPreferences: async () => visualPreferences,
-  saveDailyBriefPreferences: async ({ text }) => { visualPreferences = { ...visualPreferences, revision: visualPreferences.revision + 1, text, updatedAt: new Date().toISOString() }; return visualPreferences; },
+  saveDailyBriefPreferences: async input => { visualPreferences = { ...visualPreferences, ...input, revision: visualPreferences.revision + 1, updatedAt: new Date().toISOString() }; return visualPreferences; },
   generateDailyBrief: async () => ({ id: 'brief-fixture-run' })
 });
 contextBridge.exposeInMainWorld("openmind", api);

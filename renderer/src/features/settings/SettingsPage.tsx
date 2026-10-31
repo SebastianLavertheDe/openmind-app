@@ -4,7 +4,7 @@ import { Button, EmptyState } from "../../design-system/components";
 import { useClipboard } from "../../design-system/use-clipboard";
 import { SearchInput } from "../../design-system/components";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Archive, Bot, Cpu, Globe, MessageCircle, MessagesSquare, Package, Plug, Route, Rss, Server, Settings as SettingsIcon, ShieldCheck, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Archive, Bot, Cpu, Globe, MessageCircle, MessagesSquare, Package, Plug, Route, Rss, Server, Settings as SettingsIcon, ShieldCheck, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import type { BrowserSkillStatus, McpServerDefinition, ProviderCapabilities, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, UserPreferences } from "@shared/contracts";
 import { messages } from "@shared/messages";
 import { workspaceSessions } from "@shared/ai-session-scope";
@@ -15,13 +15,15 @@ import { applyLocale, useLocale } from "../../i18n";
 import { SkillsPage } from "../skills";
 import { SourcesPage } from "../sources";
 import { CollectorSourcesPanel } from "../sources/CollectorSourcesPanel";
+import { DailyPreferences } from "../sources/DailyPreferences";
+import type { SessionLeaveGuard } from "../../app/session-navigation";
 import { WechatSettingsSection } from "../wechat/WechatSettingsSection";
 import { announceProviderConfiguration } from "../../provider-configuration-events";
 import { ArchivedSessionsSettingsSection, AppearanceSettingsSection, AiProvidersSettingsSection, BrowserSettingsSection, YoutubeImportSettingsSection, PathSettingsSection, PermissionSettingsSection, ProviderSettingsSection, SharedPythonRuntimeSection, SkillSettingsSection, WorkflowSettingsSection } from "./settings-sections";
 
 const m = messages;
 
-type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "connectors" | "sources" | "x-sources" | "reddit-sources" | "sessions";
+type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "connectors" | "sources" | "x-sources" | "reddit-sources" | "brief-preferences" | "sessions";
 type SettingsGroupId = "personal" | "ai" | "creation" | "data";
 
 type SettingsSectionDefinition = {
@@ -45,6 +47,7 @@ function settingsSections(): readonly SettingsSectionDefinition[] { return [
   { id: "sources", group: "data", icon: Rss, title: m.rss.title, description: m.rss.description },
   { id: "x-sources", group: "data", icon: MessageCircle, ...m.settings.navigation.sections.xSources },
   { id: "reddit-sources", group: "data", icon: MessagesSquare, ...m.settings.navigation.sections.redditSources },
+  { id: "brief-preferences", group: "data", icon: SlidersHorizontal, title: m.rss.preferences, description: m.rss.preferencesHint },
   { id: "sessions", group: "data", icon: Archive, ...m.settings.navigation.sections.sessions }
 ]; }
 
@@ -74,6 +77,8 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaves = useRef(0);
   const detailRef = useRef<HTMLElement>(null);
+  const sectionLeaveGuard = useRef<SessionLeaveGuard | null>(null);
+  const registerSectionLeaveGuard = useCallback((guard: SessionLeaveGuard | null) => { sectionLeaveGuard.current = guard; }, []);
 
   useEffect(() => {
     if (initialSection) {
@@ -191,14 +196,16 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
 
   const activeDefinition = settingsSections().find((section) => section.id === activeSection) ?? settingsSections()[0];
 
-  const selectSection = useCallback((section: SettingsSectionId) => {
+  const selectSection = useCallback(async (section: SettingsSectionId) => {
+    if (section === activeSection) { setCompactDetailOpen(true); return; }
+    if (sectionLeaveGuard.current && !await sectionLeaveGuard.current()) return;
     setActiveSection(section);
     setCompactDetailOpen(true);
     if (detailRef.current) detailRef.current.scrollTop = 0;
     if (window.matchMedia?.("(max-width: 720px)").matches) {
       window.requestAnimationFrame(() => detailRef.current?.querySelector<HTMLElement>("#settings-detail-title")?.focus());
     }
-  }, []);
+  }, [activeSection]);
 
   const showSettingsNavigation = useCallback(() => {
     setCompactDetailOpen(false);
@@ -335,7 +342,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               <h1 id="settings-detail-title" tabIndex={-1}>{activeDefinition.title}</h1>
               <p>{activeDefinition.description}</p>
             </div>
-            {!["skills", "mcp", "runtime", "connectors", "sources"].includes(activeSection) && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
+            {!["skills", "mcp", "runtime", "connectors", "sources", "brief-preferences"].includes(activeSection) && !loading && !loadError ? <small role="status" aria-live="polite">{saving ? m.settings.saveStatus.saving : m.settings.saveStatus.saved}</small> : null}
           </header>
 
           {loading ? (
@@ -367,6 +374,9 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
               {activeSection === "connectors" ? <WechatSettingsSection /> : null}
               {activeSection === "sources" ? prefs.openmindRoot ? <SourcesPage key={prefs.openmindRoot} presentation="settings" /> : <EmptyState title={m.rss.rootRequired} action={<Button onClick={() => void selectOpenmindRoot()}>{m.rss.selectRoot}</Button>} /> : null}
+              {activeSection === "brief-preferences" ? prefs.openmindRoot
+                ? <DailyPreferences key={prefs.openmindRoot} presentation="settings" onLeaveGuardChange={registerSectionLeaveGuard} />
+                : <EmptyState title={m.rss.preferencesRootRequired} action={<Button onClick={() => void selectOpenmindRoot()}>{m.rss.selectRoot}</Button>} /> : null}
               {activeSection === "x-sources" || activeSection === "reddit-sources" ? prefs.openmindRoot
                 ? <CollectorSourcesPanel key={`${prefs.openmindRoot}:${activeSection}`} skillId={activeSection === "x-sources" ? "x-following-fetcher" : "reddit-fetcher"} title={activeSection === "x-sources" ? "X/Twitter" : "Reddit"} />
                 : <EmptyState title={m.settings.collectorSourcesRootRequired} action={<Button onClick={() => void selectOpenmindRoot()}>{m.rss.selectRoot}</Button>} /> : null}

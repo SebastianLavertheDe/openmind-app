@@ -11,7 +11,34 @@ const community = SourceDefinitionSchema.parse({
   url: "https://www.reddit.com/r/LocalLLaMA/hot.json", frequency: "daily", status: "idle"
 });
 
+async function editCommunity() {
+  fireEvent.click(await screen.findByRole("button", { name: messages.skillCenter.ownedSources.edit(community.name) }));
+}
+
 describe("Collector source management", () => {
+  it("confirms community deletion, preserves the card on failure and refreshes after success", async () => {
+    let sources = [community];
+    const removeRedditSource = vi.fn().mockRejectedValueOnce(new Error("Cannot save sources")).mockImplementation(async () => { sources = []; });
+    window.openmind = { listSources: async () => sources, removeRedditSource } as unknown as DesktopApi;
+    render(<CollectorSourcesPanel skillId="reddit-fetcher" title="Reddit" />);
+    const remove = async () => {
+      if (!screen.queryByRole("dialog")) await editCommunity();
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: messages.skillCenter.common.delete }));
+      return screen.findByRole("alertdialog");
+    };
+    const confirmation = await remove();
+    expect(confirmation.textContent).toContain(messages.skillCenter.ownedSources.deleteBody);
+    fireEvent.click(within(confirmation).getByRole("button", { name: messages.skillCenter.common.cancel }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(removeRedditSource).not.toHaveBeenCalled();
+    fireEvent.click(within(await remove()).getByRole("button", { name: messages.skillCenter.common.delete }));
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Cannot save sources");
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(screen.getByRole("listitem", { name: community.name, hidden: true })).toBeTruthy();
+    fireEvent.click(within(await remove()).getByRole("button", { name: messages.skillCenter.common.delete }));
+    await waitFor(() => expect(screen.queryByRole("listitem", { name: community.name })).toBeNull());
+    expect(removeRedditSource).toHaveBeenLastCalledWith({ id: community.id });
+  });
   it("shows the actual Reddit communities and persists source enablement through IPC", async () => {
     let saved = community;
     const updateSource = vi.fn(async () => (saved = { ...community, enabled: false }));
@@ -23,20 +50,20 @@ describe("Collector source management", () => {
     expect(await screen.findByRole("link", { name: community.url! })).toBeTruthy();
     expect(screen.queryByText("Unrelated RSS")).toBeNull();
     expect(screen.queryByRole("switch")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "编辑 r/LocalLLaMA" }));
+    await editCommunity();
     fireEvent.click(screen.getByRole("switch", { name: messages.rss.enabled }));
     expect(updateSource).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: messages.skillCenter.common.cancel }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(updateSource).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "编辑 r/LocalLLaMA" }));
+    await editCommunity();
     expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("true");
     fireEvent.click(screen.getByRole("switch"));
     fireEvent.click(screen.getByRole("button", { name: messages.skillCenter.sourceEditor.saveChanges }));
     await waitFor(() => expect(updateSource).toHaveBeenCalledWith(community.id, expect.objectContaining({ enabled: false })));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(within(screen.getByRole("listitem")).queryByText(messages.skillCenter.sourceStatus.disabled)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "编辑 r/LocalLLaMA" }));
+    await editCommunity();
     expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("false");
   });
 
@@ -54,7 +81,7 @@ describe("Collector source management", () => {
     expect((await screen.findByRole("tooltip")).textContent).toContain("Request timed out");
     fireEvent.blur(indicator);
     expect(within(card).getByText(/^上次 /)).toBeTruthy();
-    expect(within(card).getByRole("button", { name: "编辑 r/LocalLLaMA" })).toBeTruthy();
+    expect(within(card).getByRole("button", { name: messages.skillCenter.ownedSources.edit(community.name) })).toBeTruthy();
     fireEvent.click(within(card).getByRole("link", { name: community.url! }));
     expect(openExternal).toHaveBeenCalledWith(community.url);
     const disabledCard = screen.getByRole("listitem", { name: disabled.name });
@@ -88,7 +115,7 @@ describe("Collector source management", () => {
     const updateSource = vi.fn(async () => ({ ...community, name: "Local models" }));
     window.openmind = { listSources: async () => [community], updateSource } as unknown as DesktopApi;
     render(<CollectorSourcesPanel skillId="reddit-fetcher" title="Reddit" />);
-    fireEvent.click(await screen.findByRole("button", { name: "编辑 r/LocalLLaMA" }));
+    await editCommunity();
     fireEvent.change(screen.getByRole("textbox", { name: "社区名称" }), { target: { value: "Local models" } });
     fireEvent.click(screen.getByRole("button", { name: "保存修改" }));
     await waitFor(() => expect(updateSource).toHaveBeenCalledWith(community.id, expect.objectContaining({ name: "Local models" })));
@@ -136,7 +163,7 @@ it("locks enablement while saving and retains the draft when saving fails", asyn
   const updateSource = vi.fn(() => new Promise<typeof community>((_resolve, reject) => { fail = reject; }));
   window.openmind = { listSources: async () => [community], updateSource } as unknown as DesktopApi;
   render(<CollectorSourcesPanel skillId="reddit-fetcher" title="Reddit" />);
-  fireEvent.click(await screen.findByRole("button", { name: "编辑 r/LocalLLaMA" }));
+  await editCommunity();
   const toggle = screen.getByRole("switch") as HTMLButtonElement;
   fireEvent.click(toggle);
   fireEvent.click(screen.getByRole("button", { name: messages.skillCenter.sourceEditor.saveChanges }));
