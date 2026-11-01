@@ -7,7 +7,7 @@ import { resolveSkillLibraryCopy, SKILL_LIBRARY_PUBLISHER, SKILL_LIBRARY_SOURCE 
 import { messages } from "../../shared/messages";
 import type { AppPaths } from "../paths/app-paths-service";
 import { writeJsonAtomic } from "../lib/fs-utils";
-import type { SkillPackageService } from "./skill-package-service";
+import type { SkillPackageInspection, SkillPackageService } from "./skill-package-service";
 import { ImageConfigurationStore } from "../images/image-configuration";
 import { resolveSkillLibraryTools } from "./skill-library-runtime";
 import { isAppLibraryInstall, isLegacyAppLibraryInstall, readSkillLibraryCatalog } from "./skill-library-catalog";
@@ -80,10 +80,19 @@ export class SkillLibraryService {
     }
     for (const record of installed) {
       if (presetKeys.has(record.key)) continue;
-      const inspection = this.packages.inspectInstalledCopy(this.packages.getInstalled(record.key, record.digest)!);
-      const display = inspection.manifest?.display;
+      let usable = record.usable;
+      let inspection: SkillPackageInspection | undefined;
+      if (usable) {
+        try {
+          const current = this.packages.getInstalled(record.key, record.digest);
+          if (current) inspection = this.packages.inspectInstalledCopy(current);
+          else usable = false;
+        }
+        catch { usable = false; }
+      }
+      const display = inspection?.manifest?.display;
       const builtin = isAppLibraryInstall(record);
-      result.push({ id: record.key, title: display?.name || record.id, subtitle: display?.description || "", description: display?.description || "", inputHint: "", category: null, origin: builtin ? "preset" : record.sourceType === "git" ? "git" : "local", discoverable: false, installed: true, enabled: record.enabled, usable: record.usable, reason: record.usable ? null : m.errors.stale, key: record.key, digest: record.digest, version: record.version, skillId: record.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: builtin ? m.origin.preset : record.sourceLocator || record.sourceType || "local", executionModel: null, updatedAt: record.installedAt, contributor: this.installedContributorView(record.packagePath) });
+      result.push({ id: record.key, title: display?.name || record.id, subtitle: display?.description || "", description: display?.description || "", inputHint: "", category: null, origin: builtin ? "preset" : record.sourceType === "git" ? "git" : "local", discoverable: false, installed: true, enabled: record.enabled, usable, reason: usable ? null : m.errors.stale, key: record.key, digest: record.digest, version: record.version, skillId: record.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: builtin ? m.origin.preset : record.sourceLocator || record.sourceType || "local", executionModel: null, updatedAt: record.installedAt, contributor: usable ? this.installedContributorView(record.packagePath) : undefined });
     }
     return result;
   }

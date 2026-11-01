@@ -23,7 +23,7 @@
       "id": "claude_blog_rss",
       "module": "claude_blog_rss",
       "className": "ClaudeBlogRSSGenerator",
-      "url": "https://claude.com/blog"
+      "url": "https://claude.com/resources/articles"
     },
     {
       "id": "cursor_rss",

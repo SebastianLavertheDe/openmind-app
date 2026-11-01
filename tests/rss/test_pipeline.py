@@ -208,6 +208,43 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual((article.read_bytes(), article.stat().st_mtime_ns), before)
         self.assertEqual(len(list((self.root / 'article').rglob('*.md'))), 1)
 
+    def test_collect_unicode_index_without_utf8_mode_and_reports_only_new_articles(self):
+        # The managed Windows runner uses pipes and a minimal environment.
+        # Exercise its default locale, not the parent test runner's UTF-8 mode.
+        self.source['feedRevision'] = 1
+        self.write(self.doc)
+        raw, _ = rss.normalize_feed('Research', self.url, [{
+            'title': '中文研究 😀', 'guid': '中文标识 😀', 'url': self.url + '/article',
+            'content': '<p>Original research with enough readable content for article extraction.</p>'
+        }])
+        rss.write_atomic(self.data / 'feeds/test-source.xml', raw)
+        rss.json_write(self.data / 'article-migration.json', {'schemaVersion': 1})
+        report = self.root / 'artifacts.json'
+        code = (
+            'import json,sys; from src.rss_pipeline import Pipeline; '
+            'print(json.dumps(Pipeline(sys.argv[1],sys.argv[2],{}).run("collect","20261027")))'
+        )
+        env = {**os.environ, 'PYTHONDONTWRITEBYTECODE': '1',
+               'OPENMIND_ARTIFACT_REPORT_PATH': str(report)}
+        def collect():
+            child = subprocess.run([sys.executable, '-X', 'utf8=0', '-B', '-c', code,
+                                    str(self.root), str(self.data)],
+                                   cwd=PACKAGES / 'rss-article-saver', env=env,
+                                   capture_output=True, check=True)
+            result = json.loads(child.stdout)
+            self.assertEqual(result['status'], 'succeeded', result)
+            return result['results'][0]['collected']
+        self.assertEqual(collect(), 1)
+        artifacts = json.loads(report.read_text(encoding='utf-8'))['artifacts']
+        self.assertEqual(len(artifacts), 1)
+        self.assertNotIn('\\', artifacts[0]['logicalPath'])
+        article = self.root / artifacts[0]['logicalPath']
+        self.assertIn('中文研究 😀', article.read_text(encoding='utf-8'))
+        before = article.read_bytes(), article.stat().st_mtime_ns
+        self.assertEqual(collect(), 0)
+        self.assertEqual((article.read_bytes(), article.stat().st_mtime_ns), before)
+        self.assertEqual(json.loads(report.read_text(encoding='utf-8'))['artifacts'], [])
+
     def test_index_retry_preserves_existing_edits_and_saves_complete_content_separately(self):
         self.pipeline.run('sync', '20261027')
         original_write = rss.json_write

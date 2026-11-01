@@ -2,12 +2,67 @@
 import contextlib
 import json
 import os
+import sys
 from pathlib import Path
 import time
 import uuid
 
 class BusyError(RuntimeError):
     pass
+
+
+def process_alive(pid):
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        raise ValueError('Invalid lock owner PID.')
+    if sys.platform == 'win32':
+        # Windows os.kill(pid, 0) calls TerminateProcess, and missing PIDs
+        # raise WinError 87 rather than ProcessLookupError. Only query a handle.
+        import ctypes
+        from ctypes import wintypes
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel.WaitForSingleObject.restype = wintypes.DWORD
+        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel.CloseHandle.restype = wintypes.BOOL
+        handle = kernel.OpenProcess(0x00100000, False, pid)  # SYNCHRONIZE
+        if not handle:
+            return ctypes.get_last_error() != 87  # Access denied stays locked.
+        try:
+            return kernel.WaitForSingleObject(handle, 0) != 0
+        finally:
+            kernel.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass
+    return True
+
+
+def retry_file_operation(work):
+    # Windows readers can temporarily deny delete/replace sharing. Retain
+    # ownership while retrying instead of abandoning a live owner's lock.
+    for attempt in range(20):
+        try:
+            return work()
+        except PermissionError:
+            if sys.platform != 'win32' or attempt == 19:
+                raise
+            time.sleep(0.015)
+
+
+def release_lock(file, token):
+    def release():
+        try:
+            owner = json.loads(file.read_text(encoding='utf-8'))
+        except FileNotFoundError:
+            return
+        if owner.get('token') == token:
+            file.unlink(missing_ok=True)
+    retry_file_operation(release)
 
 
 def inside(root, *parts):
@@ -26,7 +81,7 @@ def atomic_write(file, value):
         with temp.open('xb') as stream:
             stream.write(value.encode() if isinstance(value, str) else value)
             stream.flush(); os.fsync(stream.fileno())
-        temp.replace(file)
+        retry_file_operation(lambda: temp.replace(file))
     finally:
         temp.unlink(missing_ok=True)
 
@@ -48,9 +103,8 @@ def task_lock(directory, name):
         except FileExistsError:
             try:
                 owner = json.loads(file.read_text())
-                os.kill(owner['pid'], 0)
-            except ProcessLookupError:
-                file.unlink(missing_ok=True); continue
+                if not process_alive(owner['pid']):
+                    file.unlink(missing_ok=True); continue
             except (ValueError, KeyError):
                 if time.time() - file.stat().st_mtime > 60:
                     file.unlink(missing_ok=True); continue
@@ -64,5 +118,4 @@ def task_lock(directory, name):
     try:
         yield
     finally:
-        if file.exists() and json.loads(file.read_text()).get('token') == token:
-            file.unlink()
+        release_lock(file, token)

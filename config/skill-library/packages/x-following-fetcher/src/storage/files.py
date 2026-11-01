@@ -264,10 +264,15 @@ def _extract_external_articles(links: list[str]) -> dict[str, dict[str, object]]
             cwd=skill_dir,
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=1800,
             check=False,
             env={
                 **os.environ,
+                # Match the helper's stdout/stderr to our explicit decoder,
+                # independently of the Windows console's legacy code page.
+                "PYTHONIOENCODING": "utf-8",
+                "PYTHONUTF8": "1",
                 # Keep Broker/local bindings visible to the helper process.
                 "OPENMIND_ROOT": os.environ.get("OPENMIND_ROOT", ""),
                 "OPENMIND_SKILL_DATA_DIR": os.environ.get(

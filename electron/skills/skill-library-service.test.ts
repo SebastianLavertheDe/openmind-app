@@ -217,6 +217,41 @@ describe("Skill library and authoring", () => {
     expect(f.packages.isInstalledCopyUsable(imported)).toBe(true);
   });
 
+  it.each(["modified", "missing"])("keeps the library available when an imported package is %s", damage => {
+    const f = fixture();
+    const source = path.join(f.directory, "imported");
+    fs.cpSync(path.join(f.bundle, "om-research-brief"), source, { recursive: true });
+    const manifestPath = path.join(source, "openmind.skill.yaml");
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    manifest.id = "imported-skill";
+    manifest.publisher.id = "outside";
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const sourceSkill = path.join(source, "SKILL.md");
+    fs.writeFileSync(sourceSkill, fs.readFileSync(sourceSkill, "utf8").replaceAll("om-research-brief", "imported-skill"));
+    const record = f.packages.install(source, { sourceType: "directory", sourceLocator: source });
+    const skillFile = path.join(record.packagePath, "SKILL.md");
+    if (damage === "missing") fs.unlinkSync(skillFile);
+    else fs.appendFileSync(skillFile, "\nChanged after installation.");
+    const entries = f.service.list();
+    expect(entries.find(entry => entry.id === "om-research-brief")).toMatchObject({ installed: false, usable: true });
+    expect(entries.find(entry => entry.key === record.key)).toMatchObject({ installed: true, usable: false, reason: expect.any(String), title: record.id });
+    expect(f.packages.getInstalled(record.key, record.digest)).toBeTruthy();
+    expect(() => f.packages.inspectInstalledCopy(record)).toThrow();
+    expect(() => f.service.prompt(record.key)).toThrow();
+  });
+
+  it("isolates an integrity failure that occurs after installed views were collected", () => {
+    const f = fixture();
+    const source = path.join(f.directory, "imported");
+    fs.cpSync(path.join(f.bundle, "om-research-brief"), source, { recursive: true });
+    const record = f.packages.install(source, { sourceType: "directory", sourceLocator: source });
+    const views = f.packages.listInstalledViews();
+    expect(views[0].usable).toBe(true);
+    vi.spyOn(f.packages, "listInstalledViews").mockReturnValue(views);
+    fs.appendFileSync(path.join(record.packagePath, "SKILL.md"), "\nChanged between inspections.");
+    expect(f.service.list().find(entry => entry.key === record.key)).toMatchObject({ usable: false, reason: expect.any(String) });
+  });
+
   it("keeps Explore separate from installed and authored Mine entries", () => {
     const f = fixture();
     expect(filterSkillLibrary(f.service.list(), "explore", "all")).toHaveLength(1);

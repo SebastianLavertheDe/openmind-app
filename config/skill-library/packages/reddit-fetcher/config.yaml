@@ -8,7 +8,7 @@ fetch:
   max_comment_depth: 2
   listing_retry_count: 3
   comment_retry_count: 2
-  request_delay_seconds: 5
+  request_delay_seconds: 45
   # Skip the .json endpoint (currently 403-blocked by Reddit) and fetch RSS
   # directly. Source URLs below stay as .json so flipping this back to false
   # restores the richer JSON path (score, num_comments, etc.) when unblocked.

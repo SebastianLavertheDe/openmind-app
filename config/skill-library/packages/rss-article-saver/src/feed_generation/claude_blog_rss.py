@@ -6,10 +6,11 @@ from bs4 import BeautifulSoup
 from dateutil import parser as date_parser
 import re
 import os
+from urllib.parse import urljoin, urlsplit
 
 class ClaudeBlogRSSGenerator:
     def __init__(self):
-        self.base_url = "https://claude.com/blog"
+        self.base_url = "https://claude.com/resources/articles"
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0"
@@ -39,7 +40,14 @@ class ClaudeBlogRSSGenerator:
         articles_data = []
         seen_urls = set()
 
-        for item in soup.select("div.blog_cms_item.w-dyn-item"):
+        # New resource cards are links themselves; keep legacy Webflow cards.
+        cards = list(soup.select("div.blog_cms_item.w-dyn-item"))
+        cards.extend(
+            link for link in soup.select("a[href]")
+            if self._article_url(link.get("href", ""))
+            and link.find(["h1", "h2", "h3", "h4", "h5", "h6"])
+        )
+        for item in cards:
             article = self._extract_article_from_card(item, seen_urls)
             if article:
                 articles_data.append(article)
@@ -53,15 +61,11 @@ class ClaudeBlogRSSGenerator:
         if not link:
             return None
 
-        url = link.get("href", "").strip()
-        if url.startswith("/"):
-            url = f"https://claude.com{url}"
+        url = self._article_url(link.get("href", ""))
 
         if (
             not url
             or url in seen_urls
-            or "/blog/" not in url
-            or "/blog/category/" in url
             or url.rstrip("/") == self.base_url
         ):
             return None
@@ -88,9 +92,9 @@ class ClaudeBlogRSSGenerator:
 
     def _find_article_link(self, item):
         candidates = []
-        for link in item.select("a[href]"):
-            href = link.get("href", "").strip()
-            if href.startswith("/blog/") and "/blog/category/" not in href:
+        links = [item] if item.name == "a" else item.select("a[href]")
+        for link in links:
+            if self._article_url(link.get("href", "")):
                 candidates.append(link)
 
         if not candidates:
@@ -102,16 +106,27 @@ class ClaudeBlogRSSGenerator:
         )
         return candidates[0]
 
-    def _extract_title(self, item, link):
-        link_text = " ".join(link.get_text(" ", strip=True).split())
-        if len(link_text) >= 10:
-            return link_text
+    def _article_url(self, href):
+        url = urljoin(self.base_url, href.strip())
+        parts = urlsplit(url)
+        if (
+            parts.scheme in {"http", "https"}
+            and parts.netloc.lower() in {"claude.com", "www.claude.com"}
+            and re.fullmatch(r"/(?:blog|resources/articles)/[^/]+/?", parts.path)
+        ):
+            return url
+        return None
 
+    def _extract_title(self, item, link):
         heading = item.find(["h1", "h2", "h3", "h4", "h5", "h6"])
         if heading:
             heading_text = " ".join(heading.get_text(" ", strip=True).split())
             if heading_text:
                 return heading_text
+
+        link_text = " ".join(link.get_text(" ", strip=True).split())
+        if len(link_text) >= 10:
+            return link_text
 
         return None
 

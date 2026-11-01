@@ -29,6 +29,10 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 from xml.etree import ElementTree as ET
 
+_package_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_package_root if (_package_root / '_shared').is_dir() else _package_root.parent))
+from _shared.runtime_io import process_alive, release_lock, retry_file_operation
+
 MAX_BYTES = 8 * 1024 * 1024
 CONTENT = "http://purl.org/rss/1.0/modules/content/"
 ET.register_namespace("content", CONTENT)
@@ -241,9 +245,7 @@ def lock(directory, name, wait=0):
             stale = False
             try:
                 owner = json.loads(file.read_text())
-                try: os.kill(owner["pid"], 0)
-                except ProcessLookupError: stale = True
-                except PermissionError: pass
+                stale = not process_alive(owner["pid"])
             except (ValueError, KeyError): stale = time.time() - file.stat().st_mtime > 60
             except FileNotFoundError: continue
             if stale:
@@ -252,7 +254,7 @@ def lock(directory, name, wait=0):
             time.sleep(0.03)
     try: yield
     finally:
-        if file.exists() and json.loads(file.read_text())["token"] == token: file.unlink()
+        release_lock(file, token)
 
 
 def write_atomic(file, data):
@@ -261,7 +263,7 @@ def write_atomic(file, data):
     try:
         with temp.open("xb") as output:
             output.write(data); output.flush(); os.fsync(output.fileno())
-        os.replace(temp, file)
+        retry_file_operation(lambda: os.replace(temp, file))
     finally: temp.unlink(missing_ok=True)
 
 
@@ -328,7 +330,7 @@ class Pipeline:
             with lock(self.safe(self.data / "locks"), "article-" + key, wait=2):
                 index = self.safe(self.data / "articles" / (key + ".json"))
                 fingerprint = hashlib.sha256(json.dumps({k: str(v) for k, v in entry.items()}, sort_keys=True).encode()).hexdigest()
-                previous = json.loads(index.read_text()) if index.exists() else None
+                previous = json.loads(index.read_text(encoding="utf-8")) if index.exists() else None
                 if previous and (previous.get("legacy") or previous.get("fingerprint") == fingerprint): continue
                 text = article_text(entry)
                 body = f'# {entry["title"]}\n\n- 来源: {source["name"]}\n- 原文: {entry["url"]}\n\n{text}\n'
@@ -343,16 +345,16 @@ class Pipeline:
                         # An unindexed file can be a legacy partial write or a
                         # user's edit after a successful write. Preserve it and
                         # index a separate, complete version instead.
-                        previous_path = str(target.relative_to(self.root))
+                        previous_path = target.relative_to(self.root).as_posix()
                         target = self.safe(self.root / "article" / ".updates" / date / ("rss-" + key[:24] + "-" + hashlib.sha256(encoded).hexdigest()[:12] + ".md"))
                         if target.exists() and target.read_bytes() != encoded:
                             target = self.safe(target.with_name(target.stem + "-" + uuid.uuid4().hex + ".md"))
                     # Only an atomically published complete file may advance
                     # the index. A retry can reuse an identical published file.
                     if not target.exists(): write_atomic(target, encoded)
-                    json_write(index, {"url": entry["url"], "guid": entry["guid"], "path": str(target.relative_to(self.root)), "savedAt": utc_now(), "fingerprint": fingerprint, "previousPath": previous_path})
+                    json_write(index, {"url": entry["url"], "guid": entry["guid"], "path": target.relative_to(self.root).as_posix(), "savedAt": utc_now(), "fingerprint": fingerprint, "previousPath": previous_path})
                 self.commit(source, save); saved += 1
-                self.saved_paths.append(str(target.relative_to(self.root)))
+                self.saved_paths.append(target.relative_to(self.root).as_posix())
         def completed(current):
             stamp = utc_now()
             current.update(lastAttemptAt=stamp, lastSuccessAt=stamp, lastCollectAt=stamp, lastAttemptStage="collect")
@@ -376,7 +378,7 @@ class Pipeline:
                     for url in matches:
                         key = hashlib.sha256(http_url(url).encode()).hexdigest()
                         index = self.safe(self.data / "articles" / (key + ".json"))
-                        if not index.exists(): json_write(index, {"url": url, "path": str(file.relative_to(self.root)), "legacy": True})
+                        if not index.exists(): json_write(index, {"url": url, "path": file.relative_to(self.root).as_posix(), "legacy": True})
             json_write(marker, {"schemaVersion": 1, "completedAt": utc_now()})
 
     def run(self, mode, date, source_id=None):

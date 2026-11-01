@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 from datetime import datetime, timezone
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -69,14 +70,11 @@ class AnthropicEngineeringRSSGenerator:
         if not link:
             return None
 
-        url = link.get("href", "").strip()
-        if url.startswith("/"):
-            url = f"https://www.anthropic.com{url}"
+        url = self._article_url(link.get("href", ""))
 
         if (
             not url
             or url in seen_urls
-            or "/engineering/" not in url
             or url.rstrip("/") == self.base_url
         ):
             return None
@@ -101,12 +99,23 @@ class AnthropicEngineeringRSSGenerator:
         }
 
     def _find_article_links(self, card):
-        article_links = []
+        article_links = {}
         for link in card.find_all("a", href=True):
-            href = link.get("href", "").strip()
-            if href.startswith("/engineering/"):
-                article_links.append(link)
-        return article_links
+            url = self._article_url(link.get("href", ""))
+            if url:
+                article_links.setdefault(url, link)
+        return list(article_links.values())
+
+    def _article_url(self, href):
+        url = urljoin(self.base_url, href.strip())
+        parts = urlsplit(url)
+        if (
+            parts.scheme in {"http", "https"}
+            and parts.netloc.lower() in {"anthropic.com", "www.anthropic.com"}
+            and re.fullmatch(r"/(?:engineering|research)/[^/]+/?", parts.path)
+        ):
+            return url
+        return None
 
     def _extract_title(self, card):
         heading = card.find(["h1", "h2", "h3"])

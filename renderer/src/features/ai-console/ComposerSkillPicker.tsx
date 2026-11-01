@@ -40,7 +40,7 @@ export function ComposerSkillPicker({ selected, onSelect, onManage }: { selected
       }}>
         <SearchInput aria-label={m.search} placeholder={m.search} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.nativeEvent.isComposing) event.stopPropagation(); }} />
         {error ? <p role="alert">{error}</p> : null}
-        <div className="composer-skill-options">{!results.length ? <p>{m.empty}</p> : results.map(entry => <MenuItem key={entry.id} disabled={!entry.usable || Boolean(entry.reason)} onClick={() => { onSelect(entry); setOpen(false); anchor.current?.focus(); }}><span className="composer-skill-option-copy"><strong>{entry.title}</strong><small>{entry.reason || (entry.category ? m.scenes[entry.category] : m.origin[entry.origin])}</small></span></MenuItem>)}</div>
+        <div className="composer-skill-options">{!results.length ? <p>{m.empty}</p> : results.map(entry => <MenuItem key={entry.id} disabled={!entry.usable || Boolean(entry.reason)} onClick={() => { onSelect(entry); setOpen(false); anchor.current?.focus(); }}><span className="composer-skill-option-copy"><span>{entry.title}</span><small>{entry.reason || (entry.category ? m.scenes[entry.category] : m.origin[entry.origin])}</small></span></MenuItem>)}</div>
         <MenuItem onClick={() => { setOpen(false); onManage(); }}><Package size={15} />{m.manage}</MenuItem>
       </div>
     </Popover>

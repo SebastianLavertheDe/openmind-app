@@ -63,7 +63,9 @@ def main() -> int:
         workers = min(6, len(urls))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             records = list(pool.map(_extract, urls))
-    json.dump(records, sys.stdout, ensure_ascii=False)
+    # Keep the JSON wire format safe even for direct runs with GBK stdout.
+    # json.loads restores the original Unicode without losing characters.
+    json.dump(records, sys.stdout, ensure_ascii=True)
     sys.stdout.write("\n")
     return 0
 
