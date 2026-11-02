@@ -236,7 +236,11 @@ def _resolve_yaml_provider() -> AIProvider | None:
         return None
     if protocol == "anthropic-messages":
         kind = "anthropic"
-        endpoint = base_url.rstrip("/") + "/messages"
+        endpoint = base_url.rstrip("/")
+        if not endpoint.endswith("/messages"):
+            if not endpoint.endswith("/v1"):
+                endpoint += "/v1"
+            endpoint += "/messages"
     elif protocol == "openai-responses":
         kind = "responses"
         endpoint = base_url.rstrip("/") + "/responses"
