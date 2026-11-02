@@ -2,6 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import type { BrokerRunEvent } from "../../shared/execution-contracts";
 
+export function isPartialRssResult(result: unknown): boolean {
+  if (!result || typeof result !== "object" || !("status" in result) || result.status !== "partial") return false;
+  return "results" in result && Array.isArray(result.results)
+    && result.results.some(row => row && typeof row === "object" && row.status === "succeeded");
+}
+
 export function readCommandResult(runDirectory: string, events: Pick<BrokerRunEvent, "stream" | "text">[]): unknown {
   const file = path.join(runDirectory, "result.json");
   if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8"));

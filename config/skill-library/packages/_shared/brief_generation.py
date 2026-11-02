@@ -10,9 +10,10 @@ import hashlib
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from .ai_client import resolve_provider, call_provider_text, extract_json_text
+from .ai_client import AIProviderError, is_content_safety_rejection, resolve_provider, call_provider_text, extract_json_text
 from .brief_preferences import PROMPT_VERSION, SUMMARY_FIELDS, SUMMARY_CONTRACT, read_preferences, resolve_preferences, preference_digest, preference_prompt, summary_instructions, topic_prompt_context
 from .runtime_io import inside, atomic_write, write_json, task_lock, BusyError
 
@@ -181,17 +182,30 @@ def generate(root, date, mode, snapshot, *, reddit_only=False, provider=None):
         provider = provider or resolve_provider()
         cache = data / 'cache'
         summaries = []
-        for source in sources:
+        skipped_sources = []
+        for index, source in enumerate(sources, 1):
             # Full content participates in cache identity even when a single
             # request must use a bounded source excerpt.
             excerpt = {**source, 'content': source['content'][:60000]}
-            result = model_json(provider, summarize_prompt(excerpt, snapshot, for_topics=mode == 'topics'), cache, snapshot, source, 'summary')
+            try:
+                result = model_json(provider, summarize_prompt(excerpt, snapshot, for_topics=mode == 'topics'), cache, snapshot, source, 'summary')
+            except AIProviderError as exc:
+                if not is_content_safety_rejection(exc):
+                    raise
+                skipped = {'index': index, 'path': source['path'], 'reason': 'content-safety'}
+                skipped_sources.append(skipped)
+                # Broker stderr is durable even if a later, unrelated error stops the run.
+                # Never log the provider response, source body or credentials.
+                print(json.dumps({'event': 'source-skipped', **skipped}, ensure_ascii=False), file=sys.stderr, flush=True)
+                continue
             validate_response(result, 'summary')
             summaries.append({'source': source, 'result': result})
+        if not summaries:
+            return {'status': 'skipped', 'reason': 'content-safety', 'date': date, 'skippedSources': skipped_sources}
         if mode == 'topics':
             from .topic_generation import topic_report
             output, selected = topic_report(date, summaries, snapshot, provider, cache)
-            return save_output(root, date, mode, snapshot, provider, output, selected)
+            return save_output(root, date, mode, snapshot, provider, output, selected, skipped_sources=skipped_sources)
         candidates = []
         if summaries:
             candidates = [ranking_candidate(i, row) for i, row in enumerate(summaries, 1)]
@@ -207,17 +221,18 @@ def generate(root, date, mode, snapshot, *, reddit_only=False, provider=None):
                     shortlisted += [summaries[offset + entry['index'] - 1] for entry in ranking['items']]
                 summaries = shortlisted
                 candidates = [ranking_candidate(i, row) for i, row in enumerate(summaries, 1)]
-        prompt = ranking_prompt(candidates, snapshot, mode, source_titles=[source['title'] for source in sources[:20]])
+        prompt = ranking_prompt(candidates, snapshot, mode, source_titles=[row['source']['title'] for row in summaries[:20]])
         ranking = model_json(provider, prompt, cache, snapshot, candidates, 'final-rank')
         validate_response(ranking, 'final-rank', len(candidates))
         selected = [{**summaries[row['index'] - 1], 'reason': str(row.get('reason', ''))} for row in ranking['items']]
-        return save_output(root, date, mode, snapshot, provider, None, selected, labels=ranking['document'])
+        return save_output(root, date, mode, snapshot, provider, None, selected, labels=ranking['document'], skipped_sources=skipped_sources)
 
 
-def save_output(root, date, mode, snapshot, provider, output, selected, *, labels=None):
+def save_output(root, date, mode, snapshot, provider, output, selected, *, labels=None, skipped_sources=()):
     data = inside(root, '.agent', 'skill-data', 'brief-generation')
     stamp = datetime.now(timezone.utc).isoformat()
     metadata = {'preferencesRevision': snapshot['revision'], 'preferencesDigest': preference_digest(snapshot), 'promptVersion': PROMPT_VERSION, 'model': provider.model, 'generatedAt': stamp}
+    if skipped_sources: metadata['skippedSourceCount'] = len(skipped_sources)
     folder = 'daily-summary' if mode == 'summary' else 'daily-topic'
     suffix = 'daily_summary' if mode == 'summary' else 'daily_topic'
     target = inside(root, folder, f'{date}_{suffix}.md')
@@ -228,12 +243,12 @@ def save_output(root, date, mode, snapshot, provider, output, selected, *, label
         version = inside(root, folder, '.versions', date, hashlib.sha256(previous).hexdigest() + '.md')
         if not version.exists(): atomic_write(version, previous)
     atomic_write(target, output)
-    write_json(data / 'snapshots' / f'{date}-{mode}-{digest(metadata)}.json', {'preferences': snapshot, 'metadata': metadata, 'sources': [row['source']['path'] for row in selected]})
+    write_json(data / 'snapshots' / f'{date}-{mode}-{digest(metadata)}.json', {'preferences': snapshot, 'metadata': metadata, 'sources': [row['source']['path'] for row in selected], 'skippedSources': list(skipped_sources)})
     run = os.environ.get('OPENMIND_RUN_DIR')
     if run:
         write_json(Path(run) / 'daily-brief-preferences.json', snapshot)
         write_json(Path(run) / 'artifacts.json', {'schemaVersion': 1, 'artifacts': [{'declarationId': folder, 'logicalPath': target.relative_to(root).as_posix()}]})
-    return {'status': 'succeeded', 'path': target.relative_to(root).as_posix(), 'selected': len(selected), 'preferencesRevision': snapshot['revision']}
+    return {'status': 'succeeded', 'path': target.relative_to(root).as_posix(), 'selected': len(selected), 'preferencesRevision': snapshot['revision'], 'skippedSources': list(skipped_sources)}
 
 def main(mode):
     parser = argparse.ArgumentParser()
@@ -251,6 +266,8 @@ def main(mode):
         if args.run_dir: os.environ['OPENMIND_RUN_DIR'] = args.run_dir
         snapshot = read_preferences(root)
         result = generate(root, args.date, mode, snapshot, reddit_only=args.reddit_only)
+        if args.run_dir:
+            write_json(Path(args.run_dir) / 'result.json', result)
         print(json.dumps(result, ensure_ascii=False)); return 0
     except BusyError as exc:
         print(json.dumps({'status': 'skipped', 'reason': str(exc)})); return 0

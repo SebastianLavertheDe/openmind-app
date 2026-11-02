@@ -31,6 +31,17 @@ beforeEach(() => {
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); fs.rmSync(directory, { recursive: true, force: true }); });
 
+function writeResult(skillId: string, result: unknown) {
+  const work = path.join(directory, "app", "runs", skillId, "work");
+  fs.mkdirSync(work, { recursive: true });
+  fs.writeFileSync(path.join(work, "result.json"), JSON.stringify(result));
+}
+
+const partialRssResult = { status: "partial", results: [
+  { sourceId: "healthy", status: "succeeded", collected: 0 },
+  { sourceId: "unavailable", status: "failed", error: { code: "http-error" } }
+] };
+
 describe("scheduled CLI commands", () => {
   it("runs RSS then summary with the same date and isolated inputs", async () => {
     expect(await runCommand(["rss", "pipeline", "--summarize", "--date", "20261030", ...args])).toBe(0);
@@ -39,10 +50,56 @@ describe("scheduled CLI commands", () => {
       ["daily-article-summarizer", { date: "20261030" }]
     ]);
   });
-  it("stops the hourly chain when collection fails", async () => {
-    mocks.get.mockReturnValue({ terminalState: "failed", error: "partial source failure", artifacts: [] });
+  it("summarizes saved content after partial RSS failure and preserves the failed exit status", async () => {
+    writeResult("rss-article-saver", partialRssResult);
+    mocks.get.mockReturnValueOnce({ terminalState: "failed", error: "exit code 1", artifacts: [] });
+    expect(await runCommand(["rss", "pipeline", "--summarize", "--date", "20261102", ...args])).toBe(1);
+    expect(mocks.submit.mock.calls.map(([r]) => [r.skillId, r.inputs.date])).toEqual([
+      ["rss-article-saver", "20261102"], ["daily-article-summarizer", "20261102"]
+    ]);
+    const output = vi.mocked(process.stdout.write).mock.calls.map(([line]) => JSON.parse(String(line)));
+    expect(output).toEqual([
+      expect.objectContaining({ skillId: "rss-article-saver", status: "failed", result: partialRssResult }),
+      expect.objectContaining({ skillId: "daily-article-summarizer", status: "succeeded" })
+    ]);
+  });
+  it.each([
+    undefined,
+    { status: "failed", results: [{ status: "failed" }] },
+    { status: "partial" },
+    { status: "partial", results: [null, { status: "failed" }] }
+  ])("stops the hourly chain without a usable partial collection result: %j", async result => {
+    if (result !== undefined) writeResult("rss-article-saver", result);
+    mocks.get.mockReturnValue({ terminalState: "failed", error: "collection failed", artifacts: [] });
     expect(await runCommand(["rss", "pipeline", "--summarize", ...args])).toBe(1);
     expect(mocks.submit).toHaveBeenCalledTimes(1);
+  });
+  it.each(["cancelled", "timed_out"])("stops after %s even if RSS wrote a partial result", async terminalState => {
+    writeResult("rss-article-saver", partialRssResult);
+    mocks.get.mockReturnValue({ terminalState, artifacts: [] });
+    expect(await runCommand(["rss", "pipeline", "--summarize", ...args])).toBe(1);
+    expect(mocks.submit).toHaveBeenCalledTimes(1);
+  });
+  it("does not run a summary after SIGTERM at the end of a partial collection", async () => {
+    writeResult("rss-article-saver", partialRssResult);
+    mocks.get.mockImplementationOnce(() => {
+      process.emit("SIGTERM");
+      return { terminalState: "failed", artifacts: [] };
+    });
+    expect(await runCommand(["rss", "pipeline", "--summarize", ...args])).toBe(1);
+    expect(mocks.submit).toHaveBeenCalledTimes(1);
+  });
+  it("keeps standalone partial RSS collection failed", async () => {
+    writeResult("rss-article-saver", partialRssResult);
+    mocks.get.mockReturnValue({ terminalState: "failed", artifacts: [] });
+    expect(await runCommand(["rss", "pipeline", ...args])).toBe(1);
+    expect(mocks.submit).toHaveBeenCalledTimes(1);
+  });
+  it("reports summary failure after continuing from partial collection", async () => {
+    writeResult("rss-article-saver", partialRssResult);
+    mocks.get.mockReturnValue({ terminalState: "failed", artifacts: [] });
+    expect(await runCommand(["rss", "pipeline", "--summarize", ...args])).toBe(1);
+    expect(mocks.submit.mock.calls.map(([r]) => r.skillId)).toEqual(["rss-article-saver", "daily-article-summarizer"]);
   });
   it("checks all stages without submitting or fetching content", async () => {
     expect(await runCommand(["rss", "pipeline", "--summarize", "--check", ...args])).toBe(0);

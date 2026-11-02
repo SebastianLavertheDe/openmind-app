@@ -16,3 +16,5 @@ The package-local `_shared/brief_generation.py` is the common engine for summari
 Use the app-configured Process provider through `OPENMIND_PROVIDER_*`; never search developer repositories for provider files. The managed Python runtime supplies dependencies. No per-package `.env`, system Python or manual `uv` setup is required.
 
 Caches include the full input digest, provider/model, prompt version and preference snapshot. A preference edit invalidates filtering and ranking caches. Regeneration saves the previous document in `daily-summary/.versions/` and records preference provenance in the document and private run files. Provider failure preserves the old document.
+
+When the provider rejects an individual source with content-safety error 1301 or the equivalent sensitive-content message, record that source as skipped and continue with the remaining sources. Do not send the rejected source or its title to later ranking calls. The run result and private snapshot list skipped sources; if every source is rejected, return a skipped result and preserve any existing summary. Authentication, quota, network and invalid-response errors still fail the run.

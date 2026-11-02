@@ -45,6 +45,26 @@ class AIProviderError(RuntimeError):
         self.response_text = response_text
 
 
+def is_content_safety_rejection(exc: AIProviderError) -> bool:
+    """Recognize a provider refusal without exposing its raw response body."""
+    if exc.status_code != 400:
+        return False
+    try:
+        payload = json.loads(exc.response_text)
+    except (ValueError, TypeError):
+        return False
+    detail = payload.get("error") if isinstance(payload, dict) else None
+    if not isinstance(detail, dict):
+        return False
+    if str(detail.get("code", "")) == "1301":
+        return True
+    message = detail.get("message")
+    return isinstance(message, str) and any(phrase in message for phrase in (
+        "输入或生成内容可能包含不安全或敏感内容",
+        "输入或生成内容可能包含敏感内容",
+    ))
+
+
 def load_env_file(env_path: Path) -> None:
     if not env_path.exists():
         return

@@ -13,7 +13,7 @@ import { RssRepository } from "../rss/rss-repository";
 import { readRssCatalog } from "../rss/rss-service";
 import { computeRootId } from "../paths/openmind-path-resolver";
 import { waitForRssMutation } from "../rss/file-lock";
-import { readCommandResult } from "./command-result";
+import { isPartialRssResult, readCommandResult } from "./command-result";
 import { commandInputs, parseCommand } from "./command-options";
 
 /** Run with Node or Electron's RUN_AS_NODE launcher: no app/window/display initialization. */
@@ -67,6 +67,7 @@ export async function runCommand(argv: string[]): Promise<number> {
   const registry = new SkillToolRegistry(root, { paths, openmindRoot: root, rootGeneration: 1, installedResolver: resolver });
   let activeRunId: string | null = null;
   let stopped = false;
+  let hadFailure = false;
   const stop = () => { stopped = true; if (activeRunId) void registry.cancelRun(activeRunId); };
   process.once("SIGTERM", stop); process.once("SIGINT", stop);
   try {
@@ -80,13 +81,20 @@ export async function runCommand(argv: string[]): Promise<number> {
           const result = readCommandResult(path.join(paths.runs, run.id, "work"), registry.getRunEvents(run.id));
           process.stdout.write(JSON.stringify({ skillId: request.skillId, runId: run.id, status: current.terminalState, error: current.error, result, artifacts: current.artifacts }) + "\n");
           activeRunId = null;
-          if (current.terminalState !== "succeeded") return 1;
+          if (current.terminalState !== "succeeded") {
+            hadFailure = true;
+            // Failed RSS sources must not block a brief from the saved content.
+            // Keep the failure visible in the output and overall exit status.
+            const continueToSummary = area === "rss" && command === "pipeline" && options.has("--summarize")
+              && request.skillId === "rss-article-saver" && current.terminalState === "failed" && isPartialRssResult(result);
+            if (!continueToSummary) return 1;
+          }
           break;
         }
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
-    return stopped ? 1 : 0;
+    return stopped || hadFailure ? 1 : 0;
   } finally { process.removeListener("SIGTERM", stop); process.removeListener("SIGINT", stop); }
 }
 
