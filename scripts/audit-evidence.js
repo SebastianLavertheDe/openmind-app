@@ -38,9 +38,7 @@ check("SBOM, license and provenance evidence is generated", Boolean(
   unknownLicenses: releaseLicenses?.unknownLicenseCount ?? null,
   artifactTreeSha256: releaseProvenance?.artifact?.treeSha256 || null
 });
-
-checkLineBudget("CreativePage is below the complex-page budget", "renderer/src/features/creative/CreativePage.tsx", 500);
-check("CreativePage has independent panels and history/release modules", exists("renderer/src/features/creative/panels.tsx") && exists("renderer/src/features/creative/history-release.tsx"));
+check("the retired workspace has no page or backend", !exists("renderer/src/features/creative/CreativePage.tsx") && !exists("electron/lib/creative.ts"));
 check("source management uses settings without a primary navigation entry", includes("renderer/src/app/route-registry.tsx", 'page: "sources", needsRepo: false, render:') && includes("renderer/src/features/settings/SettingsPage.tsx", '<SourcesPage key={prefs.openmindRoot} presentation="settings"'));
 check("source discovery and persistence stay outside the page", exists("electron/product/source-registry.ts") && exists("electron/skills/skill-source-service.ts") && exists("shared/skill-frontmatter.ts"));
 checkLineBudget("ProductService remains a bounded domain facade", "electron/product/product-service.ts", 420);

@@ -3,8 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProductService } from "./product-service";
-import type { ContentServiceApi, CreativeServiceApi } from "./common";
-import { UserPreferencesSchema, type UserPreferences } from "../../shared/contracts";
+import type { ContentServiceApi } from "./common";
 
 describe("ProductService", () => {
   let root = "";
@@ -63,14 +62,6 @@ describe("ProductService", () => {
         getOverview: () => { overviewReads += 1; return { date: "20260615", repoRoot: root, metrics: { articles: 1, posts: 0, reddit: 0, summaries: 0, topics: 0 }, pipeline: [], recent: [] }; },
         writeContent: (relativePath, rawContent) => ({ path: relativePath, name: path.basename(relativePath), content: rawContent, truncated: false })
       } satisfies ContentServiceApi,
-      {
-        getCreativeTopics: () => {
-          topicReads += 1;
-          return { topics: [{ title: "AI 工作台", score: 9, body: "整理本地 AI 产品体验。[资料](https://example.com)" }] };
-        },
-        getAllCreativeTopics: () => [],
-        listCreativeProjects: () => [{ dir: "creative/demo", topic: "Demo", stage: "drafting", completion: 50, date: "20260615" }]
-      } as CreativeServiceApi,
       // ADR-001: keep app-private state under the legacy repo root for these
       // tests (so .openmind lands at root/.openmind as the fixtures expect);
       // production wires this to userData/state/<root-id>/ via main.ts.
@@ -83,6 +74,12 @@ describe("ProductService", () => {
     const sources = service.listSources();
     expect(sources.some((source) => source.kind === "rss" && source.name === "Example")).toBe(true);
     expect(fs.readFileSync(path.join(root, "openmind", ".agent", "skill-data", "rss-article-saver", "sources.json"), "utf8")).toContain("https://example.com/feed.xml");
+  });
+
+  it("keeps asynchronous file preview available independently of retired workflows", async () => {
+    const service = createService();
+    const file = "openmind/article/20260615/example.md";
+    expect(await service.readContent(file)).toEqual({ path: file, name: "example.md", content: records[file], truncated: false });
   });
 
   it("keeps an existing persistent RSS list instead of reseeding package defaults", () => {
@@ -276,161 +273,5 @@ sources:
     const service = createService();
     const results = await service.searchContent("正文", 10);
     expect(Array.isArray(results)).toBe(true);
-  });
-
-  it("searchCreativeProjects 按 topic/dir 过滤并截断", () => {
-    const service = createService();
-    const results = service.searchCreativeProjects("demo", 16);
-    expect(results.length).toBeGreaterThan(0);
-    expect(results[0].kind).toBe("creative-project");
-    expect(results[0].title).toBe("Demo");
-    // 不匹配的 query 返回空
-    expect(service.searchCreativeProjects("不存在的选题")).toEqual([]);
-  });
-
-  it("searchCreativeProjects 尊重 limit", () => {
-    const service = createService();
-    const results = service.searchCreativeProjects("demo", 0);
-    expect(results).toHaveLength(0);
-  });
-});
-
-describe("ProductService 创作委托方法", () => {
-  let root = "";
-  beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-product-creative-"));
-  });
-  afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
-
-  /** 构造一个带完整 creative spy 的 ProductService。 */
-  function createServiceWithCreativeSpy(preferenceOverrides: Partial<UserPreferences> = {}, creativeOverrides: Record<string, unknown> = {}) {
-    const creative = {
-      getCreativeTopics: () => ({ topics: [] }),
-      getAllCreativeTopics: () => [],
-      listCreativeProjects: () => [{ dir: "creative/demo", topic: "Demo", stage: "drafting", completion: 50, date: "20260615" }],
-      getCreativeProject: vi.fn(() => ({ dir: "creative/demo", topic: "Demo", stage: "drafting", files: { "draft.md": "# x" }, manifest: {} })),
-      createCreativeProject: vi.fn(() => ({ dir: "creative/demo", stage: "drafting", files: {}, manifest: { topic: "Demo" } })),
-      saveCreativeFile: vi.fn(() => ({ dir: "creative/demo", files: { "draft.md": "new" }, manifest: {} })),
-      advanceProjectStage: vi.fn(() => ({ dir: "creative/demo", stage: "review" })),
-      updateCreativeManifest: vi.fn(() => ({ dir: "creative/demo", manifest: {} })),
-      listCreativeVersions: vi.fn(() => []),
-      readCreativeVersion: vi.fn(() => ({ content: "old" })),
-      restoreCreativeVersion: vi.fn(() => ({ dir: "creative/demo" })),
-      getCreativeReleaseLog: vi.fn(() => []),
-      copyCreativeProject: vi.fn(() => ({ dir: "creative/demo-copy" })),
-      archiveCreativeProject: vi.fn(() => ({ dir: "creative/demo" })),
-      getCreativeAnalytics: vi.fn(() => ({ total: 0, averageCompletion: 0, averageCycleHours: null, stages: [], platforms: [], stageDurations: [] })),
-      ...creativeOverrides
-    };
-    const content = {
-      getContent: () => [], readContent: () => ({ path: "x", content: "" }),
-      readContentAsync: vi.fn(async () => ({ path: "x", name: "x", content: "async preview", truncated: false })),
-      getOverview: () => ({ date: "20260615", repoRoot: root, metrics: {}, pipeline: [], recent: [] }),
-      writeContent: () => ({ path: "x", name: "x", content: "", truncated: false })
-    };
-    const service = new ProductService(
-      path.join(root, "openmind"),
-      content as ContentServiceApi,
-      creative as unknown as CreativeServiceApi,
-      // ADR-001: opts (4th param) — keep state under the legacy repo root for
-      // these tests. preferences is now the 5th param.
-      { stateRoot: root },
-      () => ({ ...UserPreferencesSchema.parse({}), ...preferenceOverrides })
-    );
-    return { service, creative };
-  }
-
-  it("getCreativeProject 委托", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.getCreativeProject("creative/demo");
-    expect(creative.getCreativeProject).toHaveBeenCalledWith("creative/demo");
-  });
-
-  it("createCreativeProject 委托 + invalidate date", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.createCreativeProject({ date: "2026-07-08", topic: { title: "T" } } as never);
-    expect(creative.createCreativeProject).toHaveBeenCalledWith(expect.objectContaining({ date: "2026-07-08" }));
-  });
-
-  it("saveCreativeFile 委托(不 invalidate)", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.saveCreativeFile({ projectDir: "creative/demo", file: "draft.md", content: "x" });
-    expect(creative.saveCreativeFile).toHaveBeenCalled();
-  });
-
-  it("advanceProjectStage 委托", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.advanceProjectStage("creative/demo", "review");
-    expect(creative.advanceProjectStage).toHaveBeenCalledWith("creative/demo", "review", expect.objectContaining({
-      autoVersionOnStageChange: true,
-      reviewRequiredForReady: true,
-      publishChecklistEnabled: true
-    }));
-  });
-
-  it("archives expired published projects only when the workflow rule is enabled", () => {
-    const published = { dir: "creative/published", topic: "Old", stage: "published", completion: 100, date: "20260101" };
-    const { service, creative } = createServiceWithCreativeSpy(
-      { workflowAutoArchiveEnabled: true, archiveAfterDays: 7 },
-      {
-        listCreativeProjects: vi.fn(() => [published]),
-        getCreativeProject: vi.fn(() => ({ ...published, files: {}, manifest: { publish: { publishedAt: "2026-01-01T00:00:00.000Z" } } }))
-      }
-    );
-    service.listCreativeProjects();
-    expect(creative.archiveCreativeProject).toHaveBeenCalledWith("creative/published");
-  });
-
-  it("updateCreativeManifest 委托", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.updateCreativeManifest("creative/demo", { notes: "x" });
-    expect(creative.updateCreativeManifest).toHaveBeenCalled();
-  });
-
-  it("listCreativeVersions / readCreativeVersion / restoreCreativeVersion 委托", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.listCreativeVersions("creative/demo", "draft.md");
-    service.readCreativeVersion("path/v1");
-    service.restoreCreativeVersion("creative/demo", "draft.md", "path/v1");
-    expect(creative.listCreativeVersions).toHaveBeenCalledWith("creative/demo", "draft.md");
-    expect(creative.readCreativeVersion).toHaveBeenCalledWith("path/v1");
-    expect(creative.restoreCreativeVersion).toHaveBeenCalledWith("creative/demo", "draft.md", "path/v1");
-  });
-
-  it("getCreativeReleaseLog 委托", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.getCreativeReleaseLog("creative/demo");
-    expect(creative.getCreativeReleaseLog).toHaveBeenCalledWith("creative/demo");
-  });
-
-  it("copy/archive 委托", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.copyCreativeProject("creative/demo");
-    service.archiveCreativeProject("creative/demo");
-    expect(creative.copyCreativeProject).toHaveBeenCalledWith("creative/demo");
-    expect(creative.archiveCreativeProject).toHaveBeenCalledWith("creative/demo");
-  });
-
-  it("getCreativeAnalytics 委托", () => {
-    const { service, creative } = createServiceWithCreativeSpy();
-    service.getCreativeAnalytics();
-    expect(creative.getCreativeAnalytics).toHaveBeenCalled();
-  });
-
-  it("writeContent 带日期时刷新当天索引", () => {
-    const { service } = createServiceWithCreativeSpy();
-    // writeContent 委托 + 提取 date 刷新;不抛错即通过
-    expect(() => service.writeContent("openmind/article/20260708/x.md", "content")).not.toThrow();
-  });
-
-  it("readContent 委托异步预览入口", async () => {
-    const { service } = createServiceWithCreativeSpy();
-    const result = await service.readContent("openmind/article/x.md");
-    expect(result.content).toBe("async preview");
-  });
-
-  it("listSources 委托", () => {
-    const { service } = createServiceWithCreativeSpy();
-    expect(Array.isArray(service.listSources())).toBe(true);
   });
 });

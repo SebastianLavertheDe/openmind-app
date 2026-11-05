@@ -46,7 +46,7 @@ Desktop builds target Windows 11 and macOS. Linux is available for development a
 
 1. **Choose a data folder.** Select a folder for your OpenMind content and personal configuration.
 2. **Configure AI (optional).** In **Settings → AI & Models**, add an AI Provider, enter its Base URL, API key, and text model, and select a default provider. For AI conversations, also install or connect Claude Code or Codex CLI and complete the connection setup shown in the app. You can choose **Set up later** during onboarding and configure AI when you need it.
-3. **Choose your sources and tasks.** The 15 retained Skills and feed converters ship with the app; cloning `cctools-skills` or `blog-rss-feed` is unnecessary. Open **RSS Sources** to configure subscriptions and **Schedules** to choose timing and timezone. Suggested sources and new schedules start disabled. Enable the bundled Python runtime in Settings before running Python Skills. Summaries and topics also need a configured Process provider. Turning off the built-in collection switch preserves packages, content, subscriptions and schedule choices.
+3. **Choose your sources and tasks.** The 10 retained native Skills and feed converters ship with the app; cloning `cctools-skills` or `blog-rss-feed` is unnecessary. Open **RSS Sources** to configure subscriptions and **Schedules** to choose timing and timezone. Suggested sources and new schedules start disabled. Enable the bundled Python runtime in Settings before running Python Skills. Summaries and topics also need a configured Process provider. Turning off the built-in collection switch preserves packages, content, subscriptions and schedule choices.
 4. **Start collecting and creating.** Customize subscriptions in Settings, run RSS collection or the RSS-to-summary workflow in Skill Center, read the results in your library, and use them in writing projects.
 
 AI features send requests to the provider you configure. Use your own credentials and keep your data folder and provider configuration private.
@@ -74,7 +74,7 @@ npm run dev:electron
 
 The runtime preparation step downloads the Python runtime used by Skills. After the app opens, follow the same first-launch setup above.
 
-The App Skill library is maintained in [`config/skill-library/`](config/skill-library/README.md): 21 configurable Agent presets plus 15 migrated native Agent, Process and Workflow packages under `packages/`. Builds include shared Python modules and RSS adapters without adjacent repositories. External Git imports and user-authored Skills retain their own identities. See the [RSS and Skills guide](docs/RSS_AND_SKILLS_GUIDE.md) for setup, CLI/cron commands, migration and validation.
+The App Skill library is maintained in [`config/skill-library/`](config/skill-library/README.md): 21 configurable Agent presets plus 10 migrated native Agent, Process and Workflow packages under `packages/`. Builds include shared Python modules and RSS adapters without adjacent repositories. External Git imports and user-authored Skills retain their own identities. See the [RSS and Skills guide](docs/RSS_AND_SKILLS_GUIDE.md) for setup, CLI/cron commands, migration and validation.
 
 Development conventions: [AGENTS.md](AGENTS.md). More details: [AI workspace](docs/AI_WORKSPACE.md), [WeChat export](docs/wechat-export.md), and [support and recovery](docs/SUPPORT_AND_RECOVERY.md).
 

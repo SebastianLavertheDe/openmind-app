@@ -225,6 +225,13 @@
   font-size: 12.5px;
   font-weight: 500;
 }
+.project-file-row > button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-2);
+  font-size: var(--fs-xs);
+}
 .project-file-more { width: 28px; margin-right: 4px; }
 .project-file-more .ui-dropdown-trigger {
   width: 28px;

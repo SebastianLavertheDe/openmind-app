@@ -8,7 +8,7 @@ import { useFilePreview } from "./file-preview-context";
 import { clearProjectPreviewSourceCacheForTests } from "./project-preview-source";
 import { localMediaUrl } from "@shared/media-preview";
 
-vi.mock("../creative/MarkdownEditor", () => ({
+vi.mock("../document-editor/MarkdownEditor", () => ({
   MarkdownEditor: ({ value, onChange, ariaLabel }: { value: string; onChange(value: string): void; ariaLabel: string }) => (
     <textarea aria-label={ariaLabel} value={value} onChange={(event) => onChange(event.target.value)} />
   )

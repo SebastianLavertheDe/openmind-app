@@ -9,54 +9,6 @@
   white-space: nowrap;
 }
 
-.inspector-section {
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.inspector-section h3 {
-  margin: 0 0 10px;
-  font-size: 12px;
-}
-
-.inspector-section p {
-  color: var(--muted);
-  font-size: var(--fs-xs);
-  line-height: 1.65;
-}
-
-.inspector-file,
-.version-row {
-  width: 100%;
-  min-width: 0;
-  justify-content: flex-start !important;
-  margin-bottom: 6px;
-  text-align: left;
-}
-
-.inspector-file span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.version-row > div {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.version-row strong,
-.version-row small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.version-row small {
-  color: var(--muted-2);
-}
-
 /* Phase 3 mockup alignment */
 .ai-workbench {
   grid-template-columns: var(--workbench-columns, 260px 8px minmax(0, 1fr));

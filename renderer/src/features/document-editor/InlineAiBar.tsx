@@ -64,7 +64,7 @@ export function InlineAiBar({
       const message = events.filter(event => event.runId === runId && event.kind === "assistant-message").at(-1);
       const text = typeof message?.payload.text === "string" ? message.payload.text : lastStream.current;
       setFinalText(text); setDone(true);
-      if (run.status === "failed") setError(run.error || m.creativeUi.inlineAi.generateFailed);
+      if (run.status === "failed") setError(run.error || m.documentEditor.inlineAi.generateFailed);
       else if (run.status === "cancelled") setError(m.editor.rewriteCanceled);
       else if (!text.trim()) setError(m.editor.noReplacementGenerated);
     }).catch(cause => {
@@ -86,7 +86,7 @@ export function InlineAiBar({
     setPending(true);
     const request = ++requestRef.current;
     setRunId(null);
-    const prompt = `${instruction}${m.creativeUi.inlineAi.promptSuffix}${m.creativeUi.inlineAi.originalPrefix}${text}`;
+    const prompt = `${instruction}${m.documentEditor.inlineAi.promptSuffix}${m.documentEditor.inlineAi.originalPrefix}${text}`;
     try {
       const started = await actions.send(prompt, { permissionProfile: "read-only", sessionId: null, providerId: activeSession?.providerId, contexts: [], preserveDraft: true });
       if (request !== requestRef.current) { void actions.cancel(started.id).catch(() => {}); return; }
@@ -137,18 +137,18 @@ export function InlineAiBar({
   return (
     <div className="inline-ai-bar">
       {showSelectionBar && sel ? (
-        <div className="inline-ai-selection" role="toolbar" aria-label={m.creativeUi.inlineAi.toolbar}>
+        <div className="inline-ai-selection" role="toolbar" aria-label={m.documentEditor.inlineAi.toolbar}>
           <Sparkles size={13} />
-          <span className="inline-ai-sel-label">{m.creativeUi.inlineAi.selectedChars(sel.text.length)}</span>
+          <span className="inline-ai-sel-label">{m.documentEditor.inlineAi.selectedChars(sel.text.length)}</span>
           {ACTION_KEYS.map((key) => (
             <Button
               key={key}
               className="inline-ai-action"
-              onClick={() => void start(m.creativeUi.inlineAi[`${key}Instruction`])}
+              onClick={() => void start(m.documentEditor.inlineAi[`${key}Instruction`])}
               disabled={ui.isSending}
-              title={m.creativeUi.inlineAi[`${key}Instruction`]}
+              title={m.documentEditor.inlineAi[`${key}Instruction`]}
             >
-              {m.creativeUi.inlineAi[key]}
+              {m.documentEditor.inlineAi[key]}
             </Button>
           ))}
         </div>
@@ -157,16 +157,16 @@ export function InlineAiBar({
       {runId || pending ? (
         <div className="inline-ai-preview">
           <header>
-            <span className="eyebrow">{busy ? <><LoaderCircle className="spin" size={12} /> {m.creativeUi.inlineAi.generating}</> : <><Wand2 size={12} /> {m.creativeUi.inlineAi.result}</>}</span>
+            <span className="eyebrow">{busy ? <><LoaderCircle className="spin" size={12} /> {m.documentEditor.inlineAi.generating}</> : <><Wand2 size={12} /> {m.documentEditor.inlineAi.result}</>}</span>
             <div className="inline-ai-actions">
-              {busy ? <Button variant="ghost" data-motion="action" onClick={() => void cancel()} title={m.creativeUi.inlineAi.cancel}><X size={12} />{m.creativeUi.inlineAi.cancel}</Button> : null}
-              {!busy && !error ? <Button variant="ghost" data-motion="action" onClick={() => void start(m.creativeUi.inlineAi.rewriteInstruction)} title={m.common.retry}><RefreshCw size={12} />{m.creativeUi.inlineAi.retry}</Button> : null}
-              {!busy && !error ? <Button variant="primary"  data-motion="action" disabled={disabled || !finalText.trim()} onClick={accept} title={m.creativeUi.inlineAi.replaceSelectionTitle}><Check size={12} />{m.creativeUi.inlineAi.replaceSelection}</Button> : null}
-              {!busy ? <Button variant="ghost" data-motion="action" onClick={() => void cancel()} title={error ? m.creativeUi.inlineAi.close : m.creativeUi.inlineAi.discard}>{error ? m.creativeUi.inlineAi.close : m.creativeUi.inlineAi.discard}</Button> : null}
+              {busy ? <Button variant="ghost" data-motion="action" onClick={() => void cancel()} title={m.documentEditor.inlineAi.cancel}><X size={12} />{m.documentEditor.inlineAi.cancel}</Button> : null}
+              {!busy && !error ? <Button variant="ghost" data-motion="action" onClick={() => void start(m.documentEditor.inlineAi.rewriteInstruction)} title={m.common.retry}><RefreshCw size={12} />{m.documentEditor.inlineAi.retry}</Button> : null}
+              {!busy && !error ? <Button variant="primary"  data-motion="action" disabled={disabled || !finalText.trim()} onClick={accept} title={m.documentEditor.inlineAi.replaceSelectionTitle}><Check size={12} />{m.documentEditor.inlineAi.replaceSelection}</Button> : null}
+              {!busy ? <Button variant="ghost" data-motion="action" onClick={() => void cancel()} title={error ? m.documentEditor.inlineAi.close : m.documentEditor.inlineAi.discard}>{error ? m.documentEditor.inlineAi.close : m.documentEditor.inlineAi.discard}</Button> : null}
             </div>
           </header>
           {error ? <p className="inline-error">{error}</p> : null}
-          <pre className="inline-ai-out" aria-live="polite">{error ? null : (preview || (busy ? m.creativeUi.inlineAi.busyEllipsis : m.creativeUi.inlineAi.noOutput))}</pre>
+          <pre className="inline-ai-out" aria-live="polite">{error ? null : (preview || (busy ? m.documentEditor.inlineAi.busyEllipsis : m.documentEditor.inlineAi.noOutput))}</pre>
           {!busy && !error && range ? <p className="inline-ai-foot">{m.editor.confirmReplacement}</p> : null}
         </div>
       ) : null}

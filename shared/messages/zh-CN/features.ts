@@ -325,7 +325,7 @@ export const featureMessages = {
     filters: {
       projectViewAria: "项目视图"
     },
-    actions: { newEmpty: "新建空项目", fromTemplate: "从模板创建", backToCreative: "返回创作", openDir: "打开目录" },
+    actions: { newEmpty: "新建空项目", fromTemplate: "从模板创建", openDir: "打开目录" },
     dateMode: { label: "日期口径", date: "项目日期", updatedAt: "更新时间" },
     view: { cards: "卡片视图", table: "表格视图" },
     empty: { title: "没有匹配的项目", description: "切换筛选或搜索条件后重试。" },
@@ -420,7 +420,7 @@ export const featureMessages = {
     collectorSourcesRootRequired: "选择 OpenMind 内容目录后，即可管理采集来源。",
     collectorSourcesLoadTimeout: "读取采集来源超时，请重试。",
     retry: "重新加载",
-    page: { title: "设置", description: "管理 OpenMind 的外观、AI、权限、工作流和本地数据。" },
+    page: { title: "设置", description: "管理 OpenMind 的外观、AI、权限和本地数据。" },
     navigation: {
       label: "设置分类",
       back: "返回应用",
@@ -429,7 +429,7 @@ export const featureMessages = {
       groups: {
         personal: "个人",
         ai: "AI",
-        creation: "创作",
+        publishing: "发布",
         data: "数据与会话"
       },
       sections: {
@@ -439,7 +439,6 @@ export const featureMessages = {
         mcp: { title: "MCP 服务", description: "管理 AI 可调用的外部服务、连接状态和工具。" },
         browser: { title: "浏览器", description: "通过 BrowserSkill 读取和操作已登录的浏览器。" },
         permissions: { title: "权限与安全", description: "配置新会话权限、审批边界和风险提醒。" },
-        workflow: { title: "内容工作流", description: "配置创作阶段、自动保存、审核和归档规则。" },
         connectors: { title: "连接器", description: "连接内容发布平台。" },
         sources: { title: "资料来源", description: "管理可供 Skills 复用的 RSS、文件夹、API 和其他输入来源。" },
         xSources: { title: "X/Twitter 源", description: "管理 X 时间线的请求和登录配置。" },
@@ -450,7 +449,7 @@ export const featureMessages = {
       }
     },
     saveStatus: { saving: "正在保存…", saved: "改动会即时保存在本地" },
-    scopes: { localPreference: "本地偏好", newSession: "新会话行为", runtimeRules: "运行规则", localSecurity: "本地安全", localProject: "本地项目", contentFlow: "内容流程", editBehavior: "编辑行为", publishGate: "发布门禁", contentLifecycle: "内容生命周期" },
+    scopes: { localPreference: "本地偏好", newSession: "新会话行为", runtimeRules: "运行规则", localSecurity: "本地安全", localProject: "本地项目", },
     duration: { seconds: (value: number) => `${value} 秒`, oneMinute: "1 分钟", minutes: (value: number | string) => `${value} 分钟`, days: (value: number) => `${value} 天` },
     appearance: { title: "外观", theme: "主题", density: "密度", fontSize: "正文字号" },
     theme: { light: "浅色", dark: "深色", description: "浅色适合白天，深色适合长时间阅读。" },
@@ -712,7 +711,6 @@ export const featureMessages = {
       notesOpenFailed: "无法打开笔记目录",
       sessionOpenFailed: "无法打开归档会话",
       sessionRestoreFailed: "恢复归档会话失败",
-      workflowReset: "工作流规则已恢复默认值",
       providersLoadFailed: "config/providers.yaml 读取失败",
       providersSaved: "AI Provider 配置已保存",
       providersSaveFailed: "AI Provider 配置保存失败",
@@ -722,42 +720,6 @@ export const featureMessages = {
       pythonDisableFailed: "内置 Python 运行时关闭失败",
       openmindRootUpdated: "OpenMind 私人数据仓库已更新",
       openmindRootSelectFailed: "选择 OpenMind 私人数据仓库失败"
-    },
-    workflow: {
-      panels: { stages: "阶段规则", drafts: "草稿与版本", review: "审核与发布", archive: "自动归档" },
-      autoSaveAria: "自动保存间隔",
-      archiveAria: "自动归档期限",
-      preview: {
-        aria: "工作流规则预览",
-        title: "当前规则预览",
-        draftAuto: (interval: string) => `草稿：每 ${interval}自动保存`,
-        draftManual: "草稿：仅手动保存",
-        advance: (autoVersion: boolean, reviewRequired: boolean) => `推进：${autoVersion ? "创建版本快照" : "不创建自动版本"}；${reviewRequired ? "审核通过后进入待发布" : "允许跳过审核门禁"}`,
-        publishFull: "发布：校验标题、摘要、标签、封面、平台与正文",
-        publishBasic: "发布：仅校验可导出的正文与平台"
-      },
-      stagesTitle: "阶段定义与进入条件",
-      stagesDescription: "创作项目从选题到发布的阶段流转规则（只读）。",
-      stageToday: "今日推荐",
-      stageDrafting: "创作中",
-      stageReview: "待审核",
-      stageReady: "待发布",
-      stagePublished: "已发布",
-      entryNone: "无前置门禁",
-      entryReview: "审核通过后可进入待发布",
-      entryPublish: "导出或发布完成后进入已发布",
-      autoSaveTitle: "自动保存草稿",
-      autoSaveDesc: "编辑时按间隔自动保存草稿内容。",
-      autoVersionTitle: "阶段切换创建版本",
-      autoVersionDesc: "推进到下一阶段时自动创建版本快照。",
-      reviewGateTitle: "进入待发布需审核通过",
-      reviewGateDesc: "开启后，待审核项目必须审核通过才能进入待发布。",
-      publishCheckTitle: "发布前检查清单",
-      publishCheckDesc: "待发布阶段检查平台、标题、摘要、标签和封面是否填写。",
-      autoArchiveTitle: "自动归档已发布项目",
-      autoArchiveDesc: "已发布超过指定天数后自动归档到归档目录。",
-      resetToDefaults: "恢复默认值",
-      resetConfirm: "确定要将所有工作流规则恢复为默认值吗？"
     },
     providerConfig: {
       validation: {

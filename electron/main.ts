@@ -22,7 +22,6 @@ import { registerIpcHandlers, resolveMediaPreviewFile } from "./ipc-handlers";
 import { createLocalMediaHandler } from "./lib/media-preview";
 import * as settings from "./lib/settings";
 import * as content from "./lib/content";
-import * as creative from "./lib/creative";
 import { getLocale, messages, setLocale, subscribeLocale } from "../shared/messages";
 import { DESKTOP_WINDOW_MIN_SIZE } from "../shared/responsive-policy";
 import { loadWindowState, normalizeWindowState, saveWindowState, type WindowBounds } from "./window-state";
@@ -255,7 +254,7 @@ function ensureProductService(): ProductService {
     // openmind (ADR-001 §1.3). Skill-backed sources come from the installed
     // store under the root, not from any workspace scan.
     productService?.dispose();
-    productService = new ProductService(openmindRoot, content, creative, { stateRoot });
+    productService = new ProductService(openmindRoot, content, { stateRoot });
     productServiceRoot = cacheKey;
   }
   return productService;

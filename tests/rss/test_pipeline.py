@@ -40,6 +40,7 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == '/empty-page': data = '<html><link rel="alternate" type="application/rss+xml" href="/empty-rss"></html>'
         elif self.path == '/multi-empty': data = '<html><link rel="alternate" type="application/rss+xml" href="/empty-rss"><link rel="alternate" type="application/rss+xml" href="/rss"></html>'
         elif self.path == '/article': data = '<article><h1>Design study</h1><p>This study presents concrete research results for accessible product interfaces and a detailed comparison of interaction methods.</p></article>'
+        elif self.path == '/large-article': data = '<html><script>' + ' ' * (rss.MAX_BYTES + 1) + '</script><article><h1>Large article</h1><p>This research article contains an oversized application payload, but the complete readable article must still be saved. Complete article ending.</p></article></html>'
         else: data = '<html><h1>Unrelated page</h1></html>'
         self.wfile.write(data.encode())
 
@@ -126,6 +127,36 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(collected['lastSyncAt'], synced['lastSyncAt'])
         result = self.pipeline.run('pipeline', '20261027'); self.assertEqual(result['results'][0]['collected'], 0)
         self.assertEqual(len(list((self.root / 'article').rglob('*.md'))), 1)
+    def test_large_article_is_collected_completely_without_raising_the_feed_limit(self):
+        url = self.url + '/large-article'
+        with self.assertRaises(rss.FeedError) as caught:
+            rss.fetch(url)
+        self.assertEqual(caught.exception.code, 'response-too-large')
+        self.assertIn('feed size limit', str(caught.exception))
+        self.source['feedRevision'] = 1
+        self.write(self.doc)
+        raw, _ = rss.normalize_feed('Research', self.url, [{'title': 'Large article', 'url': url}])
+        rss.write_atomic(self.data / 'feeds/test-source.xml', raw)
+        result = self.pipeline.run('collect', '20261027')
+        self.assertEqual(result['status'], 'succeeded', result)
+        self.assertEqual(result['results'][0]['collected'], 1)
+        article = next((self.root / 'article').rglob('*.md'))
+        self.assertIn('Complete article ending.', article.read_text(encoding='utf-8'))
+        self.assertIsNone(self.pipeline.registry()['sources'][0].get('lastError'))
+    def test_article_limit_is_bounded_and_reports_the_article_without_saving_partial_text(self):
+        self.pipeline.run('sync', '20261027')
+        with patch.object(rss, 'MAX_ARTICLE_BYTES', 64):
+            result = self.pipeline.run('collect', '20261027')
+        self.assertEqual(result['status'], 'failed', result)
+        error = result['results'][0]['error']
+        self.assertEqual(error['code'], 'response-too-large')
+        self.assertIn('article size limit (64 bytes)', error['message'])
+        self.assertIn('Design study', error['message'])
+        self.assertEqual(list((self.root / 'article').rglob('*.md')), [])
+        self.assertEqual(list((self.data / 'articles').glob('*.json')), [])
+        self.assertEqual(self.pipeline.registry()['sources'][0]['lastError'], error)
+        self.assertEqual(self.pipeline.run('collect', '20261027')['status'], 'succeeded')
+        self.assertIsNone(self.pipeline.registry()['sources'][0]['lastError'])
     def test_failure_preserves_valid_feed_and_other_sources_continue(self):
         self.pipeline.run('sync', '20261027'); old = (self.data / 'feeds/test-source.xml').read_bytes()
         doc = self.pipeline.registry(); doc['sources'][0]['inputUrl'] = self.url + '/bad'; doc['sources'].append({**self.source, 'id': 'healthy'}); self.write(doc)

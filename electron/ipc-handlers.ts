@@ -10,10 +10,6 @@ import { YoutubeImportStatusSchema, YoutubeToolIdSchema, YoutubeToolStatusSchema
 import {
   ApprovalDecisionSchema,
   AddRssSourceInputSchema,
-  CreativeCreateInputSchema,
-  CreativeManifestPatchSchema,
-  CreativeSaveInputSchema,
-  CreativeStageSchema,
   ProjectFileSearchResultSchema,
   SourcePatchSchema,
   SourceQuerySchema,
@@ -409,33 +405,6 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       }
     },
     { channel: C.searchWorkspace, handler: (rawQuery) => ctx.globalSearch(rawQuery) },
-    { channel: C.getAllCreativeTopics, handler: () => product().getAllCreativeTopics() },
-    { channel: C.getCreativeProjects, handler: () => product().listCreativeProjects() },
-    { channel: C.getCreativeProject, handler: (filePath) => product().getCreativeProject(parseString(filePath)) },
-    { channel: C.createCreativeProject, handler: (input) => product().createCreativeProject(CreativeCreateInputSchema.parse(input)) },
-    { channel: C.saveCreativeFile, handler: (input) => product().saveCreativeFile(CreativeSaveInputSchema.parse(input)) },
-    {
-      channel: C.advanceCreativeProject,
-      handler: (filePath, stage) => product().advanceProjectStage(parseString(filePath), CreativeStageSchema.parse(stage))
-    },
-    {
-      channel: C.updateCreativeManifest,
-      handler: (filePath, patch) => product().updateCreativeManifest(parseString(filePath), CreativeManifestPatchSchema.parse(patch))
-    },
-    {
-      channel: C.listCreativeVersions,
-      handler: (filePath, file) => product().listCreativeVersions(parseString(filePath), parseString(file))
-    },
-    { channel: C.readCreativeVersion, handler: (filePath) => product().readCreativeVersion(parseString(filePath)) },
-    {
-      channel: C.restoreCreativeVersion,
-      handler: (projectPath, file, versionPath) =>
-        product().restoreCreativeVersion(parseString(projectPath), parseString(file), parseString(versionPath))
-    },
-    { channel: C.getCreativeReleaseLog, handler: (filePath) => product().getCreativeReleaseLog(parseString(filePath)) },
-    { channel: C.copyCreativeProject, handler: (filePath) => product().copyCreativeProject(parseString(filePath)) },
-    { channel: C.archiveCreativeProject, handler: (filePath) => product().archiveCreativeProject(parseString(filePath)) },
-    { channel: C.getCreativeAnalytics, handler: () => product().getCreativeAnalytics() },
     {
       channel: C.selectFiles,
       handler: async () => {
@@ -880,21 +849,21 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
             return result.canceled ? [] : result.filePaths;
           })();
         if (filePaths.length === 0) return [];
-        return projects().addProjectFiles(input.projectName, filePaths);
+        return projects().addProjectFiles(input.projectName, filePaths, { background: true });
       }
     },
     {
       channel: C.addProjectUrl,
       handler: (rawInput) => {
         const input = ProjectAddUrlInputSchema.parse(rawInput);
-        return projects().addProjectUrl(input.projectName, input.url);
+        return projects().addProjectUrl(input.projectName, input.url, { background: true });
       }
     },
     {
       channel: C.retryMaterialExtraction,
       handler: (rawInput) => {
         const input = ProjectMaterialLocatorSchema.parse(rawInput);
-        return projects().retryMaterialExtraction(input.projectName, input.relativePath);
+        return projects().retryMaterialExtraction(input.projectName, input.relativePath, { background: true });
       }
     },
     {

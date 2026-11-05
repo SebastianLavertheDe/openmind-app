@@ -31,6 +31,7 @@ import {
 import { writeJsonAtomic } from "../lib/fs-utils";
 import {
   ProjectMaterialService,
+  type MaterialImportOptions,
   type ProjectMaterialConverter
 } from "./material-service";
 import { ProjectOutputService } from "./output-service";
@@ -282,21 +283,21 @@ export class ProjectService {
     return this.materials.list(this.canonicalName(projectName));
   }
 
-  async addProjectFiles(projectName: string, absolutePaths: readonly string[]): Promise<ProjectMaterial[]> {
+  async addProjectFiles(projectName: string, absolutePaths: readonly string[], options: MaterialImportOptions = {}): Promise<ProjectMaterial[]> {
     const name = this.canonicalName(projectName);
-    try { return await this.materials.addFiles(name, absolutePaths); }
+    try { return await this.materials.addFiles(name, absolutePaths, options); }
     finally { this.touch(name); }
   }
 
-  async addProjectUrl(projectName: string, url: string): Promise<ProjectMaterial> {
+  async addProjectUrl(projectName: string, url: string, options: MaterialImportOptions = {}): Promise<ProjectMaterial> {
     const name = this.canonicalName(projectName);
-    try { return await this.materials.addUrl(name, url); }
+    try { return await this.materials.addUrl(name, url, options); }
     finally { this.touch(name); }
   }
 
-  async retryMaterialExtraction(projectName: string, relativePath: string): Promise<ProjectMaterial> {
+  async retryMaterialExtraction(projectName: string, relativePath: string, options: MaterialImportOptions = {}): Promise<ProjectMaterial> {
     const name = this.canonicalName(projectName);
-    try { return await this.materials.retry(name, relativePath); }
+    try { return await this.materials.retry(name, relativePath, options); }
     finally { this.touch(name); }
   }
 

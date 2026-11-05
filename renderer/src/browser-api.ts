@@ -4,8 +4,6 @@ import { resolveDailyBriefPreferences } from "@shared/daily-brief-preferences";
 import type {
   AiEvent,
   AiSnapshot,
-  CreativeProjectManifest,
-  CreativeStage,
   DesktopApi,
   InstalledSkillView,
   OnboardingState,
@@ -156,16 +154,7 @@ export function installBrowserPreviewApi(): boolean {
     notesDir: "openmind",
     destructiveOpsRequireApproval: true,
     riskScanEnabled: true,
-    defaultPlatform: "公众号",
-    defaultLanguage: "zh-CN" as const,
-    defaultContentLength: "medium" as const,
-    defaultTemplate: "",
     userTags: [],
-    workflowAutoSaveDraft: true,
-    workflowAutoVersionOnStageChange: true,
-    workflowReviewRequiredForReady: true,
-    workflowPublishChecklistEnabled: true,
-    workflowAutoArchiveEnabled: false
   };
   let onboardingState: OnboardingState = onboardingPreview
     ? { completed: false, skill: "pending", provider: "pending" }
@@ -639,26 +628,9 @@ export function installBrowserPreviewApi(): boolean {
       return [
         { id: "content:preview-content-1", kind: "content" as const, title: "工程级 AI 工作台设计", subtitle: "Anthropic · 文章", path: "openmind/article/demo.md", date: "20260615", status: null, targetId: "preview-content-1" },
         { id: "project:演示项目", kind: "project" as const, title: "演示项目", subtitle: "1 份资料 · 1 个任务 · 1 个成品", path: "projects/演示项目", date: "20260616", status: "active", targetId: "演示项目" },
-        { id: "creative-project:openmind/creative/demo", kind: "creative-project" as const, title: "本地 AI 工程工作台", subtitle: "20260615 · 制作中", path: "openmind/creative/demo", date: "20260615", status: "drafting", targetId: "openmind/creative/demo" },
         { id: "skill:rss-article-saver", kind: "skill" as const, title: "RSS 文章抓取", subtitle: "拉取订阅并保存完整文章。", path: ".claude/skills/rss-article-saver", date: null, status: null, targetId: "rss-article-saver" }
       ].filter((item) => `${item.title} ${item.subtitle}`.toLocaleLowerCase().includes(normalized));
     },
-    getAllCreativeTopics: async () => [
-      { date: "20260617", label: "2026-06-17", topics: [{ id: "topic-preview", title: "全量创作选题", platform: "公众号", section: "today_pick", score: 9, body: "# 全量创作选题\n\n不再只展示当天。", starred: false, ignored: false, projectDir: null }] }
-    ],
-    getCreativeProjects: async () => [{ dir: "openmind/creative/demo", topic: "本地 AI 工程工作台", stage: "drafting", completion: 72 }],
-    getCreativeProject: async (dir) => ({ dir, stage: "drafting", manifest: { topic: "本地 AI 工程工作台" }, files: { "topic-brief.md": "# Topic Brief\n\n工程级本地 AI 对话与任务执行。" } }),
-    createCreativeProject: async (input) => ({ dir: `openmind/creative/${input.date}-${input.topic.title}`, stage: "drafting", manifest: { topic: input.topic.title }, files: { "topic-brief.md": input.topic.body || "", "draft.md": `# ${input.topic.title}\n\n` } }),
-    saveCreativeFile: async (input) => ({ dir: input.projectDir, stage: "drafting", manifest: { topic: "本地 AI 工程工作台" }, files: { [input.file]: input.content } }),
-    advanceCreativeProject: async (dir, stage) => ({ dir, stage, manifest: { topic: "本地 AI 工程工作台", stage: stage as CreativeStage }, files: { "draft.md": "# 本地 AI 工程工作台\n\n草稿内容。" } }),
-    updateCreativeManifest: async (dir, patch) => ({ dir, stage: "ready", manifest: { topic: "本地 AI 工作台", ...patch } as Partial<CreativeProjectManifest>, files: { "draft.md": "# 本地 AI 工程工作台\n\n草稿内容。" } }),
-    listCreativeVersions: async (_dir, file) => [{ id: "v1", file, path: `versions/${file}/v1.md`, createdAt: new Date().toISOString(), note: "自动保存版本", size: 128 }],
-    readCreativeVersion: async (path) => ({ path, content: "# 历史版本\n\n内容。" }),
-    restoreCreativeVersion: async (dir, file) => ({ dir, stage: "drafting", manifest: { topic: "本地 AI 工程工作台" }, files: { [file]: "# 历史版本\n\n内容。" } }),
-    getCreativeReleaseLog: async () => [{ id: "release-1", createdAt: new Date().toISOString(), action: "content_exported", stage: "ready", status: "exported", detail: "导出 Markdown" }],
-    copyCreativeProject: async (dir) => ({ dir: `${dir}-copy`, stage: "drafting", manifest: { topic: "本地 AI 工程工作台（副本）" }, files: { "draft.md": "# 副本" } }),
-    archiveCreativeProject: async (dir) => ({ dir: `${dir}-archived`, stage: "archived", manifest: { topic: "本地 AI 工程工作台", stage: "archived" }, files: { "draft.md": "# 已归档" } }),
-    getCreativeAnalytics: async () => ({ total: 1, stages: [{ stage: "drafting", count: 1 }], platforms: [{ platform: "wechat", count: 1 }], averageCompletion: 72 }),
     selectFiles: async () => [],
     pathForFile: (file) => `/preview/${file.name}`,
     selectOpenmindFiles: async () => [],

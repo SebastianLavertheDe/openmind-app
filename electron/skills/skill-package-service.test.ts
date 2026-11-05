@@ -330,9 +330,6 @@ describe("SkillPackageService", () => {
   realSkillIt("recognizes the formal packages from the bundled Skill library", () => {
     const skillsRoot = INTERNAL_SKILLS_ROOT;
     const expected = [
-      "asset-collector",
-      "collect-interest-markers",
-      "daily-writing-orchestrator",
       "skill-run-reporter",
       "reddit-fetcher",
       "daily-article-summarizer",
@@ -340,8 +337,6 @@ describe("SkillPackageService", () => {
       "rss-article-saver",
       "x-following-fetcher",
       "rss-to-summary-workflow",
-      "ai-media-topic-selector",
-      "creative-writing"
     ];
 
     const inspections = expected.map((id) => service.inspect(path.join(skillsRoot, id)));
@@ -419,13 +414,8 @@ describe("SkillPackageService", () => {
     // `_shared` has no manifest and remains outside the installation catalog.
     expect(installed.map((record) => record.id).sort()).toEqual([
       "agent-browser",
-      "ai-media-topic-selector",
-      "asset-collector",
-      "collect-interest-markers",
-      "creative-writing",
       "daily-article-summarizer",
       "daily-topic-selector",
-      "daily-writing-orchestrator",
       "reddit-fetcher",
       "rss-article-saver",
       "rss-to-summary-workflow",
@@ -434,7 +424,7 @@ describe("SkillPackageService", () => {
       "video-download",
       "x-following-fetcher"
     ].sort());
-    expect(installed.length).toBe(15);
+    expect(installed.length).toBe(10);
     expect(installed.every((record) => service.isInstalledCopyUsable(record))).toBe(true);
 
     const sharedRoot = path.join(INTERNAL_SKILLS_ROOT, "rss-article-saver", "_shared");

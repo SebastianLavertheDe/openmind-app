@@ -15,24 +15,6 @@
   }
 }
 
-@media (max-width: 920px) {
-  .creative-document-header {
-    min-height: 84px;
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .creative-document-header h1 {
-    white-space: normal;
-  }
-
-  .creative-preview {
-    padding-inline: clamp(18px, 5vw, 36px);
-  }
-
-}
-
 @media (max-width: 820px) {
   .feature-page {
     padding: 22px 20px 34px;
@@ -62,13 +44,12 @@
     flex: 1 1 auto;
   }
 
-  .creative-list-pane > header,
+
 .pane-head {
     padding-inline: 10px;
   }
 
-  .creative-document-header,
-.topic-workspace > header,
+
 .rule-detail > header {
     padding: 14px;
   }

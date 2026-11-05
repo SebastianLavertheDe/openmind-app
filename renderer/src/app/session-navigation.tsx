@@ -26,7 +26,5 @@ export function sessionDestination(session: AiSession): { page: AppPage; state: 
       projectFileKind: fileOrigin?.fileKind } };
   }
   if (origin?.page === "brief") return { page: "brief", state: { ...state, filePath: origin.filePath ?? null, previewPath: origin.previewPath } };
-  if (origin?.page === "creative") return { page: "creative", state: { ...state, projectDir: origin.projectDir || undefined,
-    filePath: origin.filePath ?? null, previewPath: origin.previewPath, date: origin.date, stage: origin.stage, topicTitle: origin.topicTitle } };
   return { page: "ai", state };
 }

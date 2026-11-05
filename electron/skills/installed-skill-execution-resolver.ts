@@ -118,6 +118,7 @@ export class InstalledSkillExecutionResolver {
     }
     const reference = snapshot.installed;
     const record = this.packages.getInstalled(reference.key, reference.digest);
+    if (record && this.packages.isRetired(record)) throw new InstalledSkillExecutionError("该内置 Skill 已退役，历史会话不能重新执行它。");
     if (!record
       || record.id !== snapshot.definition.id
       || record.version !== reference.version
@@ -165,7 +166,7 @@ export class InstalledSkillExecutionResolver {
    * are unchanged and keep validating kind-specific plans independently.
    */
   captureSessionSnapshot(includeDisabled = false): AiSessionSkillSnapshotEntry[] {
-    let records = this.packages.listInstalled();
+    let records = this.packages.listInstalled().filter(record => !this.packages.isRetired(record));
     if (!includeDisabled) {
       try {
         records = records.filter((record) => this.packages.isEnabled(record));

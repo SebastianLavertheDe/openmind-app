@@ -408,6 +408,7 @@ export interface ProjectDesktopApi {
   updateProject(input: ProjectUpdateInput): Promise<ProjectDetail>;
   archiveProject(input: ProjectArchiveInput): Promise<ProjectDetail>;
 
+  /** Returns persisted records after admission; conversion continues in Main. */
   addProjectFiles(input: ProjectAddFilesInput): Promise<ProjectMaterial[]>;
   addProjectUrl(input: ProjectAddUrlInput): Promise<ProjectMaterial>;
   retryMaterialExtraction(input: ProjectMaterialLocator): Promise<ProjectMaterial>;

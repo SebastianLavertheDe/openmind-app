@@ -38,11 +38,10 @@ const viewports = [
 ];
 
 const pages = [
-  { id: "ai", label: "新建任务", minTextLength: 90, requiredSelector: ".ai-workbench" },
+  // The compact new-task screen has little copy after navigation retirement.
+  // Workbench visibility/hit testing still provides the semantic readiness gate.
+  { id: "ai", label: "新建任务", minTextLength: 30, requiredSelector: ".ai-workbench" },
   { id: "brief", label: "每日简报", requiredSelector: ".document-library-page", expectedCompanionSelector: ".ai-sidebar" },
-  // Compact master/detail shows one meaningful pane at a time, so semantic
-  // readiness is stronger here than an arbitrary desktop-sized text budget.
-  { id: "creative", label: "创作", minTextLength: 100, requiredSelector: ".creative-workspace-page", expectedCompanionSelector: ".ai-sidebar" },
   { id: "automation", label: "自动化", requiredSelector: ".automation-page", expectedCompanionSelector: ".ai-sidebar" },
   { id: "settings", label: "设置", minTextLength: 60, requiredSelector: ".settings-page", settingsMode: true }
 ];
@@ -98,7 +97,7 @@ async function run() {
   });
   win.webContents.setZoomFactor(first.zoom);
   await win.loadFile(rendererIndex);
-  await waitForReady(win, "新建任务", { minTextLength: 90, allowActiveSession: true });
+  await waitForReady(win, "新建任务", { minTextLength: 30, allowActiveSession: true });
 
   if (process.env.OPENMIND_VISUAL_RESPONSIVE_ONLY === "1") {
     await captureResponsiveGapContracts(win, report);
@@ -125,7 +124,7 @@ async function run() {
     win.webContents.setZoomFactor(viewport.zoom);
     await settle();
     await clickNav(win, "新建任务");
-    await waitForReady(win, "新建任务", { minTextLength: 90 });
+    await waitForReady(win, "新建任务", { minTextLength: 30 });
 
     for (const page of pages) {
       if (page.id !== "ai") await clickNav(win, page.label);
@@ -175,7 +174,6 @@ async function run() {
 
   await captureCompanionLayoutContracts(win, report);
   await captureGlobalSearchLayerContract(win, report);
-  await captureCreativeReaderLayout(win, report);
   await captureResponsiveGapContracts(win, report);
 
   await captureFinalStates(win, report);
@@ -252,106 +250,13 @@ async function captureOnboardingMinimumGate(report) {
   }
 }
 
-async function captureCreativeReaderLayout(win, report) {
-  const creativePage = pages.find((page) => page.id === "creative");
-  if (!creativePage) throw new Error("Creative page config is missing.");
-
-  await win.webContents.executeJavaScript("window.openmind.__setVisualMode('normal')");
-  win.webContents.setZoomFactor(1);
-  win.setSize(2048, 1119);
-  await settle();
-  await clickNav(win, creativePage.label);
-  await waitForReady(win, creativePage.label, {
-    minTextLength: creativePage.minTextLength,
-    requiredSelector: creativePage.requiredSelector
-  });
-
-  const opened = await win.webContents.executeJavaScript(`
-    (() => {
-      const file = document.querySelector('.stream-date-file:not([disabled])');
-      if (!(file instanceof HTMLButtonElement)) return false;
-      file.click();
-      return true;
-    })()
-  `);
-  if (!opened) throw new Error("Creative topic file preview target was not found.");
-
-  await waitForReady(win, creativePage.label, {
-    minTextLength: creativePage.minTextLength,
-    requiredSelector: ".creative-topic-file-content .file-reader"
-  });
-  await settle();
-
-  const geometry = await win.webContents.executeJavaScript(`
-    (() => {
-      const root = document.documentElement;
-      const body = document.body;
-      const container = document.querySelector('.creative-topic-file-content');
-      const preview = container?.querySelector('.file-reader');
-      const prose = preview?.querySelector('.document-block > :is(h1, h2, h3, h4, h5, h6, p, ul, ol, blockquote, hr)');
-      const rect = (element) => {
-        if (!(element instanceof Element)) return null;
-        const value = element.getBoundingClientRect();
-        return Object.fromEntries(['left', 'top', 'right', 'bottom', 'width', 'height'].map(
-          (key) => [key, Math.round(value[key] * 10) / 10]
-        ));
-      };
-      return {
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        container: rect(container),
-        preview: rect(preview),
-        prose: rect(prose),
-        previewMaxWidth: preview instanceof Element ? getComputedStyle(preview).maxWidth : null,
-        proseMaxWidth: prose instanceof Element ? getComputedStyle(prose).maxWidth : null,
-        horizontalOverflow: Math.max(root.scrollWidth - root.clientWidth, body.scrollWidth - body.clientWidth)
-      };
-    })()
-  `);
-
-  const expectedPreviewWidth = geometry.container ? Math.min(geometry.container.width, 1120) : 0;
-  const checks = {
-    previewVisible: Boolean(geometry.preview && geometry.preview.width > 0 && geometry.preview.height > 0),
-    canvasWidth: Boolean(geometry.preview && Math.abs(geometry.preview.width - expectedPreviewWidth) <= 2),
-    proseWidth: geometry.proseMaxWidth === "920px" && Boolean(geometry.prose && geometry.prose.width <= 920.5),
-    previewInsideContainer: Boolean(
-      geometry.preview
-      && geometry.container
-      && geometry.preview.left >= geometry.container.left - 1
-      && geometry.preview.right <= geometry.container.right + 1
-    ),
-    noHorizontalOverflow: geometry.horizontalOverflow <= 2
-  };
-  const ok = Object.values(checks).every(Boolean);
-  const image = await win.webContents.capturePage();
-  const file = path.join(outputRoot, "state-creative-reader-2048.png");
-  fs.writeFileSync(file, image.toPNG());
-  const item = {
-    id: "creative-reader-2048",
-    page: "creative",
-    label: creativePage.label,
-    description: "Creative topic file preview uses the wide canvas and readable prose measure",
-    file: path.relative(appRoot, file),
-    width: geometry.viewport.width,
-    height: geometry.viewport.height,
-    zoom: 1,
-    ok,
-    reason: ok
-      ? null
-      : "creative reader checks failed: " + Object.entries(checks).filter(([, passed]) => !passed).map(([name]) => name).join(", "),
-    checks,
-    geometry
-  };
-  report.stateSnapshots.push(item);
-  if (!ok) report.failures.push(item);
-}
-
 async function captureCompanionLayoutContracts(win, report) {
   await win.webContents.executeJavaScript("window.openmind.__setVisualMode('normal')");
   win.webContents.setZoomFactor(1);
   win.setSize(1600, 900);
   await settle();
-  await clickNav(win, "创作");
-  await waitForReady(win, "创作", { minTextLength: 100, requiredSelector: ".creative-workspace-page" });
+  await clickNav(win, "每日简报");
+  await waitForReady(win, "每日简报", { minTextLength: 100, requiredSelector: ".brief-library-page" });
   await ensureDefaultCompanion(win);
   await resetCompanionWidth(win);
   await ensureExpandedNavigation(win);
@@ -399,7 +304,9 @@ async function captureCompanionLayoutContracts(win, report) {
   await ensureDefaultCompanion(win);
   await resetCompanionWidth(win);
 
-  win.setSize(1280, 800);
+  // Daily Brief uses a 400px single-pane workspace; exercise its actual overlay
+  // breakpoint rather than the retired writing workspace's 760px split pane.
+  win.setSize(1000, 800);
   await settle();
   await ensureDefaultCompanion(win);
   await resetCompanionWidth(win);
@@ -409,19 +316,19 @@ async function captureCompanionLayoutContracts(win, report) {
   await captureCompanionGeometryState(
     win,
     report,
-    "companion-resize-1280",
+    "companion-resize-1000",
     "overlay",
     "Overlay AI companion expands to its available bound without shrinking the workspace below its contract",
     {
       widthExpanded: Boolean(afterResize.sidebar && beforeResize.sidebar && afterResize.sidebar.width > beforeResize.sidebar.width),
-      workspacePreserved: afterResize.stageTrackWidth >= 759.5,
+      workspacePreserved: afterResize.stageTrackWidth >= 399.5,
       beforeResize,
       afterResize
     }
   );
   await resetCompanionWidth(win);
 
-  win.setSize(2048, 1100);
+  win.setSize(1536, 1100);
   win.webContents.setZoomFactor(1.5);
   await settle();
   await ensureDefaultCompanion(win);
@@ -433,16 +340,16 @@ async function captureCompanionLayoutContracts(win, report) {
   await captureCompanionGeometryState(
     win,
     report,
-    "companion-wide-2048-zoom150",
+    "companion-wide-1536-zoom150",
     "overlay",
-    "A visually large 150% window keeps the workspace beside a proportional wide AI overlay",
+    "A 150% window keeps the brief workspace beside a proportional AI overlay",
     {
       overlayPresentation: highDpiWideGeometry.sidebarClass.includes("layout-companion-overlay"),
       effectiveViewportAboveCanvas: highDpiWideGeometry.viewport.width > 840,
       widthExpanded: Boolean(highDpiWideGeometry.sidebar && beforeHighDpiResize.sidebar && highDpiWideGeometry.sidebar.width > beforeHighDpiResize.sidebar.width),
       resizedPreferencePreserved: highDpiWideGeometry.layoutRatio !== null && highDpiWideGeometry.layoutRatio >= 1 / 3,
       wideWidthWithinViewport: Boolean(highDpiWideGeometry.sidebar && highDpiWideGeometry.sidebar.right <= highDpiWideGeometry.viewport.width + 2),
-      workspacePreserved: highDpiWideGeometry.stageTrackWidth >= 759.5,
+      workspacePreserved: highDpiWideGeometry.stageTrackWidth >= 399.5,
       requestedZoom: win.webContents.getZoomFactor(),
       beforeResize: beforeHighDpiResize,
       afterResize: highDpiWideGeometry
@@ -506,8 +413,8 @@ async function captureGlobalSearchLayerContract(win, report) {
   win.webContents.setZoomFactor(1);
   win.setSize(1280, 800);
   await settle();
-  await clickNav(win, "创作");
-  await waitForReady(win, "创作", { minTextLength: 100, requiredSelector: ".creative-workspace-page" });
+  await clickNav(win, "每日简报");
+  await waitForReady(win, "每日简报", { minTextLength: 100, requiredSelector: ".brief-library-page" });
   await ensureDefaultCompanion(win);
 
   await win.webContents.executeJavaScript(`
@@ -594,7 +501,7 @@ async function captureGlobalSearchLayerContract(win, report) {
   const ok = Object.values(checks).every(Boolean);
   const item = {
     id: "global-search-over-ai-responsive",
-    label: "创作",
+    label: "每日简报",
     description: "Global search stays above compact and late-mounted canvas AI companions",
     file: path.relative(appRoot, file),
     width: 840,
@@ -974,7 +881,7 @@ async function captureCompanionGeometryState(win, report, id, expected, descript
   fs.writeFileSync(file, image.toPNG());
   const item = {
     id,
-    label: "创作",
+    label: "每日简报",
     description,
     file: path.relative(appRoot, file),
     width: geometry.viewport.width,
@@ -1088,131 +995,9 @@ async function captureResponsiveGapContracts(win, report) {
   });
 
   await exitSettings(win);
-  await setCssViewportWidth(win, 720, 600);
-  await clickNav(win, "创作");
-  await waitForReady(win, "创作", { minTextLength: 100, requiredSelector: ".creative-workspace-page" });
-  const compactListReopened = await win.webContents.executeJavaScript(`
-    (() => {
-      const button = document.querySelector('button[aria-label="展开内容列表"]');
-      if (!(button instanceof HTMLButtonElement)) return false;
-      button.click();
-      return true;
-    })()
-  `);
-  if (compactListReopened) await settle();
-  const projectOpened = await win.webContents.executeJavaScript(`
-    (() => {
-      const button = [...document.querySelectorAll('.creative-item-row')].find((item) => item.textContent.includes('Windows/WSL'));
-      if (!(button instanceof HTMLButtonElement)) return false;
-      button.click();
-      return true;
-    })()
-  `);
-  if (!projectOpened) throw new Error("Creative ready visual fixture was not found.");
-  await waitForSelectorExists(win, ".creative-detail-transition.stage-ready .creative-editor");
-
-  for (const width of [720, 900, 1280]) {
-    await setCssViewportWidth(win, width, 600);
-    await settle();
-    const geometry = await win.webContents.executeJavaScript(`
-      (() => {
-        const flow = document.querySelector('.creative-detail-transition.stage-ready');
-        const publish = flow?.querySelector('.publish-form');
-        const exportButton = [...(flow?.querySelectorAll('button') || [])].find((button) => button.textContent.includes('立即导出'));
-        const editor = flow?.querySelector('.creative-editor');
-        const editorInput = flow?.querySelector('[aria-label="Markdown 草稿编辑器"]');
-        const stats = flow?.querySelector('.writing-stats');
-        const focusable = flow ? [...flow.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]')].filter((element) => element.tabIndex >= 0 && getComputedStyle(element).display !== 'none' && getComputedStyle(element).visibility !== 'hidden') : [];
-        const intersects = (element) => {
-          if (!(element instanceof Element) || !(flow instanceof Element)) return false;
-          const box = element.getBoundingClientRect();
-          const owner = flow.getBoundingClientRect();
-          return box.bottom > owner.top + 1 && box.top < owner.bottom - 1;
-        };
-        const reach = (element) => {
-          if (!(element instanceof Element)) return false;
-          element.scrollIntoView({ block: 'center' });
-          return intersects(element);
-        };
-        const publishReachable = reach(publish);
-        const exportReachable = reach(exportButton);
-        const editorReachable = reach(editorInput || editor);
-        const statsReachable = reach(stats);
-        const nestedScrollOwners = flow ? [...flow.querySelectorAll('*')].filter((element) => {
-          if (!(element instanceof HTMLElement) || element instanceof HTMLTextAreaElement) return false;
-          const style = getComputedStyle(element);
-          return ['auto', 'scroll'].includes(style.overflowY) && element.scrollHeight > element.clientHeight + 2;
-        }).map((element) => element.className || element.tagName) : [];
-        const rect = (element) => element instanceof Element ? Object.fromEntries(['top','right','bottom','left','width','height'].map((key) => [key, Math.round(element.getBoundingClientRect()[key] * 10) / 10])) : null;
-        return {
-          viewport: { width: window.innerWidth, height: window.innerHeight },
-          flow: rect(flow),
-          publish: rect(publish),
-          editor: rect(editor),
-          stats: rect(stats),
-          flowClientHeight: flow instanceof HTMLElement ? flow.clientHeight : 0,
-          flowScrollHeight: flow instanceof HTMLElement ? flow.scrollHeight : 0,
-          flowOverflowY: flow instanceof Element ? getComputedStyle(flow).overflowY : null,
-          nestedScrollOwners,
-          focusableCount: focusable.length,
-          publishReachable,
-          exportReachable,
-          editorReachable,
-          statsReachable
-        };
-      })()
-    `);
-    const tabFocusAudit = await auditTabFocusReachability(win, ".creative-detail-transition.stage-ready");
-    geometry.tabFocusAudit = tabFocusAudit;
-    await recordContractState(win, report, `creative-ready-${width}x600`, "创作", `Ready-stage publish form, editor, and stats share one reachable flow at ${width}x600`, geometry, {
-      editorHasHeight: Boolean(geometry.editor && geometry.editor.height > 0),
-      explicitScrollOwner: ["auto", "scroll"].includes(geometry.flowOverflowY),
-      noNestedScrollTrap: geometry.nestedScrollOwners.length === 0,
-      focusTargetsPresent: geometry.focusableCount > 0,
-      tabFocusReachable: tabFocusAudit.allReachable && tabFocusAudit.exitedOwner && tabFocusAudit.visited >= Math.min(8, geometry.focusableCount),
-      publishReachable: geometry.publishReachable,
-      exportReachable: geometry.exportReachable,
-      editorReachable: geometry.editorReachable,
-      statsReachable: geometry.statsReachable
-    });
-  }
-
-  for (const [width, expectedMode] of [[1479, "single"], [1480, "single"], [1481, "split"]]) {
-    await setCssViewportWidth(win, width, 720);
-    await settle();
-    const breakpointGeometry = await win.webContents.executeJavaScript(`
-      (() => {
-        const workspace = document.querySelector('.creative-workspace');
-        const list = workspace?.querySelector(':scope > .creative-list-pane');
-        const splitter = workspace?.querySelector(':scope > .column-splitter');
-        const detail = workspace?.querySelector(':scope > .creative-main-pane');
-        const visible = (element) => element instanceof Element && getComputedStyle(element).display !== 'none' && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0;
-        return {
-          viewport: { width: window.innerWidth, height: window.innerHeight },
-          classes: workspace?.className || '',
-          columns: workspace instanceof Element ? getComputedStyle(workspace).gridTemplateColumns : null,
-          listVisible: visible(list),
-          splitterVisible: visible(splitter),
-          detailVisible: visible(detail)
-        };
-      })()
-    `);
-    await recordContractState(win, report, `creative-workspace-boundary-${width}`, "创作", `Creative workspace follows the shared ${expectedMode} state at ${width}px`, breakpointGeometry, expectedMode === "single" ? {
-      compactClassOwnedByReact: breakpointGeometry.classes.includes("compact-detail-open"),
-      listReplaced: !breakpointGeometry.listVisible,
-      splitterRemoved: !breakpointGeometry.splitterVisible,
-      detailVisible: breakpointGeometry.detailVisible
-    } : {
-      noCompactClass: !breakpointGeometry.classes.includes("compact-"),
-      listVisible: breakpointGeometry.listVisible,
-      splitterVisible: breakpointGeometry.splitterVisible,
-      detailVisible: breakpointGeometry.detailVisible
-    });
-  }
-
   await setCssViewportWidth(win, 841, 720);
   await clickNav(win, "新建任务");
-  await waitForReady(win, "新建任务", { minTextLength: 90, requiredSelector: ".ai-workbench" });
+  await waitForReady(win, "新建任务", { minTextLength: 30, requiredSelector: ".ai-workbench" });
   const historyOpened = await win.webContents.executeJavaScript(`
     (() => {
       const button = document.querySelector('.history-toggle');
@@ -1484,46 +1269,7 @@ async function captureResponsiveGapContracts(win, report) {
 
   await clickNav(win, "设置");
   await waitForReady(win, "设置", { requiredSelector: ".settings-page", settingsMode: true });
-  await clickSettingsSection(win, "工作流");
-  const confirmOpened = await win.webContents.executeJavaScript(`
-    (() => {
-      const button = [...document.querySelectorAll('.settings-card button')].find((item) => item.textContent.includes('恢复默认值'));
-      if (!(button instanceof HTMLButtonElement)) return false;
-      button.click();
-      return true;
-    })()
-  `);
-  if (!confirmOpened) throw new Error("Workflow confirmation fixture was not reachable.");
-  await waitForSelector(win, '[data-ui-control="dialog"][role="alertdialog"]');
-  const confirmGeometry = await win.webContents.executeJavaScript(`
-    (() => {
-      const card = document.querySelector('[data-ui-control="dialog"][role="alertdialog"]');
-      const title = card?.querySelector('.ui-dialog-heading h2');
-      const description = card?.querySelector('.ui-dialog-heading p');
-      const body = card?.querySelector('.ui-dialog-header');
-      if (title) title.textContent = '长标题' + '标题内容'.repeat(100);
-      if (description) description.textContent = Array.from({ length: 100 }, (_, index) => '第 ' + (index + 1) + ' 行确认内容').join('\\n');
-      const actions = card?.querySelector('.ui-dialog-footer');
-      const box = card?.getBoundingClientRect();
-      const actionBox = actions?.getBoundingClientRect();
-      return {
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        card: box ? { top: box.top, right: box.right, bottom: box.bottom, left: box.left, width: box.width, height: box.height } : null,
-        bodyClientHeight: body instanceof HTMLElement ? body.clientHeight : 0,
-        bodyScrollHeight: body instanceof HTMLElement ? body.scrollHeight : 0,
-        actionsVisible: Boolean(actionBox && actionBox.top >= box.top && actionBox.bottom <= box.bottom && actionBox.bottom <= window.innerHeight),
-        cardInsideViewport: Boolean(box && box.top >= 0 && box.bottom <= window.innerHeight)
-      };
-    })()
-  `);
-  await recordContractState(win, report, "confirm-long-content-720x600", "设置", "Long confirmation title/body scroll while actions remain visible", confirmGeometry, {
-    cardInsideViewport: confirmGeometry.cardInsideViewport,
-    bodyScrollable: confirmGeometry.bodyScrollHeight > confirmGeometry.bodyClientHeight,
-    actionsVisible: confirmGeometry.actionsVisible
-  });
-  await win.webContents.executeJavaScript(`document.querySelector('[role="alertdialog"] .ui-dialog-footer button')?.click()`);
-  await waitForSelectorToDisappear(win, '[data-ui-control="dialog"][role="alertdialog"]');
-
+  // Long generic confirmations remain covered by the shared ConfirmDialog catalog.
   await clickSettingsSection(win, "AI 与模型");
   await waitForText(win, "Provider 列表");
   const providerMenuOpened = await win.webContents.executeJavaScript(`
@@ -1679,7 +1425,7 @@ async function captureResponsiveGapContracts(win, report) {
 
   await setCssViewportWidth(win, 1280, 720);
   await clickNav(win, "新建任务");
-  await waitForReady(win, "新建任务", { minTextLength: 90, requiredSelector: ".ai-workbench" });
+  await waitForReady(win, "新建任务", { minTextLength: 30, requiredSelector: ".ai-workbench" });
   const openedCompletedSessionForPreview = await win.webContents.executeJavaScript(`
     (() => {
       const button = [...document.querySelectorAll('.nav-recent-item')].find((item) => item.textContent.includes('长会话性能验证'));
@@ -1773,7 +1519,7 @@ async function captureCoarsePointerRecentActions(win, report) {
     await debuggerApi.sendCommand("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
     await setCssViewportWidth(win, 1280, 720);
     await clickNav(win, "新建任务");
-    await waitForReady(win, "新建任务", { minTextLength: 90, requiredSelector: ".ai-workbench" });
+    await waitForReady(win, "新建任务", { minTextLength: 30, requiredSelector: ".ai-workbench" });
     await settle();
     const geometry = await win.webContents.executeJavaScript(`
       (() => {
@@ -1928,7 +1674,7 @@ async function exitSettings(win) {
 
 async function waitForReady(win, label, options = {}) {
   const expectedSettingsMode = options.settingsMode === true;
-  const minTextLength = options.minTextLength ?? (expectedSettingsMode ? 60 : 200);
+  const minTextLength = options.minTextLength ?? (expectedSettingsMode ? 60 : label === "新建任务" ? 30 : 200);
   const requiredSelector = options.requiredSelector || "body";
   const expectedCompanionSelector = options.expectedCompanionSelector || null;
   let lastState = null;

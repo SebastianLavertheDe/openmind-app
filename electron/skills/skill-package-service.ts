@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { isRetiredBuiltinCandidate, RETIRED_SKILL_REASON } from "../../shared/retired-skills";
 import fs from "node:fs";
 import path from "node:path";
 import type { SkillManifest } from "../../shared/skill-manifest-schema";
@@ -525,8 +526,22 @@ export class SkillPackageService {
   }
 
   /** User enablement is independent from package integrity and installation. */
+  isRetired(record: InstalledSkillRecord): boolean {
+    if (!isRetiredBuiltinCandidate(record)) return false;
+    if (!this.appPaths.skills) return true;
+    // Explicitly retained user copies keep their independent ownership.
+    try {
+      const root = fs.realpathSync(path.resolve(this.appPaths.skills, "../.."));
+      const rootKey = crypto.createHash("sha256").update(root).digest("hex").slice(0, 24);
+      const file = path.join(this.appPaths.catalog, rootKey, "user-installations.json");
+      const retained: unknown = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : [];
+      return !Array.isArray(retained) || !retained.includes(record.key);
+    }
+    catch { return true; }
+  }
+
   isEnabled(record: InstalledSkillRecord): boolean {
-    return this.preferences.isEnabled(record.key);
+    return !this.isRetired(record) && this.preferences.isEnabled(record.key);
   }
 
   /** Renderer-safe record with usability derived from current package bytes. */
@@ -539,7 +554,7 @@ export class SkillPackageService {
   }
 
   listInstalledViews(): InstalledSkillView[] {
-    return this.listInstalled().map((record) => ({
+    return this.listInstalled().filter(record => !this.isRetired(record)).map((record) => ({
       ...record,
       enabled: this.isEnabled(record),
       // This catalog field is informational only. Execution admission always
@@ -555,7 +570,7 @@ export class SkillPackageService {
    * Agent packages, which belong only to frozen AI session snapshots.
    */
   listInstalledRunnableViews(): InstalledRunnableSkillView[] {
-    return this.listInstalled().flatMap((record) => {
+    return this.listInstalled().filter(record => !this.isRetired(record)).flatMap((record) => {
       try {
         const inspection = this.inspectInstalledCopyForDisplay(record);
         const manifest = inspection.manifest;
@@ -594,6 +609,7 @@ export class SkillPackageService {
         `Installed Skill 不存在或已被替换：${key}@${digest}`
       );
     }
+    if (enabled && this.isRetired(target)) throw new Error(RETIRED_SKILL_REASON);
     this.preferences.setEnabled(target.key, enabled);
     return target;
   }

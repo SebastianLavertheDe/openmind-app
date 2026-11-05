@@ -93,32 +93,6 @@ function listDatedFiles(relativeDirectory: string, date: string, suffix?: string
   );
 }
 
-function latestCreativeTopics(date: string): ContentFileEntry[] {
-  const formatted = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
-  const root = ensureInsideRepo(path.join("openmind", "creative"));
-  const matches: ContentFileEntry[] = [];
-
-  function walk(directory: string, depth = 0): void {
-    if (depth > 4 || !fs.existsSync(directory)) return;
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-      const target = path.join(directory, entry.name);
-      if (entry.isDirectory()) walk(target, depth + 1);
-      if (entry.isFile() && entry.name.includes(formatted) && entry.name.endsWith(".md")) {
-        const stat = fs.statSync(target);
-        matches.push({
-          name: entry.name,
-          path: resolveOpenmindRoot() ? relativeToOpenmind(target) : path.relative(findRepoRoot(), target),
-          size: stat.size,
-          modifiedAt: stat.mtime.toISOString()
-        });
-      }
-    }
-  }
-
-  walk(root);
-  return matches.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
-}
-
 function getOverview(date: string): ContentOverview {
   const articles = listArticleFiles(date);
   const xPosts = listXPostFiles(date);
@@ -128,7 +102,7 @@ function getOverview(date: string): ContentOverview {
   );
   const summary = listDatedFiles(path.join("openmind", "daily-summary"), date, ".md");
   const topics = listDatedFiles(path.join("openmind", "daily-topic"), date, ".md");
-  const creative = latestCreativeTopics(date);
+
   const posts = Math.max(countPosts(date), xPosts.length);
 
   return {
@@ -139,15 +113,15 @@ function getOverview(date: string): ContentOverview {
       posts,
       reddit: reddit.length,
       summaries: summary.length,
-      topics: topics.length + creative.length
+      topics: topics.length
     },
     pipeline: [
       { id: "collect", label: messages.pipeline.collect, complete: articles.length + posts + reddit.length > 0 },
       { id: "summary", label: messages.pipeline.summary, complete: summary.length > 0 },
-      { id: "topic", label: messages.pipeline.topic, complete: topics.length + creative.length > 0 },
-      { id: "writing", label: messages.pipeline.writing, complete: creative.some((file) => file.name.includes("package")) }
+      { id: "topic", label: messages.pipeline.topic, complete: topics.length > 0 },
+
     ],
-    recent: [...summary, ...topics, ...creative, ...articles.slice(0, 3), ...xPosts.slice(0, 2), ...reddit.slice(0, 2)]
+    recent: [...summary, ...topics, ...articles.slice(0, 3), ...xPosts.slice(0, 2), ...reddit.slice(0, 2)]
       .sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt))
       .slice(0, 7)
   };
@@ -178,9 +152,6 @@ function getContent(kind: string, date: string): Array<ContentFileEntry & { kind
         (name) => name.endsWith(".md") || name.endsWith(".json") || name.endsWith(".html")
       ).map((file) => ({ ...file, kind: item }))
     );
-  }
-  if (kind === "all" || kind === "topics") {
-    files = files.concat(latestCreativeTopics(date).map((file) => ({ ...file, kind: "topics" })));
   }
   return files.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
 }
@@ -217,7 +188,7 @@ export {
   listArticleFiles,
   listXPostFiles,
   listDatedFiles,
-  latestCreativeTopics,
+
   getOverview,
   getContent,
   readContent,

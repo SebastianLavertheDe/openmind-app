@@ -4,15 +4,12 @@ import path from "node:path";
 import { z, type ZodType } from "zod";
 import { writeJsonAtomic as writeJsonAtomicImpl } from "../lib/fs-utils";
 import type * as ContentLib from "../lib/content";
-import type * as CreativeLib from "../lib/creative";
 import { ContentKindSchema, type ContentKind } from "../../shared/contracts";
 import { LEGACY_KIND_MATCHERS } from "../../shared/content-kinds";
 import { messages } from "../../shared/messages";
 
 export type ContentApi = Pick<typeof ContentLib, "getContent" | "readContent">;
 export type ContentServiceApi = Pick<typeof ContentLib, "getContent" | "readContent" | "readContentAsync" | "getOverview" | "writeContent">;
-export type CreativeApi = Pick<typeof CreativeLib, "getCreativeTopics" | "listCreativeProjects">;
-export type CreativeServiceApi = typeof CreativeLib;
 
 export type LegacyContentEntry = {
   path: string;
@@ -23,8 +20,6 @@ export type LegacyContentEntry = {
   size?: number;
   modifiedAt?: string;
 };
-
-export type LegacyCreativeProject = { id?: string; dir: string; topic: string; stage: string; completion: number; date?: string };
 
 export const IndexedContentSchema = z.object({
   schemaVersion: z.number().default(1),

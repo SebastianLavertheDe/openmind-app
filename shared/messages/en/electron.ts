@@ -14,14 +14,6 @@ export const electronMessages = {
     ai: { workerExited: (code: number | null) => `The AI scheduler exited with code ${code ?? "unknown"}` },
     ipc: { invalidContract: "The request parameters do not match the API contract.", registryMismatch: "The channels in ipcHandlers and IPC_INVOKE_REGISTRY do not match." },
     preferences: { invalidSetting: (key: string) => `The setting ${key} is invalid.`, invalidUserTags: "The userTags setting is invalid." },
-    creative: {
-      invalidStage: (stage: string) => `Invalid stage: ${stage}`, invalidStageTransition: (from: string, to: string) => `You cannot move directly from ${from} to ${to}.`,
-      reviewNotApproved: "The review must be approved before moving to Ready to publish.", publishNotReady: "Configure a platform and export the draft before marking it as published.",
-      duplicateStageProject: "A project with this name already exists in the target stage.", invalidCreateDate: "The creation date is invalid.", emptyTopicTitle: "The topic title cannot be empty.",
-      invalidProjectDir: "The creative project folder is invalid.",
-      truncatedSaveBlocked: (file: string) => `${file} exceeds 512 KB on disk, so the editor loaded only part of it. Saving it directly would lose data. Edit and save it in an external editor.`,
-      invalidVersionPath: "The version path is invalid.", markdownOnly: "Only Markdown files in the project root folder can be saved."
-    },
     skill: {
       alreadyRunning: (skillId: string) => `Skill is already running: ${skillId}`, stopped: (name: string) => `Skill stopped: ${name}`,
       failed: (code: number | null, name: string, detail: string) => `Skill failed (exit code ${code ?? "?"}): ${name}\n${detail}`
@@ -36,11 +28,11 @@ export const electronMessages = {
     }
   },
   dialogs: { importOpml: "Import OPML", selectProjectFile: "Select a project file", selectOpenmindFile: "Select an openmind file", exportMarkdown: "Export Markdown" },
-  pipeline: { collect: "Content collection", summary: "Daily summary", topic: "Topic generation", writing: "Writing materials" },
+  pipeline: { collect: "Content collection", summary: "Daily summary", topic: "Topic generation", },
   source: { localFile: "Local file", webPage: "Web page", customFrequencyDaily: "Daily", frequencyPipeline: "Daily pipeline", collectorInterrupted: "Collection was interrupted. Please retry." },
-  brief: { recommendation: (title: string) => `Gather materials about “${title}” and start drafting.` },
+  brief: { },
   provider: { nativeLabel: (label: string) => `${label} · Local`, wslLabel: (label: string, distro: string) => `${label} · WSL ${distro}` },
-  settings: { defaultPlatform: "WeChat Official Account" },
+  settings: { },
   model: { contextWindowUnknown: "Unknown" },
   skillInput: { optionalDate: "Optional date in YYYYMMDD format" }
 } satisfies TranslationOf<typeof zhCN>;

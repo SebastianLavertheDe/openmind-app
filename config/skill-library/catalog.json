@@ -831,78 +831,6 @@
       }
     },
     {
-      "id": "ai-media-topic-selector",
-      "version": "1.0.0",
-      "category": "research",
-      "packageDirectory": "ai-media-topic-selector",
-      "executionKind": "agent",
-      "discoverable": true,
-      "display": {
-        "zh-CN": {
-          "title": "选题助手",
-          "subtitle": "根据用户偏好筛选、排序并说明推荐理由。"
-        },
-        "en": {
-          "title": "Topic assistant",
-          "subtitle": "Select and rank topics using your saved preferences."
-        }
-      }
-    },
-    {
-      "id": "asset-collector",
-      "version": "1.0.0",
-      "category": "research",
-      "packageDirectory": "asset-collector",
-      "executionKind": "process",
-      "discoverable": false,
-      "display": {
-        "zh-CN": {
-          "title": "素材收集器",
-          "subtitle": "从创作包中提取来源证据、截图和素材需求。"
-        },
-        "en": {
-          "title": "asset-collector",
-          "subtitle": "从创作包中提取来源证据、截图和素材需求。"
-        }
-      }
-    },
-    {
-      "id": "collect-interest-markers",
-      "version": "1.0.0",
-      "category": "research",
-      "packageDirectory": "collect-interest-markers",
-      "executionKind": "process",
-      "discoverable": false,
-      "display": {
-        "zh-CN": {
-          "title": "兴趣标记整理",
-          "subtitle": "将 daily-summary 中的兴趣标记收集到创作兴趣收集箱。"
-        },
-        "en": {
-          "title": "collect-interest-markers",
-          "subtitle": "将 daily-summary 中的兴趣标记收集到创作兴趣收集箱。"
-        }
-      }
-    },
-    {
-      "id": "creative-writing",
-      "version": "1.0.0",
-      "category": "writing",
-      "packageDirectory": "creative-writing",
-      "executionKind": "agent",
-      "discoverable": true,
-      "display": {
-        "zh-CN": {
-          "title": "多平台内容生产助手",
-          "subtitle": "在 AI 控制台中由 Claude Code 或 Codex CLI 读取本地素材并生成多平台内容生产包。"
-        },
-        "en": {
-          "title": "creative-writing",
-          "subtitle": "在 AI 控制台中由 Claude Code 或 Codex CLI 读取本地素材并生成多平台内容生产包。"
-        }
-      }
-    },
-    {
       "id": "daily-article-summarizer",
       "version": "1.0.0",
       "category": "research",
@@ -935,24 +863,6 @@
         "en": {
           "title": "Daily topic selection",
           "subtitle": "Select and rank topics using your saved preferences."
-        }
-      }
-    },
-    {
-      "id": "daily-writing-orchestrator",
-      "version": "1.0.0",
-      "category": "writing",
-      "packageDirectory": "daily-writing-orchestrator",
-      "executionKind": "process",
-      "discoverable": false,
-      "display": {
-        "zh-CN": {
-          "title": "写作素材包",
-          "subtitle": "从每日选题中选择主题并生成标准创作素材包。"
-        },
-        "en": {
-          "title": "daily-writing-orchestrator",
-          "subtitle": "从每日选题中选择主题并生成标准创作素材包。"
         }
       }
     },

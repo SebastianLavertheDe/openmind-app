@@ -3,7 +3,7 @@
  *
  * Produces a deterministic, anonymised `openmind` directory tree under a temp
  * dir, for use by path/resolver/migration tests. Per the plan (§19.2) it
- * exercises: current top-level dirs, Chinese creative stage dirs, date dirs,
+ * exercises: current top-level dirs, preserved legacy Chinese stage dirs, date dirs,
  * hidden dirs, user-unknown dirs, empty dirs, many files, symlink/junction,
  * read-only file, CJK/space/emoji/long names, and a damaged/partial layout.
  *
@@ -21,11 +21,11 @@ export interface BuiltFixture {
   readonly outside: string;
 }
 
-export function buildAnonymousOpenmindFixture(prefix = "openmind-fixture-"): BuiltFixture {
+export function buildAnonymousOpenmindFixture(prefix = "openmind-fixture-", options: { legacyCreative?: boolean } = {}): BuiltFixture {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), prefix + "outside-"));
   try {
-    buildInto(root, outside);
+    buildInto(root, outside, options.legacyCreative === true);
     return { root, outside };
   } catch (e) {
     fs.rmSync(root, { recursive: true, force: true });
@@ -34,7 +34,7 @@ export function buildAnonymousOpenmindFixture(prefix = "openmind-fixture-"): Bui
   }
 }
 
-function buildInto(root: string, outside: string): void {
+function buildInto(root: string, outside: string, legacyCreative: boolean): void {
   const join = (...p: string[]) => path.join(root, ...p);
   const w = (rel: string, content: string) => {
     const full = join(...rel.split("/"));
@@ -47,7 +47,8 @@ function buildInto(root: string, outside: string): void {
   w("article/20260805/02_another.md", "# Another anonymised article\n");
   w("article/20260804/old.md", "# older\n");
 
-  // Chinese creative stage dirs — names MUST round-trip verbatim.
+  // Upgrade compatibility only: retired workspace data MUST round-trip verbatim.
+  if (legacyCreative) {
   w(
     "creative/01-内容生产/文稿库/02-制作中/example-pkg/draft.md",
     "# 草稿\n"
@@ -60,6 +61,10 @@ function buildInto(root: string, outside: string): void {
     "creative/01-内容生产/选题管理/ai_topic_2026-08-05.md",
     "# AI 选题\n"
   );
+    w("creative/01-内容生产/文稿库/02-制作中/example-pkg/versions/v001.md", "# 历史版本\n");
+    w("creative/01-内容生产/文稿库/02-制作中/example-pkg/assets/notes.md", "素材记录\n");
+    w("creative/01-内容生产/文稿库/02-制作中/example-pkg/releases.jsonl", "{\"status\":\"published\"}\n");
+  }
 
   w("daily-summary/20260805_daily_summary.md", "# 日报\n");
   w("daily-topic/20260805_daily_topic.md", "# 选题\n");

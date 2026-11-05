@@ -39,7 +39,6 @@ not read Skill installation directories, caches, logs or a cctools ancestor.
 | x-following-fetcher | `post/YYYYMMDD/` |
 | reddit-fetcher | `reddit/YYYYMMDD/`, RunStore records |
 | daily-topic-selector | `daily-topic/YYYYMMDD_*.md` |
-| ai-media-topic-selector | `creative/` topic files with date |
 | rss-to-summary-workflow | structured Workflow Run records |
 
 ## After running the script

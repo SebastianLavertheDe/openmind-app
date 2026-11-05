@@ -53,9 +53,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks, upgrades and read-only Skill previews.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(163);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(163);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(163);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(149);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(149);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(149);
   });
 
   it("does not expose or register the removed Skill copy operation", () => {
@@ -290,22 +290,6 @@ describe("handler forwarding — 内容类", () => {
   it("writeContent 校验内容大小(超 5MB 抛错)", () => {
     const ctx = makeCtx();
     expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.writeContent, "x.md", "x".repeat(5 * 1024 * 1024 + 1))).toThrow();
-  });
-});
-
-describe("handler forwarding — 创作类", () => {
-  it("getCreativeProject 转发 filePath", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.getCreativeProject, "proj.md");
-    expect(spy).toHaveBeenCalledWith("getCreativeProject", "proj.md");
-  });
-
-  it("createCreativeProject 解析 CreativeCreateInput", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.createCreativeProject, { date: "20260708", topic: { title: "测试" } });
-    expect(spy).toHaveBeenCalledWith("createCreativeProject", expect.objectContaining({ date: "20260708", topic: expect.objectContaining({ title: "测试" }) }));
   });
 });
 
@@ -681,7 +665,7 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.setDefaultSkillsEnabled, "true")).toThrow();
     expect(worker.call).not.toHaveBeenCalled();
     expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.setDefaultSkillsEnabled, true)).toBe(true);
-    expect(calls).toEqual(["default-skills-stop", ...Array(15).fill("install"), "refresh-skills", "default-skills-set"]);
+    expect(calls).toEqual(["default-skills-stop", ...Array(10).fill("install"), "refresh-skills", "default-skills-set"]);
     expect(setEnabled).toHaveBeenCalledWith("openmind-library/default", "a".repeat(64), true);
     expect(ctx.restartAiWorker).not.toHaveBeenCalled();
   });
@@ -893,83 +877,6 @@ describe("handler forwarding — preferences 类", () => {
     expect(ctx.syncWindowTheme).toHaveBeenCalledWith("light");
   });
 
-});
-
-describe("handler forwarding — 剩余创作类 passthrough", () => {
-  it("saveCreativeFile 解析 CreativeSaveInput", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.saveCreativeFile, { projectDir: "proj", file: "draft.md", content: "x" });
-    expect(spy).toHaveBeenCalledWith("saveCreativeFile", expect.objectContaining({ projectDir: "proj" }));
-  });
-
-  it("advanceCreativeProject 转发 filePath + stage", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.advanceCreativeProject, "p.md", "drafting");
-    expect(spy).toHaveBeenCalledWith("advanceProjectStage", "p.md", "drafting");
-  });
-
-  it("updateCreativeManifest 转发 filePath + patch", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.updateCreativeManifest, "p.md", { title: "t" });
-    expect(spy).toHaveBeenCalledWith("updateCreativeManifest", "p.md", expect.any(Object));
-  });
-
-  it("listCreativeVersions 转发 filePath + file", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.listCreativeVersions, "p.md", "draft.md");
-    expect(spy).toHaveBeenCalledWith("listCreativeVersions", "p.md", "draft.md");
-  });
-
-  it("copy/archive CreativeProject 各转发 filePath", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.copyCreativeProject, "p.md");
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.archiveCreativeProject, "p.md");
-    expect(spy).toHaveBeenCalledWith("copyCreativeProject", "p.md");
-    expect(spy).toHaveBeenCalledWith("archiveCreativeProject", "p.md");
-  });
-
-  it("getCreativeAnalytics 无参调用", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.getCreativeAnalytics);
-    expect(spy).toHaveBeenCalledWith("getCreativeAnalytics");
-  });
-
-  it("updateSource 解析 SourcePatch", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.updateSource, "src-1", { enabled: false });
-    expect(spy).toHaveBeenCalledWith("updateSource", "src-1", expect.objectContaining({ enabled: false }));
-  });
-
-  it("validates Reddit source deletion before forwarding only its ID", () => {
-    const { product, spy } = makeProductSpy();
-    const ctx = makeCtx({ ensureProductService: () => product as never });
-    invokeHandler(ctx, IPC_METHOD_CHANNELS.removeRedditSource, { id: "reddit-one" });
-    expect(spy).toHaveBeenCalledWith("removeRedditSource", "reddit-one");
-    spy.mockClear();
-    for (const input of [{ id: "" }, { id: "x".repeat(257) }, { id: "reddit-one", path: "/other" }, "reddit-one"]) {
-      expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.removeRedditSource, input)).toThrow();
-    }
-    expect(spy).not.toHaveBeenCalled();
-  });
-
-  it("detects an RSS address before saving through the shared source service", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-rss-ipc-"));
-    try {
-      const settings = await import("./lib/settings");
-      vi.spyOn(settings, "resolveOpenmindRoot").mockReturnValue(root);
-      const add = vi.spyOn(RssService.prototype, "add").mockResolvedValue({} as never);
-      const ctx = makeCtx({ ensureProductService: () => ({ listSources: () => [] }) as never, ensureSharedPythonRuntimeService: () => ({}) as never });
-      await invokeHandler(ctx, IPC_METHOD_CHANNELS.addRssSource, { name: "Feed", url: "https://example.com/rss" });
-      expect(add).toHaveBeenCalledWith({ name: "Feed", inputUrl: "https://example.com/rss", enabled: true });
-    } finally { fs.rmSync(root, { recursive: true, force: true }); }
-  });
 });
 
 describe("handler forwarding — 剩余 AI passthrough", () => {

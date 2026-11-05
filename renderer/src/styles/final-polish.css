@@ -20,7 +20,6 @@ button:not([data-ui-control]),
 
 .feature-page > :not(.ui-page-header),
 .ai-workbench,
-.creative-workspace,
 .automation-layout {
   animation: pane-fade 180ms ease-out both;
 }
@@ -76,7 +75,7 @@ details[open] > :not(summary) {
   transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, box-shadow 160ms ease !important;
 }
 
-body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-trigger:not([data-ui-control]), .run-activity time, .release-time, .version-row small, .analytics-metrics small, .global-toolbar-status, .brand-copy span, .automation-history > header span, .automation-artifacts-note, .automation-params-hint) {
+body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-trigger:not([data-ui-control]), .run-activity time, .global-toolbar-status, .brand-copy span, .automation-history > header span, .automation-artifacts-note, .automation-params-hint) {
   color: var(--muted);
 }
 
@@ -236,7 +235,6 @@ body :is(.eyebrow, .message-meta, .run-boundary, .tool-event > .ui-disclosure-tr
 
 /* selection 类：tab/筛选/导航项 —— 无 transform，由颜色过渡提供反馈 */
 .filter-tabs button:not([data-ui-control]):active:not(:disabled),
-.document-tabs button:not([data-ui-control]):active:not(:disabled),
 .item-list button:not([data-ui-control]):active:not(:disabled) {
   transform: none;
 }

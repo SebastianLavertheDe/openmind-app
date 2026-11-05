@@ -2,6 +2,8 @@
 
 Date: 2026-08-31
 
+2026-11-05 更新：旧 Creative 工作台及其生产链已退役；以下 Project 实现继续保留。旧文稿不自动导入项目，也不删除，仍可通过通用文件预览访问。
+
 Status: 核心闭环已实现，当前开发环境门禁通过；发布前需在 Node.js 22.12+ 复跑
 
 本文以当前源码为准，记录已经落地的产品边界、目录协议、执行隔离、首版限制和验收口径；不再把 Project 描述为“待实施方案”。
@@ -20,9 +22,9 @@ Project 是一套独立的资料驱动创作空间：
 
 以下边界已经落实到数据、路由和执行层：
 
-- Project 与 Creative 完全独立，不复用 Creative 的选题、草稿阶段、版本、审核、发布或分析流程。
-- Project Task 不转换为 Creative，Project 成品也不会进入 Creative。
-- Creative 内容不会自动出现在 Project；两者在全局搜索中使用不同的结果类型和跳转入口。
+- Project 使用独立的资料、任务和成品协议；旧创作选题、阶段、审核、版本和发布流程已移除。
+- Project Task 和成品只属于当前项目。
+- 旧创作文稿不自动出现在 Project；全局搜索只提供现存内容、项目、会话和技能类别。
 - Project 列表、资料、Task、消息记录和成品使用独立的文件数据源与 IPC。
 - Project 只复用底层 AI Provider、流式运行展示、Markdown 阅读器和编辑器原语。
 - Project 资料是普通 Markdown 文件，不做 chunk、embedding、向量库、语义索引或 `contextSnapshotId`。
@@ -459,7 +461,7 @@ Project 域不扩张 Creative IPC，也不使用通用 `writeContent` 修改 Pro
 - 资料标题、路径、URL 和类型过滤。
 - Task 标题搜索。
 - 成品标题搜索。
-- 全局搜索中的 `project` 与 `creative-project` 独立分组和跳转。
+- 全局搜索保留独立的 `project` 类别，移除 `creative-project` 类别。
 
 AI 搜索只使用 Provider 的普通文件工具，不建设 chunk index、embedding、向量库、语义召回或应用层自动选材。
 

@@ -27,6 +27,8 @@ const MaterialIndexSchema = z.array(ProjectMaterialSchema);
 type ActiveConversionLease = { key: string; markerPath: string; token: string };
 type ProjectDirectoryIdentity = { device: number; inode: number; birthtimeMs: number };
 
+export type MaterialImportOptions = { background?: boolean };
+
 export type ProjectMaterialConversionSource =
   | {
       type: "file";
@@ -118,6 +120,8 @@ export class ProjectMaterialService {
   private readonly converters: ProjectMaterialConverter[];
   private readonly activeConversions = new Set<string>();
   private readonly completedConversionTokens = new Set<string>();
+  private readonly conversionQueue: Array<() => Promise<ProjectMaterial>> = [];
+  private runningConversions = 0;
 
   constructor(
     private readonly paths: ProjectPathResolver,
@@ -159,20 +163,20 @@ export class ProjectMaterialService {
     });
   }
 
-  async addFiles(projectName: string, absolutePaths: readonly string[]): Promise<ProjectMaterial[]> {
+  async addFiles(projectName: string, absolutePaths: readonly string[], options: MaterialImportOptions = {}): Promise<ProjectMaterial[]> {
     if (absolutePaths.length === 0) return [];
     if (absolutePaths.length > 100) throw new Error("单次最多导入 100 份项目资料。");
     const results: ProjectMaterial[] = [];
-    for (const absolutePath of absolutePaths) results.push(await this.addFile(projectName, absolutePath));
+    for (const absolutePath of absolutePaths) results.push(await this.addFile(projectName, absolutePath, options));
     return results;
   }
 
-  async addUrl(projectName: string, url: string): Promise<ProjectMaterial> {
+  async addUrl(projectName: string, url: string, options: MaterialImportOptions = {}): Promise<ProjectMaterial> {
     const source: ProjectMaterialConversionSource = { type: "url", url };
-    return this.convertNew(projectName, source);
+    return this.convertNew(projectName, source, options);
   }
 
-  async retry(projectName: string, relativePath: string): Promise<ProjectMaterial> {
+  async retry(projectName: string, relativePath: string, options: MaterialImportOptions = {}): Promise<ProjectMaterial> {
     const projectIdentity = this.captureProjectDirectoryIdentity(projectName);
     const records = this.readIndex(projectName);
     const index = records.findIndex((item) => item.relativePath === relativePath);
@@ -225,50 +229,62 @@ export class ProjectMaterialService {
       expectedIndex,
       () => this.replaceRecord(projectName, current.relativePath, converting)
     );
-    let result: ProjectMaterialConversionResult | undefined;
-    let downloadedOriginal: string | undefined;
-    let completed = false;
-    let writtenTarget: string | undefined;
-    try {
-      result = await converter.convert({ projectName, source, target, originalAbsolutePath, retry: true });
-      if (result.downloadedVideoPath) downloadedOriginal = await this.preserveDownloadedVideo(projectName, result.downloadedVideoPath);
-      const targetPath = this.paths.resolveInsideProject(projectName, current.relativePath, {
-        allowedTopLevels: MATERIALS_TOP_LEVEL,
-        allowMissingLeaf: true
-      });
-      const ready = ProjectMaterialSchema.parse({
-        ...current,
-        title: result.title || current.title,
-        status: "ready",
-        mimeType: result.mimeType ?? current.mimeType,
-        originalRelativePath: downloadedOriginal ?? current.originalRelativePath,
-        errorCode: null,
-        errorMessage: null,
-        updatedAt: now()
-      });
-      writeTextAtomic(targetPath, result.content);
-      writtenTarget = targetPath;
-      this.replaceRecord(projectName, relativePath, ready);
-      completed = true;
-      if (downloadedOriginal && current.originalRelativePath) {
-        // The new indexed original is committed; an obsolete file cleanup must not roll it back.
-        try { this.removeDownloadedOriginal(projectName, current.originalRelativePath); } catch { /* Retain an orphan rather than lose the current material. */ }
-      }
-      return ready;
-    } catch (error) {
-      if (refreshingVideo) {
-        if (writtenTarget && previousContent !== null) writeTextAtomic(writtenTarget, previousContent);
-        this.replaceRecord(projectName, relativePath, current);
-        throw error;
-      }
-      return this.markFailed(projectName, relativePath, error);
-    } finally {
+    const convert = async (): Promise<ProjectMaterial> => {
+      let result: ProjectMaterialConversionResult | undefined;
+      let downloadedOriginal: string | undefined;
+      let completed = false;
+      let writtenTarget: string | undefined;
       try {
-        if (!completed && downloadedOriginal) this.removeDownloadedOriginal(projectName, downloadedOriginal);
+        result = await converter.convert({ projectName, source, target, originalAbsolutePath, retry: true });
+        if (result.downloadedVideoPath) downloadedOriginal = await this.preserveDownloadedVideo(projectName, result.downloadedVideoPath);
+        const targetPath = this.paths.resolveInsideProject(projectName, current.relativePath, {
+          allowedTopLevels: MATERIALS_TOP_LEVEL,
+          allowMissingLeaf: true
+        });
+        const ready = ProjectMaterialSchema.parse({
+          ...current,
+          title: result.title || current.title,
+          status: "ready",
+          mimeType: result.mimeType ?? current.mimeType,
+          originalRelativePath: downloadedOriginal ?? current.originalRelativePath,
+          errorCode: null,
+          errorMessage: null,
+          updatedAt: now()
+        });
+        writeTextAtomic(targetPath, result.content);
+        writtenTarget = targetPath;
+        this.replaceRecord(projectName, relativePath, ready);
+        completed = true;
+        if (downloadedOriginal && current.originalRelativePath) {
+          // The new indexed original is committed; an obsolete file cleanup must not roll it back.
+          try { this.removeDownloadedOriginal(projectName, current.originalRelativePath); } catch { /* Retain an orphan rather than lose the current material. */ }
+        }
+        return ready;
+      } catch (error) {
+        if (refreshingVideo) {
+          if (writtenTarget && previousContent !== null) writeTextAtomic(writtenTarget, previousContent);
+          this.replaceRecord(projectName, relativePath, options.background ? {
+            ...current,
+            errorCode: "material-conversion-failed",
+            errorMessage: (error instanceof Error ? error.message : String(error)).slice(0, 2_000),
+            updatedAt: now()
+          } : current);
+          throw error;
+        }
+        return this.markFailed(projectName, relativePath, error);
       } finally {
-        try { result?.cleanup?.(); } finally { this.endActiveConversion(lease); }
+        try {
+          if (!completed && downloadedOriginal) this.removeDownloadedOriginal(projectName, downloadedOriginal);
+        } finally {
+          try { result?.cleanup?.(); } finally { this.endActiveConversion(lease); }
+        }
       }
+    };
+    if (options.background) {
+      this.enqueueConversion(convert);
+      return converting;
     }
+    return convert();
   }
 
   remove(projectName: string, relativePath: string): boolean {
@@ -535,7 +551,7 @@ export class ProjectMaterialService {
     this.paths.withProjectMutationLock(() => this.writeIndex(projectName, snapshot));
   }
 
-  private async addFile(projectName: string, sourcePath: string): Promise<ProjectMaterial> {
+  private async addFile(projectName: string, sourcePath: string, options: MaterialImportOptions): Promise<ProjectMaterial> {
     const absolutePath = path.resolve(sourcePath);
     const stat = fs.lstatSync(absolutePath);
     if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("只能导入普通文件，不能导入目录或符号链接。");
@@ -551,10 +567,10 @@ export class ProjectMaterialService {
     };
     const duplicate = this.readIndex(projectName).find((item) => item.sha256 === source.sha256);
     if (duplicate) return duplicate;
-    return this.convertNew(projectName, source);
+    return this.convertNew(projectName, source, options);
   }
 
-  private async convertNew(projectName: string, source: ProjectMaterialConversionSource): Promise<ProjectMaterial> {
+  private async convertNew(projectName: string, source: ProjectMaterialConversionSource, options: MaterialImportOptions): Promise<ProjectMaterial> {
     const projectIdentity = this.captureProjectDirectoryIdentity(projectName);
     this.initializeProject(projectName);
     const converter = this.converters.find((candidate) => candidate.supports(source));
@@ -576,7 +592,9 @@ export class ProjectMaterialService {
     const relativePath = `materials/${target.directory}/${fileName}`;
     let originalRelativePath: string | null = null;
     let originalAbsolutePath: string | null = null;
-    if (source.type === "file" && target.preserveOriginal) {
+    // Background jobs must own their input after the picker/renderer goes away,
+    // including text files whose converter normally doesn't preserve an original.
+    if (source.type === "file" && (target.preserveOriginal || options.background)) {
       const originalName = allocateFileName(
         safeMaterialFileName(source.originalName),
         records.map((item) => item.originalRelativePath ? path.posix.basename(item.originalRelativePath) : "").filter(Boolean),
@@ -631,49 +649,76 @@ export class ProjectMaterialService {
         }
       }
     );
-    let result: ProjectMaterialConversionResult | undefined;
-    let downloadedOriginal: string | undefined;
-    let completed = false;
-    try {
-      const conversionSource = source.type === "file" && originalAbsolutePath
-        ? { ...source, absolutePath: originalAbsolutePath }
-        : source;
-      result = await converter.convert({
-        projectName,
-        source: conversionSource,
-        target: { ...target, fileName },
-        originalAbsolutePath,
-        retry: false
-      });
-      if (result.downloadedVideoPath) downloadedOriginal = await this.preserveDownloadedVideo(projectName, result.downloadedVideoPath);
-      const absoluteTarget = this.paths.resolveInsideProject(projectName, relativePath, {
-        allowedTopLevels: MATERIALS_TOP_LEVEL,
-        allowMissingLeaf: true
-      });
-      writeTextAtomic(absoluteTarget, result.content);
-      const ready = ProjectMaterialSchema.parse({
-        ...pending,
-        title: result.title || pending.title,
-        status: "ready",
-        mimeType: result.mimeType ?? null,
-        originalRelativePath: downloadedOriginal ?? pending.originalRelativePath,
-        updatedAt: now()
-      });
-      this.replaceRecord(projectName, relativePath, ready);
-      completed = true;
-      return ready;
-    } catch (error) {
-      const failed = this.markFailed(projectName, relativePath, error);
-      throw Object.assign(new Error(failed.errorMessage || "项目资料转换失败。"), {
-        code: failed.errorCode || "material-conversion-failed",
-        material: failed
-      });
-    } finally {
+    const convert = async (): Promise<ProjectMaterial> => {
+      let result: ProjectMaterialConversionResult | undefined;
+      let downloadedOriginal: string | undefined;
+      let completed = false;
       try {
-        if (!completed && downloadedOriginal) this.removeDownloadedOriginal(projectName, downloadedOriginal);
+        const conversionSource = source.type === "file" && originalAbsolutePath
+          ? { ...source, absolutePath: originalAbsolutePath }
+          : source;
+        result = await converter.convert({
+          projectName,
+          source: conversionSource,
+          target: { ...target, fileName },
+          originalAbsolutePath,
+          retry: false
+        });
+        if (result.downloadedVideoPath) downloadedOriginal = await this.preserveDownloadedVideo(projectName, result.downloadedVideoPath);
+        const absoluteTarget = this.paths.resolveInsideProject(projectName, relativePath, {
+          allowedTopLevels: MATERIALS_TOP_LEVEL,
+          allowMissingLeaf: true
+        });
+        writeTextAtomic(absoluteTarget, result.content);
+        const ready = ProjectMaterialSchema.parse({
+          ...pending,
+          title: result.title || pending.title,
+          status: "ready",
+          mimeType: result.mimeType ?? null,
+          originalRelativePath: downloadedOriginal ?? pending.originalRelativePath,
+          updatedAt: now()
+        });
+        this.replaceRecord(projectName, relativePath, ready);
+        completed = true;
+        return ready;
+      } catch (error) {
+        const failed = this.markFailed(projectName, relativePath, error);
+        throw Object.assign(new Error(failed.errorMessage || "项目资料转换失败。"), {
+          code: failed.errorCode || "material-conversion-failed",
+          material: failed
+        });
       } finally {
-        try { result?.cleanup?.(); } finally { this.endActiveConversion(lease); }
+        try {
+          if (!completed && downloadedOriginal) this.removeDownloadedOriginal(projectName, downloadedOriginal);
+        } finally {
+          try { result?.cleanup?.(); } finally { this.endActiveConversion(lease); }
+        }
       }
+    };
+    if (options.background) {
+      this.enqueueConversion(convert);
+      return pending;
+    }
+    return convert();
+  }
+
+  private enqueueConversion(convert: () => Promise<ProjectMaterial>): void {
+    this.conversionQueue.push(convert);
+    // Let the admission response reach the renderer before running converters.
+    setImmediate(() => this.drainConversionQueue());
+  }
+
+  private drainConversionQueue(): void {
+    // Bound downloads/worker processes, even when a user pastes 50 links.
+    while (this.runningConversions < 2 && this.conversionQueue.length) {
+      const convert = this.conversionQueue.shift()!;
+      this.runningConversions++;
+      void Promise.resolve().then(convert).catch(() => {
+        // Conversion failures are persisted on the material for display/retry.
+      }).finally(() => {
+        this.runningConversions--;
+        this.drainConversionQueue();
+      });
     }
   }
 

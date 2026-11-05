@@ -39,7 +39,7 @@ npm run dist:win
 - JSONL concurrent append, recovery, large-output chunking and reassembly pass.
 - Provider semantic-event and permission-policy contract tests pass.
 - Direct-directory routing and legacy ChangeSet compatibility tests pass.
-- Integration smoke verifies content, creative projects, WSL path handling, structured skills and forbidden provider flags.
+- Integration smoke verifies content, preserved legacy drafts, WSL path handling, structured skills and forbidden provider flags.
 - Production build contains the TypeScript Electron entry, Utility Process and React renderer.
 - Legacy DOM renderer and legacy AI/skill process managers are absent.
 - Renderer JavaScript chunks stay under the 500 KiB budget.
@@ -183,3 +183,11 @@ npm run dist:win
   format documented in `docs/CLEAN_MACHINE_EVIDENCE.md`.
 - Record signing status. Unsigned development packages may trigger Windows SmartScreen.
 - Record final package evidence in `docs/RELEASE_EVIDENCE.md`.
+
+## Retired writing workspace upgrade checks
+
+- Creative navigation, search category, workflow settings and IPC methods are absent.
+- Project output editing, AI file preview, local AI editing, WeChat export, daily briefs and daily-topic generation remain covered.
+- Old session origins and run contexts normalize without losing messages, IDs or retry/fork history.
+- App-owned retired packages stop new admission; schedules are disabled with a reason. Imported/retained copies and admitted work remain distinct.
+- Original creative drafts, versions, assets and release records remain byte-for-byte unchanged; only derived search records are pruned. Frozen layout contracts v1–v4 remain unchanged.

@@ -33,19 +33,6 @@ export const electronMessages = {
       invalidSetting: (key: string) => `设置项 ${key} 无效。`,
       invalidUserTags: "设置项 userTags 无效。"
     },
-    creative: {
-      invalidStage: (stage: string) => `无效的阶段：${stage}`,
-      invalidStageTransition: (from: string, to: string) => `不允许从 ${from} 直接进入 ${to}。`,
-      reviewNotApproved: "审核尚未批准，不能进入待发布阶段。",
-      publishNotReady: "请先配置平台并导出稿件，再记录为已发布。",
-      duplicateStageProject: "目标阶段已存在同名项目。",
-      invalidCreateDate: "创作日期无效。",
-      emptyTopicTitle: "选题标题不能为空。",
-      invalidProjectDir: "创作项目目录无效。",
-      truncatedSaveBlocked: (file: string) => `${file} 在磁盘上超过 512KB，编辑器加载的是截断内容。直接保存会丢失数据；请在外部编辑器修改后再保存。`,
-      invalidVersionPath: "版本路径无效。",
-      markdownOnly: "只允许保存项目根目录下的 Markdown 文件。"
-    },
     skill: {
       alreadyRunning: (skillId: string) => `Skill 正在运行：${skillId}`,
       stopped: (name: string) => `Skill 已停止：${name}`,
@@ -74,7 +61,6 @@ export const electronMessages = {
     collect: "内容采集",
     summary: "每日总结",
     topic: "选题生成",
-    writing: "写作素材包"
   },
 
   source: {
@@ -85,7 +71,6 @@ export const electronMessages = {
   },
 
   brief: {
-    recommendation: (title: string) => `围绕"${title}"整理资料并进入创作阶段。`
   },
 
   provider: {
@@ -94,7 +79,6 @@ export const electronMessages = {
   },
 
   settings: {
-    defaultPlatform: "公众号"
   },
 
   model: {

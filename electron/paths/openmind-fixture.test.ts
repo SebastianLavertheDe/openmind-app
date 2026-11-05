@@ -5,7 +5,7 @@ import { buildAnonymousOpenmindFixture, disposeFixture, type BuiltFixture } from
 
 let fixture: BuiltFixture | null = null;
 beforeEach(() => {
-  fixture = buildAnonymousOpenmindFixture();
+  fixture = buildAnonymousOpenmindFixture("openmind-upgrade-fixture-", { legacyCreative: true });
 });
 afterEach(() => {
   if (fixture) {
@@ -15,6 +15,13 @@ afterEach(() => {
 });
 
 describe("buildAnonymousOpenmindFixture", () => {
+  it("omits retired production data from a fresh workspace fixture", () => {
+    const fresh = buildAnonymousOpenmindFixture();
+    try {
+      expect(fs.existsSync(path.join(fresh.root, "creative"))).toBe(false);
+      expect(fs.existsSync(path.join(fresh.root, "daily-topic"))).toBe(true);
+    } finally { disposeFixture(fresh); }
+  });
   it("creates all current content top-level dirs", () => {
     for (const d of ["article", "creative", "daily-summary", "daily-topic", "post", "reddit", "wiki"]) {
       expect(fs.existsSync(path.join(fixture!.root, d))).toBe(true);

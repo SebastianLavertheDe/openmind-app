@@ -28,12 +28,7 @@ const examples = [
 
 createRoot(document.getElementById("root")!).render(<main className="input-probe-grid">
   {examples.map(([id, control]) => <section className="input-probe-example" key={id}><strong>{id}</strong>{control}</section>)}
-  <section className="input-probe-example input-probe-layout"><strong>search-creative-compact</strong>
-    <div className="creative-workspace compact-list-open"><aside className="creative-list-pane">
-      <SearchInput data-probe="search-creative-compact" className="creative-search" variant="outlined" aria-label="Creative search" />
-      <div className="creative-stream">Content list</div>
-    </aside></div>
-  </section>
+
   <section className="input-probe-example input-probe-layout"><strong>search-project-pane</strong>
     <aside className="project-list-pane">
       <SearchInput data-probe="search-project-pane" className="project-pane-filter" aria-label="Project list search" />

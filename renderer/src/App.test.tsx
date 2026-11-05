@@ -18,10 +18,7 @@ const preferences: UserPreferences = {
   uiLanguage: "zh-CN", density: "default", fontSize: "default",
   autoSaveIntervalMs: 30000, maxVersions: 50, archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", youtubeBrowser: [], defaultPermissionProfile: "edit",
-  notesDir: "openmind", destructiveOpsRequireApproval: true, riskScanEnabled: true, defaultPlatform: "公众号",
-  defaultLanguage: "zh-CN", defaultContentLength: "medium", defaultTemplate: "", userTags: [],
-  workflowAutoSaveDraft: true, workflowAutoVersionOnStageChange: true, workflowReviewRequiredForReady: true,
-  workflowPublishChecklistEnabled: true, workflowAutoArchiveEnabled: false
+  notesDir: "openmind", destructiveOpsRequireApproval: true, riskScanEnabled: true, userTags: [],
 };
 
 function installApi(overrides: Partial<DesktopApi> = {}) {
@@ -136,7 +133,7 @@ describe("App bootstrap", () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    const input = await screen.findByLabelText("说一句话或搜索资料、创作、会话和自动化");
+    const input = await screen.findByLabelText("说一句话或搜索资料、项目、会话和自动化");
     fireEvent.change(input, { target: { value: "Search Result" } });
     fireEvent.click(await screen.findByText("Search Result", {}, { timeout: LAZY_ROUTE_TIMEOUT_MS }));
     await waitFor(() => expect(readContent).toHaveBeenCalledWith("openmind/article/result.md"));
@@ -330,8 +327,8 @@ describe("App bootstrap", () => {
 
     render(<App />);
     expect((await screen.findAllByText("Root A Session")).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "创作" }));
-    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    fireEvent.click(screen.getByRole("button", { name: "每日简报" }));
+    await waitFor(() => expect(document.querySelector(".brief-library-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
     await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     fireEvent.click(await screen.findByRole("button", { name: "选择" }, { timeout: LAZY_ROUTE_TIMEOUT_MS }));
@@ -341,8 +338,8 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(screen.queryAllByText("Root A Session")).toHaveLength(0));
     await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
     expect(document.querySelector(".settings-page")).toBeNull();
-    expect(document.querySelector(".creative-workspace-page")).toBeNull();
-    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
+    expect(document.querySelector(".brief-library-page")).toBeNull();
+    expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
     expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
   }, 15_000);
 
@@ -443,21 +440,21 @@ describe("App bootstrap", () => {
   it("MOTION-P0-002: clicking the already-active nav does not remount the page", async () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
-    fireEvent.click(await waitFor(() => screen.getByRole("button", { name: "创作" })));
-    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
-    const firstCreativeNode = document.querySelector(".creative-workspace-page");
-    fireEvent.click(screen.getByRole("button", { name: "创作" }));
+    fireEvent.click(await waitFor(() => screen.getByRole("button", { name: "每日简报" })));
+    await waitFor(() => expect(document.querySelector(".brief-library-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    const firstCreativeNode = document.querySelector(".brief-library-page");
+    fireEvent.click(screen.getByRole("button", { name: "每日简报" }));
     // the same DOM node should still be present (React reused it)
-    expect(document.querySelector(".creative-workspace-page")).toBe(firstCreativeNode);
+    expect(document.querySelector(".brief-library-page")).toBe(firstCreativeNode);
   }, 15_000);
 
   it("opens settings with a dedicated sidebar and returns to the page that launched it", async () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
     expect(screen.queryByRole("button", { name: "RSS 源" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "创作" }));
-    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
-    const creativePage = document.querySelector(".creative-workspace-page");
+    fireEvent.click(screen.getByRole("button", { name: "每日简报" }));
+    await waitFor(() => expect(document.querySelector(".brief-library-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    const creativePage = document.querySelector(".brief-library-page");
 
     fireEvent.click(screen.getByRole("button", { name: "设置" }));
     await waitFor(() => expect(document.querySelector(".settings-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
@@ -465,13 +462,13 @@ describe("App bootstrap", () => {
     expect(document.querySelector(".global-toolbar")).toBeNull();
     expect(screen.getByRole("navigation", { name: "设置分类" })).toBeTruthy();
     expect(within(screen.getByRole("navigation", { name: "设置分类" })).getByRole("button", { name: "RSS 源" })).toBeTruthy();
-    expect(document.querySelector(".creative-workspace-page")).toBe(creativePage);
+    expect(document.querySelector(".brief-library-page")).toBe(creativePage);
     expect(creativePage?.closest(".settings-preserved-route")?.getAttribute("aria-hidden")).toBe("true");
 
     fireEvent.click(screen.getByRole("button", { name: "返回应用" }));
-    await waitFor(() => expect(document.querySelector(".creative-workspace-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
-    expect(document.querySelector(".creative-workspace-page")).toBe(creativePage);
-    expect(screen.getByRole("button", { name: "创作" }).getAttribute("aria-current")).toBe("page");
+    await waitFor(() => expect(document.querySelector(".brief-library-page")).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    expect(document.querySelector(".brief-library-page")).toBe(creativePage);
+    expect(screen.getByRole("button", { name: "每日简报" }).getAttribute("aria-current")).toBe("page");
     // 桌面壳的全局工具条已移除，返回后以主导航恢复作为应用壳还原的标志。
     expect(document.querySelector(".app-nav")).toBeTruthy();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "设置" })));
@@ -498,7 +495,7 @@ describe("App bootstrap", () => {
     await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy());
     expect(document.querySelector(".onboarding-page")).toBeNull();
     expect(document.querySelector(".settings-page")).toBeNull();
-    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
     expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
     expect(screen.getByRole("button", { name: "项目" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "自动化" })).toBeTruthy();
@@ -506,7 +503,6 @@ describe("App bootstrap", () => {
   }, 15_000);
 
   it.each([
-    ["创作", ".creative-workspace-page"],
     ["每日简报", ".brief-library-page"]
   ])("updates navigation after toggling defaults and leaves %s when disabled", async (label, selector) => {
     let enabled = false;
@@ -524,7 +520,7 @@ describe("App bootstrap", () => {
     });
     render(<App />);
     await screen.findByRole("button", { name: "设置" });
-    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
     expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
 
     const openDefaults = async () => {
@@ -542,7 +538,7 @@ describe("App bootstrap", () => {
       expect((enable as HTMLButtonElement).disabled).toBe(false);
     });
     fireEvent.click(screen.getByRole("button", { name: "返回应用" }));
-    expect(screen.getByRole("button", { name: "创作" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
     expect(screen.getByRole("button", { name: "每日简报" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: label }));
     await waitFor(() => expect(document.querySelector(selector)).toBeTruthy(), { timeout: LAZY_ROUTE_TIMEOUT_MS });
@@ -557,12 +553,12 @@ describe("App bootstrap", () => {
     expect(document.querySelector(".settings-page")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "返回应用" }));
     await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy());
-    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
     expect(screen.queryByRole("button", { name: "每日简报" })).toBeNull();
     expect(setDefaultSkillsEnabled.mock.calls).toEqual([[true], [false]]);
   }, 15_000);
 
-  it.each(["creative-project", "content"] as const)("keeps a %s search result from opening a disabled default page", async (kind) => {
+  it.each(["content"] as const)("keeps a %s search result from opening a disabled default page", async (kind) => {
     installApi({
       getDefaultSkillsEnabled: async () => false,
       searchWorkspace: async () => [{
@@ -573,31 +569,11 @@ describe("App bootstrap", () => {
     render(<App />);
     await screen.findByRole("button", { name: "新建任务" });
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    fireEvent.change(await screen.findByLabelText("说一句话或搜索资料、创作、会话和自动化"), { target: { value: "Saved result" } });
+    fireEvent.change(await screen.findByLabelText("说一句话或搜索资料、项目、会话和自动化"), { target: { value: "Saved result" } });
     fireEvent.click(await screen.findByText("Saved result"));
     await waitFor(() => expect(document.querySelector(".ai-workbench")).toBeTruthy());
-    expect(document.querySelector(".creative-workspace-page")).toBeNull();
     expect(document.querySelector(".brief-library-page")).toBeNull();
-  });
-
-  it("keeps the primary navigation expanded when opening creative and leaves the AI companion opt-in", async () => {
-    window.localStorage.setItem("openmind.nav.collapsed.v1", JSON.stringify(false));
-    // Reproduce a stale expanded companion preference from an earlier app run.
-    window.localStorage.setItem("openmind.ai.panel-mode.v1", JSON.stringify("default"));
-
-    render(<App />);
-    await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: "创作" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "创作" }).getAttribute("aria-current")).toBe("page");
-      expect(document.querySelector(".app-nav")?.classList.contains("collapsed")).toBe(false);
-      expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy();
-      expect(document.querySelector(".ai-sidebar")).toBeNull();
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "展开 AI 侧栏" }));
-    await waitFor(() => expect(document.querySelector(".ai-sidebar")).toBeTruthy());
+    expect(document.querySelector(".brief-library-page")).toBeNull();
   });
 
   it("opens the AI companion by default on the daily brief page without a header toolbar", async () => {
@@ -682,7 +658,7 @@ describe("App bootstrap", () => {
     expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy();
   }, 15_000);
 
-  it.each(["每日简报", "创作"] as const)("opens companion file references inside %s while keeping the file list", async (page) => {
+  it.each(["每日简报"] as const)("opens companion file references inside %s while keeping the file list", async (page) => {
     const path = "openmind/daily-topic/20260728_daily_topic.md";
     const briefPath = "openmind/daily-summary/20260728_daily_summary.md";
     const openPath = vi.fn(async (value: string) => value);
@@ -770,8 +746,6 @@ describe("App bootstrap", () => {
         parseErrors: 0
       }),
       listContent: async () => [{ path: briefPath, name: "20260728_daily_summary.md", size: 1280, modifiedAt: "2026-07-28T14:00:00.000Z" }],
-      getAllCreativeTopics: async () => [{ date: "20260728", label: "2026-07-28", file: briefPath, topics: [{ title: "保留文件列表" }] }],
-      getCreativeProjects: async () => [],
       readContent,
       openPath
     });
@@ -779,12 +753,7 @@ describe("App bootstrap", () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
     fireEvent.click(screen.getByRole("button", { name: page }));
-    if (page === "创作") {
-      fireEvent.click(await screen.findByRole("button", { name: /2026-07-28 选题管理文件/ }, { timeout: LAZY_ROUTE_TIMEOUT_MS }));
-      await screen.findByRole("heading", { name: "当前每日简报" });
-      fireEvent.click(screen.getByRole("button", { name: "展开 AI 侧栏" }));
-    }
-    const listSelector = page === "创作" ? ".creative-list-pane" : ".brief-library-page .document-library-list";
+    const listSelector = ".brief-library-page .document-library-list";
     const originalList = document.querySelector(listSelector);
     fireEvent.click(await screen.findByRole("button", { name: path }));
 
@@ -794,7 +763,7 @@ describe("App bootstrap", () => {
     expect(briefList).toBe(originalList);
     expect(briefList?.closest(".settings-preserved-route")?.getAttribute("aria-hidden")).toBeNull();
     expect(briefList?.closest(".settings-preserved-route")?.hasAttribute("inert")).toBe(false);
-    expect(preview.closest(page === "创作" ? ".creative-main-pane" : ".document-library-detail")).toBeTruthy();
+    expect(preview.closest(".document-library-detail")).toBeTruthy();
     expect(document.querySelector(".standalone-file-preview-presence")).toBeNull();
     expect(preview.classList.contains("is-embedded")).toBe(true);
     expect(await screen.findByRole("heading", { name: "左侧文件预览" })).toBeTruthy();
@@ -807,15 +776,6 @@ describe("App bootstrap", () => {
     fireEvent.click(screen.getByRole("button", { name: "关闭文件预览" }));
     expect(await screen.findByRole("heading", { name: "当前每日简报" })).toBeTruthy();
     expect(document.querySelector(listSelector)).toBe(originalList);
-    if (page === "创作") {
-      const selectedFile = screen.getByRole("button", { name: /2026-07-28 选题管理文件/ });
-      expect(selectedFile.classList.contains("active")).toBe(true);
-      fireEvent.click(screen.getByRole("button", { name: path }));
-      await screen.findByRole("complementary", { name: "文件预览" });
-      fireEvent.click(selectedFile);
-      await waitFor(() => expect(screen.queryByRole("complementary", { name: "文件预览" })).toBeNull());
-      expect(await screen.findByRole("heading", { name: "当前每日简报" })).toBeTruthy();
-    }
   });
 
   it("restores the AI file split for a conversation but clears it for a new task", async () => {
@@ -932,9 +892,8 @@ describe("App bootstrap", () => {
     window.localStorage.setItem("openmind.nav.collapsed.v1", JSON.stringify(false));
     const view = render(<App />);
     await waitFor(() => expect(document.querySelector(".splash")).toBeNull());
-    fireEvent.click(screen.getByRole("button", { name: "创作" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "展开 AI 侧栏" })).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: "展开 AI 侧栏" }));
+    fireEvent.click(screen.getByRole("button", { name: "每日简报" }));
+    await waitFor(() => expect(document.querySelector(".ai-sidebar")).toBeTruthy());
     await waitFor(() => expect(document.querySelector(".ai-sidebar")).toBeTruthy());
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });

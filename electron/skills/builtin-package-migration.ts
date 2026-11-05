@@ -11,6 +11,10 @@ import type { SkillPackageService } from "./skill-package-service";
 
 /** Runs before Worker admission. Idempotent; conflicts preserve the old copy. */
 export function migrateBuiltinPackages(root: string, packages: SkillPackageService, bundle = resolveSkillLibraryBundleRoot()): string[] {
+  // Preserve package bytes and already admitted work; only new admission retires.
+  for (const record of packages.listInstalled()) {
+    if (packages.isRetired(record)) packages.setEnabled(record.key, record.digest, false);
+  }
   const candidates = packages.listInstalled().filter(record => isManagedLegacyDefault(record) || isAppLibraryInstall(record) && ALL_SKILL_IDS.includes(record.id as never));
   if (!candidates.length) return [];
   const library = new SkillLibraryService(root, packages.appPaths, packages, bundle);

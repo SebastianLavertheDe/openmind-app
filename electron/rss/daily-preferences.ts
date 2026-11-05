@@ -3,7 +3,7 @@ import path from "node:path";
 import { DailyBriefPreferencesSchema, resolveDailyBriefPreferences, summaryPromptContext, topicPromptContext } from "../../shared/daily-brief-preferences";
 import { rssPrivateDirectory } from "./file-lock";
 
-export const BRIEF_SKILLS = new Set(["daily-article-summarizer", "daily-topic-selector", "ai-media-topic-selector"]);
+export const BRIEF_SKILLS = new Set(["daily-article-summarizer", "daily-topic-selector"]);
 export function readDailyPreferences(root: string) {
   const file = rssPrivateDirectory(root, ".agent", "preferences", "daily-brief.json");
   return resolveDailyBriefPreferences(fs.existsSync(file) ? DailyBriefPreferencesSchema.parse(JSON.parse(fs.readFileSync(file, "utf8"))) : { schemaVersion: 1, revision: 0, text: "", updatedAt: null });

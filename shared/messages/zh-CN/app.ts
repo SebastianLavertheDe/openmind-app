@@ -28,7 +28,7 @@ export const appMessages = {
 
   search: {
     dialogLabel: "命令面板",
-    inputAria: "说一句话或搜索资料、创作、会话和自动化",
+    inputAria: "说一句话或搜索资料、项目、会话和自动化",
     placeholder: "说一句话，或搜索资料、创作、会话…",
     loading: "检索中",
     resultsAria: "搜索与动作",
@@ -39,7 +39,6 @@ export const appMessages = {
     groups: {
       content: "资料",
       project: "项目",
-      "creative-project": "创作",
       session: "AI 会话",
       skill: "自动化"
     },

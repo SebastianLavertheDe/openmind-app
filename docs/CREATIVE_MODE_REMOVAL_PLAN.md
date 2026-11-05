@@ -1,0 +1,191 @@
+# 创作模式移除计划（Creative Mode Removal Plan）
+
+> 目标：彻底移除应用内的「创作」模式（侧边栏入口、页面、后端、IPC、设置、样式与文案），
+> 同时保留被「项目」成品编辑和 AI 文件预览复用的编辑器组件，不删除用户已有创作数据。
+>
+> 状态：计划（未开始实施，已补充代码 review 修正）。执行时按本清单逐项勾选；每个阶段必须连同引用方、测试和 mock 一起修改，再跑 `npm run typecheck` 及相关测试。
+> 文中旧行号仅用于定位，执行时以符号和实际调用关系为准。
+
+## 0. 关键约束
+
+| 约束 | 说明 |
+| --- | --- |
+| 不能整目录删 `renderer/src/features/creative/` | `MarkdownEditor`、`InlineAiBar` 被 `features/projects/ProjectOutputEditor.tsx:5-6` 和 `features/ai-console/AiFilePreviewPane.tsx:13` 复用 |
+| Milkdown 不能卸载 | 项目成品编辑仍依赖 Markdown 编辑器（迁移而非删除依赖） |
+| 不自动删除用户数据 | `openmindRoot/creative/` 下的文稿、版本、素材、发布记录保留在内容库，应用只是停止专门管理 |
+| 公众号导出保留 | 微信公众号导出已被「项目」使用，不随创作模式移除 |
+| 项目会话隔离保留 | 离开 Projects 时清除 `project-task` 活动会话的保护逻辑保留，只更新提及 Creative 的注释 |
+| 每日选题链路保留 | `daily-topic-selector` 写入 `daily-topic/`，属于每日简报链路，不随创作工作台退役 |
+| 目录契约 v1 冻结 | 不直接删除或重分类 `openmind-layout-v1.ts` 条目；本计划保留其历史兼容定义，如需改变契约另建 v2 并提供迁移 |
+| 视觉基线人工审查 | 按 AGENTS.md：基线图须显式更新并逐张检查 actual/expected/diff，禁止自动重生成蒙混 CI |
+
+## 1. 迁出共用编辑器
+
+以 `MarkdownEditor` 和 `InlineAiBar` 为入口迁移完整依赖链。不能只按「是否被创作目录外直接 import」判断可否删除：
+
+- [ ] 迁移 `MarkdownEditor.tsx` → `MilkdownEditor.tsx` → `milkdown-runtime.ts`（含 `EditorSelectionSnapshot`/`MarkdownEditorHandle` 类型与 `milkdown-runtime.test.ts`）到公共位置（建议独立的公共文档编辑器目录，保持内部相对引用清晰）
+- [ ] 迁移 `InlineAiBar.tsx` + `InlineAiBar.test.tsx`（依赖：`design-system/components`、`ai-context`、`@shared/messages`、`MarkdownEditor` 类型）
+- [ ] 一并迁移间接依赖：`DocumentToolbar`、`DocumentFindbar`、`DocumentMenu`、`document-navigation.ts`、`document-block-menu.ts`、`document-commands.ts`、`document-menu-icons.ts`，以及 `DocumentToolbar.test.tsx` 等相关测试。`MilkdownEditor` 直接使用工具栏/查找栏，`milkdown-runtime` 直接使用命令、导航和块菜单，这些文件不能删除
+- [ ] 更新全部引用方及测试 mock 的 import：包括 `features/projects/ProjectOutputEditor.tsx:5-6`、`features/ai-console/AiFilePreviewPane.tsx:13` 和 `AiFilePreviewPane.test.tsx`
+- [ ] 在此阶段迁出内联 AI 的 `creativeUi.inlineAi` 中英文文案，更新组件及测试引用；同时迁出 `.inline-ai-*` 公共样式，之后第 9 条才能删除原创作文案/样式文件
+- [ ] 阶段验收：项目成品编辑和 AI 文件预览均可打开、编辑和保存；工具栏、查找/替换、目录、块菜单、撤销/重做和局部 AI 改写的已有行为测试通过
+
+## 2. 删除导航和路由
+
+- [ ] `renderer/src/app/routes.ts` — 删页面类型 `"creative"`（:6）及 `page === "creative"` 判断（:14）
+- [ ] `renderer/src/app/route-registry.tsx` — 删 lazy import（:20）、preload 映射（:33）、导航条目（:80，即侧边栏「创作」入口，icon `FilePenLine`，group `core`）
+- [ ] `renderer/src/App.tsx` — 删 `showAiCompanion` 的 `"creative"` 分支（:118）、`usesEmbeddedFilePreview` 的 `"creative"` 分支（:199）
+- [ ] **保留**离开 Projects 时对 `activeSession.scope.type === "project-task"` 调用 `setActiveSession(null)` 的逻辑（:244 附近）。它防止项目会话泄漏到每日简报和普通 AI 页面，不属于创作专用逻辑；只调整注释，并保留/补充对应回归断言
+
+## 3. 删除创作专用页面
+
+共用组件迁出后清理 `renderer/src/features/creative/` 剩余目录：
+
+- [ ] 删 `CreativePage.tsx` + `CreativePage.test.tsx`（选题列表、制作中/待审核/待发布/已发布流程）
+- [ ] 删 `CreativeDetailPane.tsx`（创作详情）
+- [ ] 删 `panels.tsx` + `panels.test.tsx`、`history-release.tsx` + `history-release.test.tsx`（版本历史、发布记录）
+- [ ] 删 `stream.tsx`（创作内容列表、日期分组与阶段筛选）
+- [ ] 删 `TopicFileWorkspace.tsx`、`use-topic-file-editor.ts`、`types.ts`、`index.ts`
+- [ ] 删除目录前确认第 1 条编辑器完整依赖链、测试、样式和文案均已迁出；不得删除迁出后的 `DocumentToolbar`、`DocumentFindbar`、`DocumentMenu`、`document-*.ts`
+
+## 4. 清理搜索和内容扫描
+
+- [ ] `renderer/src/app/GlobalSearch.tsx` — 删 `"creative-project"` kind（:124）、跳转分支（:157-158）、图标分支（:256）
+- [ ] `electron/product/global-search.ts` — 删 `searchCreativeProjects` 调用（:30）
+- [ ] `electron/product/content-index.ts`、`electron/lib/content.ts` — 清理对旧创作目录的专用扫描注释与逻辑（content-index.ts:23）
+- [ ] `electron/product/content-source.ts` — 移除 `latestCreativeTopics()` 及 topics 列表对它的合并调用。`content-index.worker.ts` 实际使用 `createExplicitContentSource()`，必须同时覆盖主进程回退路径和 worker 路径；同步维护 `content-source.test.ts` 的行为一致性测试
+- [ ] 明确旧 `content-index.json` 和内存缓存的失效/重建策略，保证升级后创作专用索引项退出搜索、普通内容仍可正常搜索；只重建派生索引，不删除原始文稿。保留用户主动通过通用文件搜索/预览访问旧文件的能力
+- [ ] `renderer/src/browser-api.ts` — 删浏览器预览 mock：`creative-project` 搜索结果、`getCreativeProjects`、`createCreativeProject`（:642-651）
+
+## 5. 兼容历史会话
+
+旧会话持久化了 `page: "creative"`，删除后必须仍能加载：
+
+- [ ] `shared/ai-session-origin.ts` — 移除 `page: "creative"` schema 分支（:10）时做宽容解析：命中旧值时降级为普通 AI 会话或通用文件预览，不抛校验错误
+- [ ] `renderer/src/app/session-navigation.tsx` — 删除恢复分支（:29）前确认旧 origin 的回落路径
+- [ ] 会话存储中的创作上下文引用（projectDir/filePath/previewPath）做兼容转换，避免旧会话无法恢复
+- [ ] 区分两种历史字段：`AiSession.origin.page: "creative"` 与 `ContextReference.kind: "creative"`。后者不是搜索结果类型，实际持久化在 `AiRun.contexts` 中，不能只处理会话 origin
+- [ ] 在 `electron/ai/session-store.ts` 使用 `AiSessionSchema` / `AiRunSchema` 校验之前，或在对应共享 schema 的兼容输入层，归一化这些旧字段。携带文件路径的旧上下文转换为 `file`，纯文本上下文转换为 `content`，保留其标签、正文和有效路径；旧 origin 回落到 `ai`，可访问文件经现有预览接口重新解析。迁移不得扩大工作区/项目权限
+- [ ] 归一化应幂等；不得依赖现有 catch 静默跳过旧 session/run 文件。保留原始记录及消息、运行 ID，旧引用指向缺失文件时只提示文件不可用，不丢弃整个会话或运行记录
+- [ ] 在本阶段补回归：旧 origin 可加载、旧 `contexts` 的运行历史仍可展示、分支/重试可构造有效请求、缺失原文件时仍可查看历史、重复加载/迁移不会损失上下文；不能只断言会话首页能打开
+
+## 6. 删除创作后端
+
+- [ ] 删 `electron/lib/creative.ts` + `creative.test.ts`（项目创建、保存、阶段推进、审核、版本恢复、复制、归档、统计的完整实现）
+- [ ] `electron/main.ts` — 删 import（:25）与 `ProductService` 注入（:258）
+- [ ] `electron/product/product-service.ts` — 删 creative 服务字段与构造参数（:5-9、:18、:29、:40、:51）、目录 mtime 缓存（:76-77）、`searchCreativeProjects`（:181-191）及全部 creative 方法（:204 起）
+- [ ] `electron/product/common.ts` — 删 `CreativeApi`、`CreativeServiceApi`、`LegacyCreativeProject` 类型
+- [ ] 顺带核查 `electron/lib/fs-utils.ts`、`electron/project/project-service.ts`、`electron/skills/skill-package-service.ts` 中的 creative 引用
+
+## 7. 删除接口和类型
+
+- [ ] `shared/ipc-channels.ts` — 删 14 个 `APP_CREATIVE_*` 通道常量（:52-65）
+- [ ] `shared/ipc-registry.ts` — 删对应 method→channel 映射（:55-68）
+- [ ] `electron/ipc-handlers.ts` — 删 schema import（:13-16）与全部 handler 注册（:412-436 附近）
+- [ ] `shared/contracts.ts` — 删 `CreativeStageSchema`、`CreativeReviewIssue/ReportSchema`、`CreativePublishConfig/PatchSchema`、`CreativeProjectManifestSchema`、`CreativeTopic`、`CreativeProjectSummary`、`CreativeReleaseEvent` 及 Save/Create/ManifestPatch 输入类型（:837 起）；移除 `GlobalSearchResult` 的 `"creative-project"` kind（:729-730）
+- [ ] 第 5 条历史兼容测试通过后，收窄 **`ContextReference` 的 `"creative"` kind**（:109）。兼容输入继续接受并转换旧值，新生成的上下文只使用现存类型；同步检查运行记录、请求校验和分支/重试路径
+- [ ] 删 `shared/creative-registry.ts`（stage/platform/release 定义）
+- [ ] `shared/display-labels.ts` — 删 creative stage/platform/release label 函数与 `buildCreativeBuckets`（:5-58）
+- [ ] 暴露给界面的预加载 API 类型随 contracts 一并收窄（`getCreativeProjects` 等方法从 client 接口移除）
+
+## 8. 清理创作工作流设置
+
+`electron/lib/settings.ts`：
+
+- [ ] 删 `creative:` 偏好组：`defaultPlatform`、`defaultLanguage`、`defaultContentLength`、`defaultTemplate`（:605）
+- [ ] 删创作专用 workflow 键：`workflowAutoSaveDraft`、`workflowAutoVersionOnStageChange`、`workflowReviewRequiredForReady`、`workflowPublishChecklistEnabled`、`workflowAutoArchiveEnabled`（:607、:433、:537 等）
+- [ ] **核对后处理共享键**：`autoSaveIntervalMs`、`archiveAfterDays` 同时挂在 `save:` 组（:601）——先确认「项目」/每日简报是否使用，再决定保留或移除
+- [ ] 设置页 UI：`features/settings/` 中创作偏好控件与 `SettingsPage.test.tsx` 相关断言同步清理
+
+## 9. 清理样式、文案和依赖
+
+- [ ] 确认第 1 条已迁出公共 `.inline-ai-*` 等样式后，删除 `renderer/src/styles/features/creative.css` 及 `styles/index.css` 中的注册
+- [ ] 清理残留类名：`styles/base.css`、`styles/final-polish.css`、`styles/responsive.css`、`styles/workbuddy-refactor.css`、`styles/features/daily-brief.css`
+- [ ] 第 1 条迁出的编辑器/内联 AI 改写样式一并迁走，保持单一 CSS owner；迁完跑 `npm run audit:styles`
+- [ ] `components/useContentListLayout.ts` — 处理存储键 `openmind.list-detail.creative.v1`（:5-8，注释明确保留旧键以延续列表宽度）：决定沿用旧键或做键名迁移
+- [ ] i18n：确认第 1 条已迁出并重接 `creativeUi.inlineAi` 公共文案后，删除 `shared/messages/zh-CN/creative-ui.ts` + `shared/messages/en/creative-ui.ts` 及两处 `index.ts` 导出；清理 `core.ts`、`app.ts`、`features.ts`、`electron.ts`（中英两套）中残留的创作字符串（含导航 label `navLabel("creative")` 词条）。检查保留编辑器的引用和中英文键/插值签名一致性
+- [ ] Milkdown 依赖保留在 package.json（项目编辑仍在用），确认无仅创作页使用的 npm 依赖后一并移除
+- [ ] 仓库根目录杂项：`design-qa-creative-focus.png`、`design-qa/` 中创作相关产物
+
+## 10. 处理已有数据
+
+- [ ] 旧创作文稿、版本、素材、发布记录**保留在内容库**，应用停止专门管理；任何代码路径不得自动删除 `openmindRoot/creative/`
+- [ ] 历史页面状态（URL/session state 中的 creative 路由状态）与创作缓存做兼容处理或静默丢弃
+- [ ] `electron/paths/openmind-fixture.ts` — 正常新建工作区场景移除创作生产夹具；保留或另建一份包含旧 `creative/...`、中文目录、文稿和版本的升级兼容夹具，验证功能退役后数据保持原样、仍可通过通用文件接口访问
+- [ ] `shared/openmind-layout-v1.ts` — **保留冻结 v1 的旧目录定义**（:45-47），不直接删项、改序或重分类；停止创作专用扫描/生产与保留历史路径解析是两件事。如需调整目录契约，另建 `openmind-layout-v2` 并更新 ADR、版本选择、路径解析和迁移测试后实施，不在本次下线中隐式修改 v1
+- [ ] 更新 `docs/architecture/data-migration.md`：说明 creative 目录从「受管」降级为「普通内容目录」的策略
+
+## 11. 核对相关 Skills
+
+本计划范围：退役应用自带的创作生产链，保留每日简报/每日选题和用户自行导入的独立 Skills。实施前先核对包来源，不按 ID 直接删除或禁用所有同名包。
+
+| 处理 | Skill | 原因/产物 |
+| --- | --- | --- |
+| 退役应用自带版本 | `creative-writing` | 生成多平台创作包，读写 `creative/**` |
+| 退役应用自带版本 | `daily-writing-orchestrator` | 生成创作素材包 |
+| 退役应用自带版本 | `ai-media-topic-selector` | 写入创作选题管理目录的 `ai_topic_*.md` |
+| 退役应用自带版本 | `collect-interest-markers` | 实际产物是 `creative/01-内容生产/选题管理/00-兴趣收集箱.md` |
+| 退役应用自带版本 | `asset-collector` | 从创作包提取素材，读写 `creative/**` |
+| 保留 | `daily-topic-selector` | 输出 `daily-topic/`，仍被每日简报和默认每日选题任务使用 |
+
+- [ ] 核对其余包对退役 Skill 的引用和 `creative/**` 读写，更新 `config/skill-library/catalog.json`、包源目录、构建清单、`shared/skill-compatibility-matrix.ts` 及对应数量/清单测试；保持每日总结、每日选题及 RSS 链路可用
+- [ ] 在启动/绑定内容根的升级逻辑中识别已经安装的应用自带退役包，并做幂等停用/退役标记；仅删除源码或 catalog 不够。当前 `SkillLibraryService.list()` 会回显 catalog 外的已安装包，`InstalledSkillExecutionResolver` 也会直接从已安装树捕获技能
+- [ ] 新会话技能选择、技能库、手动执行、Broker/Workflow 准入和自动化均应尊重退役状态；旧会话的历史技能快照保留作展示，但新一轮执行必须重新校验，不能恢复已退役能力。第三方 Git/目录/ZIP 导入和用户保留副本应按来源区分，不静默删改
+- [ ] 处理引用退役包的已有自动化规则：停用相关规则并给出可理解的原因，保留执行历史和用户配置，不让调度器反复提交必然失败的任务；保留 `daily-topic-generation` 等仍有效任务
+- [ ] 明确进行中任务的策略：允许已经准入的任务按绑定版本结束，结束前不替换/删除所用包；完成后阻止新的退役包准入。退役包源码退出分发，旧安装文件及其运行数据不做无差别删除
+- [ ] 升级回归夹具覆盖：已有启用的自带旧包、同名用户导入包、旧自动化、旧会话技能快照、进行中任务和重复启动；断言不再自动安装/重新启用退役包，保留功能及用户文稿不受影响
+- [ ] **微信公众号导出已被「项目」使用，保留**，不随本计划移除
+
+## 12. 更新测试和文档
+
+测试随所属阶段同步迁移或删除；此节用于核对覆盖范围和最终收尾，不能把所有测试/mock 修改推迟到最后：
+
+- [ ] 随目录/模块删除创作专用 `.test.tsx/ts`；第 1 条编辑器、工具栏、运行时和局部 AI 的测试随公共组件迁出并继续执行
+- [ ] 更新跨文件断言：`App.test.tsx`、`App.session-origin.test.tsx`、`app/AppShell.test.tsx`、`app/GlobalSearch.test.tsx`、`components/Chat.test.tsx`、`features/settings/SettingsPage.test.tsx`、`features/ai-console/composer.test.tsx`、`features/automation/AutomationPage.test.tsx`、`features/daily-brief/DailyBriefPage.test.tsx`
+- [ ] 主进程测试：`electron/ipc-handlers.test.ts`、`electron/ai/*`（scheduler/session-store/skill-selection 等测试中的创作场景）、`settings-v2.test.ts`
+- [ ] 主进程测试同时核对 `electron/product/product-service.test.ts`、`global-search.test.ts`、`content-source.test.ts` 及路径/目录契约测试；构造参数、fixture 和 mock 随相关生产代码同步调整
+- [ ] 新增回归：旧 origin 和旧 `contexts` 运行历史可加载、展示及分支/重试（第 5 条）；「创作」入口消失；离开项目后不会继续使用项目会话；项目成品编辑、AI 文件预览、公众号导出、每日简报和每日选题正常工作；退役 Skills 的新准入受阻且用户导入包保留（第 11 条）
+
+工程脚本：
+
+- [ ] `scripts/visual-snapshot-electron.js` — 删 creative 页面配置（:45）、`captureCreativeReaderLayout`（:178、:255-280）；**视觉基线人工审查后显式更新**
+- [ ] `scripts/visual-snapshot-preload.js` — 删 creative mock（选题 ：121-123、项目 ：127、`creative-writing` 技能 fixture :404、`creative/**` 权限 :454、`getAllCreativeTopics` :529 等）
+- [ ] `scripts/motion-contract-check.js` — 删 `creative-item-row`、`creative-tab` 动效契约（:122）
+- [ ] `scripts/audit-evidence.js` — 删 CreativePage 行数预算与模块存在性检查（:42-43）
+- [ ] `scripts/ai-context-performance.js` + `ai-context-performance-electron.js` + `scripts/fixtures/ai-context-performance/fixture.tsx` — 移除 CreativePage 分片基准（:7、:24、:27）
+- [ ] `scripts/input-controls-style.js` — 删 `.creative-workspace` 探针选择器（:25）
+- [ ] `scripts/package-safety-scan.js` — 保留对旧 `creative/` 用户内容误打包的禁止规则（:61）；功能下线不等于历史内容可以进入安装包
+- [ ] `scripts/integration-smoke.js` — 核对 creative 引用
+
+文档：
+
+- [ ] 更新提及创作模式的文档：`RELEASE_CHECKLIST.md`、`PERFORMANCE_CHECKLIST.md`、`VISUAL_AUDIT_CHECKLIST.md`、`PROJECT_MANAGEMENT_AND_CREATION_PLAN.md`、`docs/adr/ADR-002-openmind-layout-contract.md` 等
+- [ ] 本文档在第 10 条完成后更新数据策略结论
+
+## 验证
+
+每个可独立编译的阶段连同引用方、测试、mock、样式/文案一起完成后运行类型检查，再运行该阶段相关的行为测试。遇到跨层类型/接口变更时合并为一个可编译阶段，不以故意悬空引用的中间状态作为验收点：
+
+```bash
+npm run typecheck
+```
+
+全部完成后运行完整聚合验证；`verify` 已包含 build、单元/集成/E2E、UI 和视觉等检查，下列子命令用于阶段验证或定位失败，已成功的检查只在后续变更影响它时重跑：
+
+```bash
+npm run verify      # 含 build + audit:styles 等聚合校验
+npm run test:unit
+npm run test:integration
+npm run test:e2e
+npm run check:ui
+npm run visual:ui   # 基线 diff 须人工逐张审查后显式更新
+```
+
+## 建议执行顺序
+
+1. 确认第 10、11 条的数据保留和 Skills 退役范围；不修改冻结 v1 契约，明确进行中任务及第三方包策略。
+2. 完成第 1 条完整编辑器依赖链、公共样式/文案和测试迁移；验证项目编辑、AI 预览和局部改写。
+3. 先实现第 5 条历史 origin/contexts 兼容和回归，再将第 2、3 条路由/专用页面移除与引用方/mock 修改作为同一阶段；保留项目会话隔离。
+4. 将第 4、6、7 条搜索、内容源、后端和 IPC/类型清理按依赖组合为可编译阶段；同步修改服务构造、测试和浏览器预览 mock。
+5. 完成第 8、9 条设置、专用样式和文案清理，以及第 10、11 条升级兼容、已安装包退役和调度器处理；各阶段同步测试。
+6. 按第 12 条核对剩余脚本、夹具和文档，完成完整验证并人工审查视觉差异。全部复选项和验收完成后才将文档状态改为已实施。

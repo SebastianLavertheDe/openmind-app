@@ -29,6 +29,17 @@ function mount(listProjectMaterials: ReturnType<typeof vi.fn>) {
 afterEach(() => { cleanup(); document.body.replaceChildren(); localStorage.clear(); });
 
 describe("Project file background refresh", () => {
+  it("shows pending status, polls until parsing finishes, and then stops polling", async () => {
+    const pending = { ...items[0], status: "converting" as const };
+    const api = vi.fn().mockResolvedValueOnce([pending]).mockResolvedValue([items[0]]);
+    const host = mount(api);
+    await within(host).findByRole("button", { name: "甲 转换中" });
+    await waitFor(() => expect(within(host).getByRole("button", { name: "甲" })).toBeTruthy(), { timeout: 2500 });
+    expect(api).toHaveBeenCalledTimes(2);
+    await new Promise(resolve => setTimeout(resolve, 1100));
+    expect(api).toHaveBeenCalledTimes(2);
+  });
+
   it("keeps surviving DOM, selection, focus and scroll while refreshing", async () => {
     const pending = deferred<ProjectMaterial[]>();
     const api = vi.fn().mockResolvedValueOnce(items).mockReturnValueOnce(pending.promise);

@@ -119,7 +119,7 @@ const KNOWN_PRESS_CLASSES = [
   "overflow-box-action", "collapsed-rail", "column-splitter-handle",
   "ai-rail", "ai-sidebar-scrim", "open-workbench", "sidebar-session-title",
   "toast-action", "toast-close", "confirm-cancel", "confirm-confirm",
-  "nav-recent-toggle", "creative-item-row", "creative-tab", "repo-required",
+  "nav-recent-toggle", "repo-required",
   "document-file-list", "skill-run-button", "skill-card", "automation-rule",
   "brief-action", "topic-card", "metric-card", "ui-metric-card",
   "ui-data-sort-button", "ui-context-dismiss", "ui-collapsed-pane",

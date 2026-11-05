@@ -35,7 +35,7 @@ app.whenReady().then(run).catch((error) => {
 
 async function run() {
   const phases = [];
-  for (const page of ["projects", "creative"]) {
+  for (const page of ["projects"]) {
     if (phases.length) await delay(500);
     // 每个阶段独立窗口（与 document-performance 相同的模式）：debugger 在
     // loadFile 之后再 attach，避免跨导航的调试目标语义差异。

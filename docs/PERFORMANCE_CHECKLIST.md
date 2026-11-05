@@ -107,7 +107,7 @@ All identified code-level items are implemented. The remaining work is packaged-
 | 8 | ✔️ Parsed content index is cached by mtime, and each missing entry stat is performed once. |
 | 9 | ✔️ Search text updates in memory during a run and writes one consolidated `search-index.json` at the turn boundary. |
 | 10 | ✔️ Rollout event lines use a 50 ms per-session buffer; boundaries/readers flush pending data, and rollout directories are memoized. |
-| 11 | ✔️ Creative project scans cache by repo/stage fingerprint and invalidate on project manifest/lifecycle writes. |
+| 11 | ✔️ Creative-specific directory scans and lifecycle caches were removed; legacy files remain accessible through generic file APIs. |
 | 12 | ✔️ Inbox uses a 100-item page plus `getInboxFacets`; filter changes are coalesced and stale requests cannot overwrite newer results. |
 | 13 | ✔️ Dashboard content/source caches invalidate independently; stdout does not invalidate either, while terminal skill status refreshes content once. |
 | 14 | ✔️ `send` reads contexts through a current ref and no longer depends on the full draft-context map. |
@@ -120,8 +120,6 @@ All identified code-level items are implemented. The remaining work is packaged-
 - ✔️ TodayStream filtering, sorting, and section grouping are memoized.
 - ✔️ App navigation uses a stable callback.
 - ✔️ Project manifest formatting runs only when the manifest changes.
-- ✔️ Historical topic Markdown caches by file `mtime + size`.
-- ✔️ Creative analytics reuse project manifest fields and one cached release-log read per project.
 - ✔️ Patch parsing and SHA-256 fingerprints share a bounded 4 MiB LRU.
 - ✔️ Rollout payload serialization reuses immutable object results through a `WeakMap`.
 

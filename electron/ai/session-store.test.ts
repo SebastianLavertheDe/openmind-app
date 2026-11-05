@@ -20,6 +20,33 @@ afterEach(() => {
 });
 
 describe("SessionStore", () => {
+  it("loads, branches and retries retired document sessions without losing saved contexts", async () => {
+    const workspace = createRoot(), state = createRoot();
+    const store = new SessionStore(workspace, state);
+    const session = store.createSession({ provider: "codex", providerId: "codex-native", cwd: ".", title: "旧创作会话", permissionProfile: "edit", scope: workspaceScope });
+    const turn = await addCompletedTurn(store, session, "review the saved draft", "saved answer");
+    const directory = path.join(store.root, "sessions", session.id);
+    const sessionFile = path.join(directory, "session.json"), runFile = path.join(directory, "runs", turn.id, "run.json");
+    const legacySession = JSON.parse(fs.readFileSync(sessionFile, "utf8"));
+    legacySession.origin = { page: "creative", projectDir: "openmind/creative/旧文稿", filePath: "draft.md" };
+    const legacyRun = JSON.parse(fs.readFileSync(runFile, "utf8"));
+    legacyRun.contexts = [{ id: "old-file", kind: "creative", label: "文稿", path: "openmind/creative/旧文稿/draft.md", content: "retained draft" }, { id: "old-topic", kind: "creative", label: "选题", content: "retained topic" }];
+    fs.writeFileSync(sessionFile, JSON.stringify(legacySession));
+    fs.writeFileSync(runFile, JSON.stringify(legacyRun));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const loaded = new SessionStore(workspace, state);
+      expect(loaded.getSession(session.id).origin).toEqual({ page: "ai", filePath: "openmind/creative/旧文稿/draft.md" });
+      const run = loaded.getRun(turn.id);
+      expect(run.contexts.map(context => context.kind)).toEqual(["file", "content"]);
+      expect(run.contexts.map(context => context.content)).toEqual(["retained draft", "retained topic"]);
+      expect(loaded.reconstruct(session.id).turns[0].events.some(event => event.kind === "assistant-message" && event.payload.text === "saved answer")).toBe(true);
+      const branch = await loaded.forkSession(session.id, turn.id);
+      expect(loaded.listRuns(branch.id)[0].contexts).toEqual(run.contexts);
+      expect(loaded.createRun(loaded.getSession(session.id), run.prompt, run.contexts).contexts).toEqual(run.contexts);
+    }
+    expect(JSON.parse(fs.readFileSync(sessionFile, "utf8"))).toMatchObject({ id: session.id, origin: { page: "ai", filePath: "openmind/creative/旧文稿/draft.md" } });
+    expect(JSON.parse(fs.readFileSync(runFile, "utf8")).contexts[0].content).toBe("retained draft");
+  });
   it("persists the creation origin across restart, continuation and branching", async () => {
     const root = createRoot();
     const state = createRoot();

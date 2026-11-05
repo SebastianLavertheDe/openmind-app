@@ -20,7 +20,7 @@
   /* Briefs are scan-heavy documents, so they can use more of a wide detail pane. */
   --file-reader-max-width: 1120px;
   --daily-brief-prose-max-width: 920px;
-  /* Share the creative list's saved width, yielding space continuously when
+  /* Reuse the saved content-list width, yielding space continuously when
      the AI companion leaves a narrow document workspace. */
   grid-template-columns: clamp(10rem, 32cqw, var(--content-list-width, 280px)) minmax(0, 1fr);
 }

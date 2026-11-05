@@ -425,16 +425,7 @@ export const DEFAULT_PREFERENCES: UserPreferences = {
   notesDir: "openmind",
   destructiveOpsRequireApproval: true,
   riskScanEnabled: true,
-  defaultPlatform: zhCN.settings.defaultPlatform,
-  defaultLanguage: "zh-CN",
-  defaultContentLength: "medium",
-  defaultTemplate: "",
   userTags: [],
-  workflowAutoSaveDraft: true,
-  workflowAutoVersionOnStageChange: true,
-  workflowReviewRequiredForReady: true,
-  workflowPublishChecklistEnabled: true,
-  workflowAutoArchiveEnabled: false
 };
 
 // normalizePreferences 的结果与 loadSettings 返回的对象一一对应；对象引用
@@ -529,16 +520,7 @@ function normalizePreferences(raw: unknown, strict: boolean): UserPreferences {
     notesDir: stringPref(source.notesDir, DEFAULT_PREFERENCES.notesDir, strict, "notesDir", 4096),
     destructiveOpsRequireApproval: boolPref(source.destructiveOpsRequireApproval, DEFAULT_PREFERENCES.destructiveOpsRequireApproval, strict, "destructiveOpsRequireApproval"),
     riskScanEnabled: boolPref(source.riskScanEnabled, DEFAULT_PREFERENCES.riskScanEnabled, strict, "riskScanEnabled"),
-    defaultPlatform: stringPref(source.defaultPlatform, DEFAULT_PREFERENCES.defaultPlatform, strict, "defaultPlatform", 80),
-    defaultLanguage: enumPref(source.defaultLanguage, ["zh-CN", "en"], DEFAULT_PREFERENCES.defaultLanguage, strict, "defaultLanguage"),
-    defaultContentLength: enumPref(source.defaultContentLength, ["short", "medium", "long"], DEFAULT_PREFERENCES.defaultContentLength, strict, "defaultContentLength"),
-    defaultTemplate: stringPref(source.defaultTemplate, DEFAULT_PREFERENCES.defaultTemplate, strict, "defaultTemplate", 4096),
     userTags: tagsPref(source.userTags, strict),
-    workflowAutoSaveDraft: boolPref(source.workflowAutoSaveDraft, DEFAULT_PREFERENCES.workflowAutoSaveDraft, strict, "workflowAutoSaveDraft"),
-    workflowAutoVersionOnStageChange: boolPref(source.workflowAutoVersionOnStageChange, DEFAULT_PREFERENCES.workflowAutoVersionOnStageChange, strict, "workflowAutoVersionOnStageChange"),
-    workflowReviewRequiredForReady: boolPref(source.workflowReviewRequiredForReady, DEFAULT_PREFERENCES.workflowReviewRequiredForReady, strict, "workflowReviewRequiredForReady"),
-    workflowPublishChecklistEnabled: boolPref(source.workflowPublishChecklistEnabled, DEFAULT_PREFERENCES.workflowPublishChecklistEnabled, strict, "workflowPublishChecklistEnabled"),
-    workflowAutoArchiveEnabled: boolPref(source.workflowAutoArchiveEnabled, DEFAULT_PREFERENCES.workflowAutoArchiveEnabled, strict, "workflowAutoArchiveEnabled")
   };
 }
 
@@ -602,9 +584,7 @@ function startsWithPrefix(key: string, prefix: string): boolean {
     content: ["defaultReadFilter", "contentPreviewMode", "markReadOnOpen"],
     ai: ["defaultProvider", "defaultPermissionProfile", "destructiveOpsRequireApproval", "riskScanEnabled"],
     project: ["notesDir"],
-    creative: ["defaultPlatform", "defaultLanguage", "defaultContentLength", "defaultTemplate"],
     tags: ["userTags"],
-    workflow: ["autoSaveIntervalMs", "archiveAfterDays", "workflowAutoSaveDraft", "workflowAutoVersionOnStageChange", "workflowReviewRequiredForReady", "workflowPublishChecklistEnabled", "workflowAutoArchiveEnabled"]
   };
   const keys = groups[prefix] || [];
   return keys.includes(key);

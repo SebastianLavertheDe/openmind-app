@@ -439,8 +439,9 @@ describe("ProjectsPage", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "新建任务" }));
 
     expect(document.querySelector(".project-task-session.is-draft")).toBeTruthy();
-    expect(screen.getByText("从资料到创作，让 AI 帮你推进")).toBeTruthy();
-    expect(screen.getByLabelText("AI 消息")).toBeTruthy();
+    expect(await screen.findByLabelText("AI 消息")).toBeTruthy();
+    expect(document.querySelector(".project-task-session .ai-workbench")).toBeTruthy();
+    expect(screen.getByTitle("新对话将自动创建为项目「AI 安全」的任务")).toBeTruthy();
     expect(screen.queryByText("基于“AI 安全”开始创作")).toBeNull();
   });
 

@@ -1,6 +1,6 @@
 # RSS、每日偏好与内置 Skills
 
-OpenMind 现在自己维护、构建和分发原 `cctools-skills` 的 15 个保留包，以及 `blog-rss-feed` 的 RSS 转换能力。运行和安装均不需要检出这两个仓库；它们可继续保留历史。`knowledge-wiki-compiler` 不再分发，已有知识库文件不会被删除。
+OpenMind 现在自己维护、构建和分发原 `cctools-skills` 的 10 个保留原生包，以及 `blog-rss-feed` 的 RSS 转换能力。运行和安装均不需要检出这两个仓库；它们可继续保留历史。`knowledge-wiki-compiler` 不再分发，已有知识库文件不会被删除。
 
 ## 开始使用
 
@@ -49,7 +49,7 @@ OpenMind 现在自己维护、构建和分发原 `cctools-skills` 的 15 个保�
 
 选题输出保留完整选题稿结构：今日最终推荐、按平台展开的选题 Agent 输出、候选热点池、明日可追踪话题和长期主题。每个选题保留标题备选、核心观点、选题理由、适合人群、内容结构、开头钩子、配图建议、互动引导、风险点和推荐指数，以及原文链接和源文件。用户提示词控制选题和内容，输出栏目结构固定。相同主题可以适合多个平台；总数限制按跨平台唯一主题计算，平台单独指定的数量只作用于该平台。结构化来源元数据保持兼容后续写作素材包。
 
-总结、社交内容初筛、选题排序和手动 `ai-media-topic-selector` 使用同一份偏好。每次任务冻结修订号，缓存同时考虑原文、模型、提示词版本和偏好；修改偏好后直接重新生成，无需重新抓取原文。生成失败保留上一份文档，成功重新生成时把旧文档留在对应目录的 `.versions/` 中。
+总结、社交内容初筛和每日选题排序使用同一份偏好。每次任务冻结修订号，缓存同时考虑原文、模型、提示词版本和偏好；修改偏好后直接重新生成，无需重新抓取原文。生成失败保留上一份文档，成功重新生成时把旧文档留在对应目录的 `.versions/` 中。
 
 指定输出语言时，总结和选题的文档标题、栏目名称及推荐理由也使用该语言；筛选后没有入选内容时，仍按该语言显示零条结果。未修改默认规则时使用中文。原文链接和文件路径保持原值。
 
@@ -131,19 +131,14 @@ Windows 可通过任务计划程序运行 `openmind.cmd`；macOS 可由 launchd 
 | `rss-to-summary-workflow` | Workflow | 使用上述采集、总结包，保留同次偏好快照 |
 | `reddit-fetcher` | Process / Python | `reddit/`；用户管理的社区与网站访问条件 |
 | `x-following-fetcher` | Process / Python | `post/`、`article/`；用户自己的登录凭据 |
-| `daily-writing-orchestrator` | Process / Python | `creative/` 素材与写作包 |
-| `collect-interest-markers` | Process / Python | 兴趣收集箱，读取已有内容 |
 | `skill-run-reporter` | Process / Python | 运行报告，不再检查知识库生成器 |
-| `asset-collector` | Process / Python | 写作素材清单及缺失素材报告 |
 | `video-download` | Process / Python | 用户选择的导出位置；yt-dlp、Whisper，按需使用 FFmpeg |
 | `video-burnin-subtitles` | Process / Python | `video/`；FFmpeg、Whisper、字幕字体，翻译需要 Provider |
 | `agent-browser` | Agent | 已连接的 Agent CLI 与浏览器能力；用户指定证据导出位置 |
-| `creative-writing` | Agent | 已连接的 Agent CLI，写作工作区 |
-| `ai-media-topic-selector` | Agent | 已连接的 Agent CLI，注入相同的选题偏好 |
 
 Python 依赖由应用管理的 uv 环境根据已安装包准备。视频包包含较大的语音/模型依赖；下载模型、访问登录网站、配置外部导出位置仍由相应能力的正常设置流程完成。FFmpeg 复用应用的视频工具设置，Whisper 通过同一个 Python 解释器启动。
 
-原有 21 个配置式 Agent 预设继续保留，总技能库为 36 个包。Git、目录、ZIP 导入和用户自建 Skill 继续使用各自的来源身份。
+原有 21 个配置式 Agent 预设继续保留，总技能库为 31 个包（10 个原生包和 21 个 Agent 预设）。Git、目录、ZIP 导入和用户自建 Skill 继续使用各自的来源身份。
 
 ## 数据与迁移
 
@@ -202,3 +197,6 @@ OPENMIND_TEST_PYTHON="/absolute/path/to/python" npm run test:rss
 - Reddit 采集器将逐社区结果写入 `<openmindRoot>/.agent/skill-data/reddit-fetcher/source-status/<sha256-url>.json`。结果记录本次状态、时间、新增条目数及错误；没有新帖也是成功。旧版本留下的整批任务状态不会当作各社区结果；旧安装需更新 App 来源的 Skill 并运行一次，才会产生这些结果。修改来源 URL 后展示新地址的结果，改名不丢失原地址结果。
 - Reddit 卡片不显示运行状态标签，只用小红点表示上次采集失败；重试期间保留红点，采集成功后清除。错误说明通过红点的悬浮或键盘焦点提示查看。
 - RSS 条目 XML 在工作线程中解析，按文件版本与基础 URL 缓存，最多保留 8 个 Feed，缓存预算为 24 MiB（文件与序列化条目大小）。翻页重用已解析结果；文件替换会使缓存失效并重置旧游标。文件大小、目录边界及来源/内容根隔离检查仍然生效。
+
+
+创作工作台及其五个自带生产包已退役：`creative-writing`、`daily-writing-orchestrator`、`ai-media-topic-selector`、`collect-interest-markers`、`asset-collector`。升级时停止它们的新任务准入并停用相关自动化；历史记录、旧安装文件、运行数据和 `creative/` 文稿保留。Git、目录、ZIP 导入及用户明确保留的副本按来源区分，继续独立管理。已准入任务保留绑定版本，完成前不替换或删除包。每日简报、每日选题和项目的公众号导出不受影响。

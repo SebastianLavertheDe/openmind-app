@@ -34,6 +34,9 @@ sys.path.insert(0, str(_package_root if (_package_root / '_shared').is_dir() els
 from _shared.runtime_io import process_alive, release_lock, retry_file_operation
 
 MAX_BYTES = 8 * 1024 * 1024
+# Article HTML may include large inline diagrams and application payloads that
+# are removed during extraction. Keep feed downloads on the smaller budget.
+MAX_ARTICLE_BYTES = 32 * 1024 * 1024
 CONTENT = "http://purl.org/rss/1.0/modules/content/"
 ET.register_namespace("content", CONTENT)
 
@@ -61,12 +64,12 @@ class Redirects(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def fetch(url):
+def fetch(url, *, max_bytes=MAX_BYTES, resource="feed"):
     try:
         with build_opener(Redirects()).open(Request(http_url(url), headers={"User-Agent": "OpenMind RSS/1.0", "Accept": "application/rss+xml, application/atom+xml, text/html;q=0.9, */*;q=0.5"}), timeout=25) as response:
-            data = response.read(MAX_BYTES + 1)
-            if len(data) > MAX_BYTES:
-                raise FeedError("response-too-large", "The response exceeds the feed size limit.")
+            data = response.read(max_bytes + 1)
+            if len(data) > max_bytes:
+                raise FeedError("response-too-large", f"The response exceeds the {resource} size limit ({max_bytes} bytes).")
             return data, http_url(response.url)
     except HTTPError as exc:
         if exc.code in (401, 403):
@@ -415,7 +418,12 @@ def article_text(entry):
     # Use full content embedded by a publisher; otherwise extract the original.
     raw = entry.get("content")
     if not raw:
-        data, _ = fetch(entry["url"])
+        try:
+            data, _ = fetch(entry["url"], max_bytes=MAX_ARTICLE_BYTES, resource="article")
+        except FeedError as exc:
+            if exc.code == "response-too-large":
+                raise FeedError(exc.code, f'{exc} Article: {entry["title"][:200]}', exc.retryable) from exc
+            raise
         raw = data.decode("utf-8", errors="replace")
     try:
         import trafilatura

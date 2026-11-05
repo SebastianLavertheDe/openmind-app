@@ -26,13 +26,9 @@ function makeSession(overrides: Partial<AiSession> = {}): AiSession {
   };
 }
 
-function makeProductStub(
-  content: GlobalSearchResult[] = [],
-  projects: GlobalSearchResult[] = []
-): ProductService {
+function makeProductStub(content: GlobalSearchResult[] = []): ProductService {
   return {
-    searchContent: vi.fn().mockReturnValue(content),
-    searchCreativeProjects: vi.fn().mockReturnValue(projects)
+    searchContent: vi.fn().mockReturnValue(content)
   } as unknown as ProductService;
 }
 
@@ -153,16 +149,12 @@ describe("globalSearch", () => {
     expect(results.filter((r) => r.kind === "skill")).toHaveLength(12);
   });
 
-  it("内容、独立 Project 与 Creative 使用不同结果类型", async () => {
+  it("内容与独立 Project 使用不同结果类型", async () => {
     const contentItem: GlobalSearchResult = {
       id: "c1", kind: "content", title: "文章", subtitle: "s", path: "/a.md",
       date: "2026-07-08", status: null, targetId: "c1"
     };
-    const projectItem: GlobalSearchResult = {
-      id: "p1", kind: "creative-project", title: "创作项目", subtitle: "s", path: "/p",
-      date: null, status: null, targetId: "p1"
-    };
-    const product = makeProductStub([contentItem], [projectItem]);
+    const product = makeProductStub([contentItem]);
     const ctx = makeCtx({
       ensureProductService: () => product,
       ensureProjectService: () => ({
@@ -181,26 +173,29 @@ describe("globalSearch", () => {
     });
     const results = await globalSearch("test", ctx);
     expect(product.searchContent).toHaveBeenCalledWith("test", 24);
-    expect(product.searchCreativeProjects).toHaveBeenCalledWith("test", 16);
     expect(results.find((r) => r.id === "c1")).toBeDefined();
-    expect(results.find((r) => r.id === "p1")).toMatchObject({ kind: "creative-project" });
     expect(results.find((r) => r.id === "project:AI 安全")).toMatchObject({ kind: "project", targetId: "AI 安全" });
   });
 
   it("合并后截断到 64 条", async () => {
-    const content = Array.from({ length: 40 }, (_, i) => ({
+    const content = Array.from({ length: 24 }, (_, i) => ({
       id: `c${i}`, kind: "content" as const, title: `C${i}`, subtitle: "s",
       path: `/c${i}`, date: null, status: null, targetId: `c${i}`
     }));
-    const projects = Array.from({ length: 40 }, (_, i) => ({
-      id: `p${i}`, kind: "creative-project" as const, title: `P${i}`, subtitle: "s",
-      path: `/p${i}`, date: null, status: null, targetId: `p${i}`
-    }));
     const ctx = makeCtx({
-      ensureProductService: () => makeProductStub(content, projects)
+      ensureProductService: () => makeProductStub(content),
+      ensureProjectService: () => ({ listProjects: () => Array.from({ length: 20 }, (_, i) => ({
+        name: `test-${i}`, description: "test", status: "active", materialCount: 0, taskCount: 0,
+        outputCount: 0, updatedAt: "2026-07-08T10:00:00Z"
+      })) }) as never,
+      searchSessions: async () => Array.from({ length: 20 }, (_, i) => makeSession({ id: `s${i}` })),
+      listSkillDefinitions: async () => Array.from({ length: 12 }, (_, i) => ({ id: `test-${i}`, title: `test ${i}` }))
     });
     const results = await globalSearch("test", ctx);
     expect(results).toHaveLength(64);
+    expect(results.filter(result => result.kind === "project")).toHaveLength(16);
+    expect(results.filter(result => result.kind === "session")).toHaveLength(16);
+    expect(results.filter(result => result.kind === "skill")).toHaveLength(8);
   });
 
   it("最终结果经 GlobalSearchResultSchema 校验(保证结构)", async () => {
@@ -210,7 +205,7 @@ describe("globalSearch", () => {
     const results = await globalSearch("test", ctx);
     for (const r of results) {
       expect(typeof r.id).toBe("string");
-      expect(["content", "project", "creative-project", "session", "skill"]).toContain(r.kind);
+      expect(["content", "project", "session", "skill"]).toContain(r.kind);
       expect(typeof r.title).toBe("string");
       expect(typeof r.subtitle).toBe("string");
       expect(r.path === null || typeof r.path === "string").toBe(true);

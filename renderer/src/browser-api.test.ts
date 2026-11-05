@@ -124,29 +124,6 @@ describe("installBrowserPreviewApi", () => {
     expect(none).toEqual([]);
   });
 
-  it("creative API returns preview projects and supports CRUD", async () => {
-    Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
-    installBrowserPreviewApi();
-    const allTopics = await window.openmind.getAllCreativeTopics();
-    expect(allTopics.length).toBe(1);
-    const projects = await window.openmind.getCreativeProjects();
-    expect(projects.length).toBe(1);
-    const project = await window.openmind.getCreativeProject("dir");
-    expect(project.manifest?.topic).toBeTruthy();
-    const created = await window.openmind.createCreativeProject({ date: "20260707", topic: { title: "T", body: "B" } });
-    expect(created.manifest?.topic).toBe("T");
-    const advanced = await window.openmind.advanceCreativeProject("dir", "review");
-    expect(advanced.stage).toBe("review");
-    const versions = await window.openmind.listCreativeVersions("dir", "draft.md");
-    expect(versions.length).toBe(1);
-    const restored = await window.openmind.restoreCreativeVersion("dir", "draft.md", "versions/draft/v1.md");
-    expect(restored.stage).toBeTruthy();
-    const releaseLog = await window.openmind.getCreativeReleaseLog("dir");
-    expect(releaseLog.length).toBe(1);
-    const analytics = await window.openmind.getCreativeAnalytics();
-    expect(analytics.total).toBe(1);
-  });
-
   it("preferences API reads, updates, and resets", async () => {
     Object.defineProperty(window, "navigator", { value: { userAgent: BROWSER_UA }, configurable: true });
     installBrowserPreviewApi();

@@ -67,6 +67,20 @@ export class AutomationRepository {
 
   getRule(id: string): AutomationRule | undefined { return this.read().rules.find((rule) => rule.id === id); }
 
+  /** Disable invalid new admission without deleting the user's rule or history. */
+  retireRules(isRetired: (skillId: string) => boolean, reason: string): void {
+    const registry = this.read();
+    let changed = false;
+    for (const rule of registry.rules) {
+      if (!rule.enabled || !isRetired(rule.target.id)) continue;
+      rule.enabled = false;
+      rule.description = `${rule.description.slice(0, Math.max(0, 1999 - reason.length))}\n${reason}`.trim();
+      rule.updatedAt = new Date().toISOString();
+      changed = true;
+    }
+    if (changed) this.write(registry);
+  }
+
   saveRule(rawInput: AutomationRuleInput): AutomationRule {
     const input = AutomationRuleInputSchema.parse(rawInput);
     const registry = this.read();

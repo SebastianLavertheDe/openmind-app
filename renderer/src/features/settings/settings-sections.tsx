@@ -73,7 +73,6 @@ const AUTO_SAVE_OPTIONS = [5_000, 15_000, 30_000, 60_000].map((value) => ({
   value: String(value),
   get label() { return value < 60_000 ? m.settings.duration.seconds(value / 1000) : m.settings.duration.oneMinute; }
 }));
-const AUTO_ARCHIVE_OPTIONS = [30, 60, 90, 180, 365].map((value) => ({ value: String(value), get label() { return m.settings.duration.days(value); } }));
 
 export function AppearanceSettingsSection({ prefs, save }: { prefs: UserPreferences; save: SavePreferences }) {
   useLocale();
@@ -833,60 +832,6 @@ export function ArchivedSessionsSettingsSection({
         </div>
       )}
     </SettingsPanel>
-  );
-}
-
-export function WorkflowSettingsSection({ prefs, save, onReset }: { prefs: UserPreferences; save: SavePreferences; onReset(): void }) {
-  useLocale();
-  return (
-    <>
-    <SettingsPanel title={m.settings.workflow.panels.stages} scope={m.settings.scopes.contentFlow} action={<Button variant="ghost" type="button"  data-motion="action" onClick={onReset}>{m.settings.workflow.resetToDefaults}</Button>}>
-      <div className="settings-workflow-stages">
-        <strong className="settings-workflow-subtitle">{m.settings.workflow.stagesTitle}</strong>
-        <p className="settings-workflow-hint">{m.settings.workflow.stagesDescription}</p>
-        <ol className="settings-stage-list">
-          <li><StatusBadge tone="info">{m.settings.workflow.stageToday}</StatusBadge><span>{m.settings.workflow.entryNone}</span></li>
-          <li><StatusBadge tone="info">{m.settings.workflow.stageDrafting}</StatusBadge><span>{m.settings.workflow.entryNone}</span></li>
-          <li><StatusBadge tone="warning">{m.settings.workflow.stageReview}</StatusBadge><span>{m.settings.workflow.entryNone}</span></li>
-          <li><StatusBadge tone="info">{m.settings.workflow.stageReady}</StatusBadge><span>{prefs.workflowReviewRequiredForReady ? m.settings.workflow.entryReview : m.settings.workflow.entryNone}</span></li>
-          <li><StatusBadge tone="success">{m.settings.workflow.stagePublished}</StatusBadge><span>{m.settings.workflow.entryPublish}</span></li>
-        </ol>
-      </div>
-    </SettingsPanel>
-    <SettingsPanel title={m.settings.workflow.panels.drafts} scope={m.settings.scopes.editBehavior}>
-      <PreferenceRow title={m.settings.workflow.autoSaveTitle} description={m.settings.workflow.autoSaveDesc}>
-        <div className="settings-inline-controls">
-          <Select ariaLabel={m.settings.workflow.autoSaveAria} size="rect" value={String(prefs.autoSaveIntervalMs)} options={AUTO_SAVE_OPTIONS} onChange={(value) => void save({ autoSaveIntervalMs: Number(value) })} />
-          <ToggleSwitch checked={prefs.workflowAutoSaveDraft} label={m.settings.workflow.autoSaveTitle} onChange={(checked) => void save({ workflowAutoSaveDraft: checked })} />
-        </div>
-      </PreferenceRow>
-      <PreferenceRow title={m.settings.workflow.autoVersionTitle} description={m.settings.workflow.autoVersionDesc}>
-        <ToggleSwitch checked={prefs.workflowAutoVersionOnStageChange} label={m.settings.workflow.autoVersionTitle} onChange={(checked) => void save({ workflowAutoVersionOnStageChange: checked })} />
-      </PreferenceRow>
-    </SettingsPanel>
-    <SettingsPanel title={m.settings.workflow.panels.review} scope={m.settings.scopes.publishGate}>
-      <PreferenceRow title={m.settings.workflow.reviewGateTitle} description={m.settings.workflow.reviewGateDesc}>
-        <ToggleSwitch checked={prefs.workflowReviewRequiredForReady} label={m.settings.workflow.reviewGateTitle} onChange={(checked) => void save({ workflowReviewRequiredForReady: checked })} />
-      </PreferenceRow>
-      <PreferenceRow title={m.settings.workflow.publishCheckTitle} description={m.settings.workflow.publishCheckDesc}>
-        <ToggleSwitch checked={prefs.workflowPublishChecklistEnabled} label={m.settings.workflow.publishCheckTitle} onChange={(checked) => void save({ workflowPublishChecklistEnabled: checked })} />
-      </PreferenceRow>
-      <div className="settings-workflow-preview" role="status" aria-label={m.settings.workflow.preview.aria}>
-        <strong>{m.settings.workflow.preview.title}</strong>
-        <span>{prefs.workflowAutoSaveDraft ? m.settings.workflow.preview.draftAuto(formatInterval(prefs.autoSaveIntervalMs)) : m.settings.workflow.preview.draftManual}</span>
-        <span>{m.settings.workflow.preview.advance(prefs.workflowAutoVersionOnStageChange, prefs.workflowReviewRequiredForReady)}</span>
-        <span>{prefs.workflowPublishChecklistEnabled ? m.settings.workflow.preview.publishFull : m.settings.workflow.preview.publishBasic}</span>
-      </div>
-    </SettingsPanel>
-    <SettingsPanel title={m.settings.workflow.panels.archive} scope={m.settings.scopes.contentLifecycle}>
-      <PreferenceRow title={m.settings.workflow.autoArchiveTitle} description={m.settings.workflow.autoArchiveDesc}>
-        <div className="settings-inline-controls">
-          <Select ariaLabel={m.settings.workflow.archiveAria} size="rect" value={String(prefs.archiveAfterDays)} options={AUTO_ARCHIVE_OPTIONS} onChange={(value) => void save({ archiveAfterDays: Number(value) })} />
-          <ToggleSwitch checked={prefs.workflowAutoArchiveEnabled} label={m.settings.workflow.autoArchiveTitle} onChange={(checked) => void save({ workflowAutoArchiveEnabled: checked })} />
-        </div>
-      </PreferenceRow>
-    </SettingsPanel>
-    </>
   );
 }
 

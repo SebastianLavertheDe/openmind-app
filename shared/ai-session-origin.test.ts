@@ -13,4 +13,11 @@ describe("session origin scope", () => {
     expect(AiSessionOriginSchema.parse({ page: "brief", filePath: "A.md", cwd: "/outside" })).toEqual({ page: "brief", filePath: "A.md" });
     expect(AiSessionOriginSchema.safeParse({ page: "shell", filePath: "A.md" }).success).toBe(false);
   });
+  it("normalizes a retired document origin without granting project scope", () => {
+    const legacy = { page: "creative", projectDir: "openmind/creative/旧稿件", filePath: "draft.md", cwd: "/outside" };
+    const origin = AiSessionOriginSchema.parse(legacy);
+    expect(origin).toEqual({ page: "ai", filePath: "openmind/creative/旧稿件/draft.md" });
+    expect(AiSessionOriginSchema.parse(origin)).toEqual(origin);
+    expect(originForSessionScope(origin, scope)).toEqual({ page: "projects", projectId: scope.projectId, projectName: scope.projectName, section: "tasks" });
+  });
 });

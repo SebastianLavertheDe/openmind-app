@@ -19,12 +19,12 @@ import { DailyPreferences } from "../sources/DailyPreferences";
 import type { SessionLeaveGuard } from "../../app/session-navigation";
 import { WechatSettingsSection } from "../wechat/WechatSettingsSection";
 import { announceProviderConfiguration } from "../../provider-configuration-events";
-import { ArchivedSessionsSettingsSection, AppearanceSettingsSection, AiProvidersSettingsSection, BrowserSettingsSection, YoutubeImportSettingsSection, PathSettingsSection, PermissionSettingsSection, ProviderSettingsSection, SharedPythonRuntimeSection, SkillSettingsSection, WorkflowSettingsSection } from "./settings-sections";
+import { ArchivedSessionsSettingsSection, AppearanceSettingsSection, AiProvidersSettingsSection, BrowserSettingsSection, YoutubeImportSettingsSection, PathSettingsSection, PermissionSettingsSection, ProviderSettingsSection, SharedPythonRuntimeSection, SkillSettingsSection,  } from "./settings-sections";
 
 const m = messages;
 
-type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "workflow" | "connectors" | "sources" | "x-sources" | "reddit-sources" | "brief-preferences" | "sessions";
-type SettingsGroupId = "personal" | "ai" | "creation" | "data";
+type SettingsSectionId = "general" | "providers" | "runtime" | "skills" | "mcp" | "browser" | "permissions" | "connectors" | "sources" | "x-sources" | "reddit-sources" | "brief-preferences" | "sessions";
+type SettingsGroupId = "personal" | "ai" | "publishing" | "data";
 
 type SettingsSectionDefinition = {
   id: SettingsSectionId;
@@ -42,8 +42,7 @@ function settingsSections(): readonly SettingsSectionDefinition[] { return [
   { id: "mcp", group: "ai", icon: Server, ...m.settings.navigation.sections.mcp },
   { id: "browser", group: "ai", icon: Globe, ...m.settings.navigation.sections.browser },
   { id: "permissions", group: "ai", icon: ShieldCheck, ...m.settings.navigation.sections.permissions },
-  { id: "workflow", group: "creation", icon: Route, ...m.settings.navigation.sections.workflow },
-  { id: "connectors", group: "creation", icon: Plug, ...m.settings.navigation.sections.connectors },
+  { id: "connectors", group: "publishing", icon: Plug, ...m.settings.navigation.sections.connectors },
   { id: "sources", group: "data", icon: Rss, title: m.rss.title, description: m.rss.description },
   { id: "x-sources", group: "data", icon: MessageCircle, ...m.settings.navigation.sections.xSources },
   { id: "reddit-sources", group: "data", icon: MessagesSquare, ...m.settings.navigation.sections.redditSources },
@@ -51,7 +50,7 @@ function settingsSections(): readonly SettingsSectionDefinition[] { return [
   { id: "sessions", group: "data", icon: Archive, ...m.settings.navigation.sections.sessions }
 ]; }
 
-const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "creation", "data"];
+const SETTINGS_GROUPS: readonly SettingsGroupId[] = ["personal", "ai", "publishing", "data"];
 
 export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack, onOpenSession, initialSection, initialSkillId, initialSkillImportOpen, initialProviderCategory, initialSkillLibraryMode, skillReturnSessionId }: { repoRoot: string; providers: ProviderCapabilities[]; onRepo(root?: string): void | Promise<unknown>; onBack(): void; onOpenSession?(sessionId?: string): void; initialSection?: SettingsSectionId; initialSkillId?: string; initialSkillImportOpen?: boolean; initialProviderCategory?: "text" | "image"; initialSkillLibraryMode?: SkillLibraryMode; skillReturnSessionId?: string | null }) {
   const locale = useLocale();
@@ -230,23 +229,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     }
   };
 
-  const resetWorkflow = async () => {
-    const ok = await feedback.confirm({ title: m.settings.workflow.resetToDefaults, body: m.settings.workflow.resetConfirm, confirmText: m.settings.workflow.resetToDefaults, danger: true });
-    if (!ok) return;
-    setSaving(true);
-    try {
-      await saveQueue.current;
-      const next = await window.openmind.resetPreferences("workflow");
-      setPrefs(next);
-      applyTheme(next);
-      feedback.notify(m.settings.notify.workflowReset, "success");
-    } catch {
-      feedback.notify(m.settings.notify.saveFailed, "error");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const openNotesDir = async () => {
     try { await window.openmind.openPath(prefs?.notesDir || "openmind"); }
     catch { feedback.notify(m.settings.notify.notesOpenFailed, "error"); }
@@ -371,7 +353,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "mcp" ? <SkillSettingsSection mode="mcp" skills={ai.skills} mcpServers={mcpServers} refreshing={refreshingSkills} onRefresh={() => void refreshSkills()} onCopy={(skillId) => void copySkillInvocation(skillId)} onOpenDirectory={(path) => void openSkillDirectory(path)} onOpenMcpSettings={() => selectSection("browser")} /> : null}
               {activeSection === "browser" ? <BrowserSettingsSection status={browserStatus} busy={browserBusy} onInstall={() => void installBrowserSkill()} onRefresh={() => void refreshBrowserSkill()} onOpenDocs={() => void openBrowserExtensionDocs()} /> : null}
               {activeSection === "permissions" ? <PermissionSettingsSection prefs={prefs} save={save} /> : null}
-              {activeSection === "workflow" ? <WorkflowSettingsSection prefs={prefs} save={save} onReset={() => void resetWorkflow()} /> : null}
               {activeSection === "connectors" ? <WechatSettingsSection /> : null}
               {activeSection === "sources" ? prefs.openmindRoot ? <SourcesPage key={prefs.openmindRoot} presentation="settings" /> : <EmptyState title={m.rss.rootRequired} action={<Button onClick={() => void selectOpenmindRoot()}>{m.rss.selectRoot}</Button>} /> : null}
               {activeSection === "brief-preferences" ? prefs.openmindRoot

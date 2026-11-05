@@ -28,8 +28,8 @@ stable across language changes; subscribe the components that display their data
 `uiLanguage` is stored with application preferences under Electron `userData`.
 Existing installations default to Simplified Chinese. Settings apply a new
 language only after persistence succeeds; the window updates without reloading.
-Main propagates language changes to the existing AI Worker. `defaultLanguage`
-continues to describe content creation preferences.
+Main propagates language changes to the existing AI Worker. The retired Creative
+`defaultLanguage` preference is ignored; document content is left unchanged.
 
 Use `getLocale()` for UI date, number and sorting formats. Use an explicit
 `getMessages(locale)` catalog when a background operation should retain the

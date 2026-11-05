@@ -229,55 +229,6 @@ def check_daily_topic_selector(date_str):
     return info
 
 
-def check_ai_media_topic_selector(date_str):
-    info = {"skill": "ai-media-topic-selector", "ran": False, "details": {}}
-
-    iso = iso_date(date_str)
-    topic_dir = content_path("creative", "01-内容生产", "选题管理")
-    if topic_dir.exists():
-        for f in topic_dir.iterdir():
-            if f.is_file() and iso in f.name and f.name.endswith(".md"):
-                info["ran"] = True
-                info["details"]["topic_file"] = f.name
-                break
-
-    return info
-
-
-def check_collect_interest_markers(date_str):
-    info = {"skill": "collect-interest-markers", "ran": False, "details": {}}
-
-    inbox = content_path("creative", "01-内容生产", "选题管理", "00-兴趣收集箱.md")
-    if not inbox.exists():
-        return info
-
-    iso = iso_date(date_str)
-    try:
-        text = inbox.read_text(encoding="utf-8")
-    except OSError:
-        return info
-
-    if f"### {iso}" in text:
-        # Count items under this date section
-        count = text.count(f"<!-- interest-id:")
-        # Find the section for this specific date
-        in_section = False
-        section_items = 0
-        for line in text.splitlines():
-            if line.strip() == f"### {iso}":
-                in_section = True
-                continue
-            if in_section:
-                if line.startswith("### "):
-                    break
-                if "<!-- interest-id:" in line:
-                    section_items += 1
-        info["ran"] = True
-        info["details"]["items_collected"] = section_items
-
-    return info
-
-
 def check_rss_to_summary_workflow(date_str):
     info = {"skill": "rss-to-summary-workflow", "ran": False, "details": {}}
 
@@ -301,8 +252,6 @@ CHECKS = [
     check_x_following_fetcher,
     check_reddit_fetcher,
     check_daily_topic_selector,
-    check_ai_media_topic_selector,
-    check_collect_interest_markers,
 ]
 
 

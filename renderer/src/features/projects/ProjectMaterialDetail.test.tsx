@@ -4,7 +4,7 @@ import type { DesktopApi } from "@shared/contracts";
 import { projectVideoMediaUrl } from "@shared/youtube-import";
 import { FeedbackProvider } from "../../feedback-context";
 import { ProjectMaterialDetail } from "./ProjectMaterialDetail";
-import type { ProjectDetail } from "./types";
+import type { ProjectDetail, ProjectMaterial } from "./types";
 
 const project: ProjectDetail = { id: "fixture", name: "Fixture", description: "", status: "active", materialCount: 1, taskCount: 0, outputCount: 0, createdAt: "", updatedAt: "" };
 const relativePath = "materials/videos/fixture.video.md";
@@ -24,6 +24,30 @@ function mount() {
 }
 
 describe("video material refresh", () => {
+  it("automatically opens the parsed result when the selected background job becomes ready", async () => {
+    const pending: ProjectMaterial = { relativePath, title: "Pending video", kind: "video", status: "converting" };
+    const read = vi.fn().mockResolvedValue({ material, video: { ...video, transcript: [{ startMs: 0, endMs: 3000, text: "Background captions." }] } });
+    window.openmind = { readProjectMaterial: read } as unknown as DesktopApi;
+    const content = (item: ProjectMaterial) => <FeedbackProvider><ProjectMaterialDetail project={project} materialPath={relativePath} material={item} createRequested={false} onCreateHandled={vi.fn()} onChanged={vi.fn()} /></FeedbackProvider>;
+    const view = render(content(pending));
+    await screen.findByText("正在转换为 Markdown");
+    expect(read).not.toHaveBeenCalled();
+    view.rerender(content({ ...pending, status: "ready" }));
+    expect(await screen.findByText("Background captions.")).toBeTruthy();
+    expect(read).toHaveBeenCalledOnce();
+  });
+
+  it("shows a background failure and submits retry without waiting for parsing", async () => {
+    const failed: ProjectMaterial = { relativePath, title: "Failed video", kind: "video", status: "failed", error: "Parser unavailable" };
+    const retry = vi.fn().mockResolvedValue({ ...material, status: "converting" });
+    window.openmind = { retryMaterialExtraction: retry } as unknown as DesktopApi;
+    render(<FeedbackProvider><ProjectMaterialDetail project={project} materialPath={relativePath} material={failed} createRequested={false} onCreateHandled={vi.fn()} onChanged={vi.fn()} /></FeedbackProvider>);
+    expect(await screen.findByText("Parser unavailable")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "重试" }));
+    expect(await screen.findByText("正在转换为 Markdown")).toBeTruthy();
+    expect(screen.queryByText("资料转换仍然失败。")).toBeNull();
+  });
+
   it("replaces an embedded player and empty transcript after downloading the selected video", async () => {
     const fixture = mount();
     const download = await screen.findByRole("button", { name: "下载到本地播放" });

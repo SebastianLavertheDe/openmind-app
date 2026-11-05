@@ -4,7 +4,7 @@ const os = require("node:os");
 const path = require("node:path");
 const ts = require("typescript");
 
-// AI Context 分片基准：真实 Projects/Creative 页面 + 真实 AI 侧栏伴随流式输出。
+// AI Context 分片基准：真实 Projects 页面 + 真实 AI 侧栏伴随流式输出。
 // 构建产物在 checkout 之外的临时目录（与 document-performance 同款流程），
 // 通过 visual fixture 预载 API 驱动，绝不触碰真实用户数据。
 (async () => {
@@ -21,10 +21,9 @@ const ts = require("typescript");
       name: "benchmark-page-commits", enforce: "pre",
       transform(code, id) {
         const normalized = id.replaceAll("\\", "/");
-        const page = normalized.endsWith("/features/creative/CreativePage.tsx") ? "creative"
-          : normalized.endsWith("/features/projects/ProjectsPage.tsx") ? "projects" : null;
+        const page = normalized.endsWith("/features/projects/ProjectsPage.tsx") ? "projects" : null;
         if (!page) return;
-        const name = page === "creative" ? "CreativeWorkspacePage" : "ProjectsPage";
+        const name = "ProjectsPage";
         const source = ts.createSourceFile(id, code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
         const declaration = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name);
         if (!declaration?.body) throw new Error(`Missing benchmark page function: ${name}`);

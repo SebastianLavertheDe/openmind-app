@@ -5,7 +5,7 @@ import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Clapperboard, Download, FileText, Files, FolderInput, Globe2, LoaderCircle, MoreHorizontal, PencilLine, Search, Trash2 } from "lucide-react";
+import { AlertTriangle, Clapperboard, Download, FileText, Files, FolderInput, Globe2, LoaderCircle, MoreHorizontal, PencilLine, Search, Trash2 } from "lucide-react";
 import { DropdownMenu, EmptyState, ErrorState, SearchInput, Select } from "../../design-system/components";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
@@ -13,6 +13,7 @@ import { ProjectMaterialDetail } from "./ProjectMaterialDetail";
 import { ProjectOutputDetail, type ProjectOutputNavigationGuard } from "./ProjectOutputDetail";
 import type { ProjectTaskSeed } from "./ProjectTasksPanel";
 import { projectsApi } from "./projects-api";
+import { useMaterialProcessingRefresh } from "./use-material-processing-refresh";
 import type { ProjectCreateAction, ProjectDetail, ProjectMaterial, ProjectOutput, ProjectSection, ProjectSummary } from "./types";
 
 type ProjectFileKind = "material" | "output";
@@ -20,6 +21,7 @@ type ProjectFileSelection = { kind: ProjectFileKind; relativePath: string };
 type ProjectFileEntry = ProjectFileSelection & {
   title: string;
   materialKind?: ProjectMaterial["kind"];
+  materialStatus?: ProjectMaterial["status"];
   updatedAt: string;
 };
 
@@ -89,9 +91,9 @@ export function ProjectFilesPanel({
     onSelectionChange?.(Boolean(next));
   }, [onSelectionChange]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     const request = ++loadSequence.current;
-    setLoading(true);
+    if (!background) setLoading(true);
     try {
       const [nextMaterials, nextOutputs] = await Promise.all([
         projectsApi.listMaterials(project.name),
@@ -119,6 +121,8 @@ export function ProjectFilesPanel({
       if (request === loadSequence.current) setLoading(false);
     }
   }, [initialItem, initialFileKind, initialSection, restoreSelection, project.name, updateSelection]);
+
+  useMaterialProcessingRefresh(project.name, materials, () => load(true));
 
   useEffect(() => {
     void load();
@@ -295,7 +299,8 @@ export function ProjectFilesPanel({
         {loading && !hasLoaded ? Array.from({ length: 6 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={entries.length ? messages.projectUi.noMatchingFiles : messages.projectUi.noFiles} description={entries.length ? messages.projectUi.tryAnotherKeyword : messages.projectUi.addFilesHint} /> : null}
         {hasLoaded ? filtered.map((item) => {
-          const Icon = fileIcon(item);
+          const processing = item.materialStatus === "importing" || item.materialStatus === "converting";
+          const Icon = processing ? LoaderCircle : item.materialStatus === "failed" ? AlertTriangle : fileIcon(item);
           const active = Boolean(selection && sameSelection(selection, item));
           return (
             <div
@@ -308,8 +313,8 @@ export function ProjectFilesPanel({
                 data-motion="selection"
                 onClick={() => void openFile(item)}
               >
-                <Icon className="project-file-icon" size={16} strokeWidth={2} aria-hidden="true" />
-                <span><strong>{item.title}</strong></span>
+                <Icon className={`project-file-icon${processing ? " spin" : ""}`} size={16} strokeWidth={2} aria-hidden="true" />
+                <span><strong>{item.title}</strong>{item.materialStatus && item.materialStatus !== "ready" ? <small>{item.materialStatus === "failed" ? messages.projectUi.conversionFailedStatus : item.materialStatus === "importing" ? messages.projectUi.importingStatus : messages.projectUi.convertingStatus}</small> : null}</span>
               </button>
               <DropdownMenu
                 className="project-file-more"
@@ -430,6 +435,7 @@ function materialEntry(item: ProjectMaterial): ProjectFileEntry {
     relativePath: item.relativePath,
     title: item.title,
     materialKind: item.kind,
+    materialStatus: item.status,
     updatedAt: item.updatedAt || item.createdAt || ""
   };
 }

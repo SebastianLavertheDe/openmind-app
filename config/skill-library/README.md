@@ -1,6 +1,6 @@
 # 应用技能库配置
 
-这里维护全部 App 内置技能：配置式 Agent 预设和 `packages/` 下迁入的 15 个原生包。Agent、Process、Workflow 保留原执行类型；外部 Git 导入与用户编写的技能继续使用独立来源身份。
+这里维护全部 App 内置技能：配置式 Agent 预设和 `packages/` 下保留的 10 个原生包。Agent、Process、Workflow 保留原执行类型；外部 Git 导入与用户编写的技能继续使用独立来源身份。
 `catalog.json` 包含技能清单、执行指令及中英文展示信息；App 构建不读取外部技能仓库。
 
 ## 添加技能

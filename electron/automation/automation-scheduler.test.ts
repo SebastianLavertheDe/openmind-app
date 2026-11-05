@@ -66,6 +66,15 @@ describe("AutomationRepository", () => {
 });
 
 describe("AutomationScheduler", () => {
+  it("rejects retired targets at save and manual admission, preserving disabled configuration", async () => {
+    const harness = createHarness(new Date("2026-11-05T09:00:00.000Z"), { isRetiredTarget: id => id === "daily-writing-orchestrator" });
+    const rule = { ...DEFAULT_AUTOMATION_RULES[0], id: "legacy-writing", target: { type: "skill" as const, id: "daily-writing-orchestrator", versionPolicy: "*" } };
+    expect(() => harness.scheduler.saveRule({ ...rule, enabled: true })).toThrow(/退役/);
+    expect(harness.scheduler.saveRule({ ...rule, enabled: false }).enabled).toBe(false);
+    await expect(harness.scheduler.runNow(rule.id)).rejects.toThrow(/退役/);
+    expect(harness.submitted).toEqual([]);
+    expect(harness.scheduler.listRuns(rule.id)).toEqual([]);
+  });
   it("dispatches RSS updates, article collection and summary independently", async () => {
     const harness = createHarness(new Date("2026-10-29T12:00:00.000Z"));
     harness.scheduler.setDefaultSkillsEnabled(true);
@@ -404,6 +413,7 @@ function createHarness(initialNow: Date, options: {
   fileFingerprint?: (paths: readonly string[]) => string | undefined;
   environment?: () => AutomationEnvironment;
   onWorkflowSubmitted?: (record: WorkflowRunRecord) => WorkflowRunRecord;
+  isRetiredTarget?: (id: string) => boolean;
 } = {}) {
   const root = makeRoot();
   const paths = buildAppPaths(path.join(root, "user-data"));
@@ -418,6 +428,7 @@ function createHarness(initialNow: Date, options: {
   const scheduler = new AutomationScheduler({
     repository: new AutomationRepository(paths),
     rootGeneration: 1,
+    isRetiredTarget: options.isRetiredTarget,
     now: () => now,
     submitSkill: (request) => {
       const id = `child-${submitted.length + 1}`;

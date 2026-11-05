@@ -99,6 +99,34 @@ describe("ContentIndexStore 批量落盘", () => {
     expect(writeJsonAtomicMock).toHaveBeenCalledTimes(1);
   });
 
+  it("prunes legacy index paths on upgrade while keeping current content and original files", () => {
+    createStore().searchContent("needle", 1);
+    const payload = structuredClone(writtenPayloads()[0]) as { items: Record<string, Record<string, unknown>> };
+    const currentPaths = Object.keys(payload.items);
+    const template = payload.items[currentPaths[0]];
+    const oldPaths = ["openmind/creative/中文/草稿.md", "creative/versions/v001.md", "creative\\assets\\notes.md"];
+    for (const oldPath of oldPaths) {
+      payload.items[oldPath] = { ...template, id: oldPath, path: oldPath, date: "20200101", searchText: "legacy draft" };
+      const file = path.join(root, oldPath.replace(/^openmind\//, ""));
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, "original legacy bytes");
+    }
+    const indexFile = path.join(stateRoot, ".openmind", "content-index.json");
+    fs.mkdirSync(path.dirname(indexFile), { recursive: true });
+    fs.writeFileSync(indexFile, JSON.stringify(payload));
+    writeJsonAtomicMock.mockClear();
+
+    const upgraded = createStore();
+    expect(upgraded.searchContent("legacy draft")).toEqual([]);
+    expect(upgraded.searchContent("needle", 1)).toHaveLength(1);
+    const rewritten = writtenPayloads()[0].items as Record<string, unknown>;
+    for (const oldPath of oldPaths) {
+      expect(rewritten[oldPath]).toBeUndefined();
+      expect(fs.readFileSync(path.join(root, oldPath.replace(/^openmind\//, "")), "utf8")).toBe("original legacy bytes");
+    }
+    expect(currentPaths.every(itemPath => rewritten[itemPath])).toBe(true);
+  });
+
   it("命中 limit 提前返回时同样落盘已重建的日期", () => {
     const store = createStore();
     const results = store.searchContent("needle", 1);

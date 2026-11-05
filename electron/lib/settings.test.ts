@@ -122,12 +122,13 @@ describe("settings path handling", () => {
     expect(findRepoRoot()).toBe(repo);
   });
 
-  it("migrates and persists UI language independently of content language", () => {
-    saveSettings({ defaultLanguage: "zh-CN" });
+  it("ignores retired content-language preferences while persisting UI language", () => {
+    saveSettings({ defaultLanguage: "en", defaultPlatform: "wechat" });
     expect(getPreferences().uiLanguage).toBe("zh-CN");
     updatePreferences({ uiLanguage: "en" });
     expect(getPreferences().uiLanguage).toBe("en");
-    expect(getPreferences().defaultLanguage).toBe("zh-CN");
+    expect(getPreferences()).not.toHaveProperty("defaultLanguage");
+    expect(getPreferences()).not.toHaveProperty("defaultPlatform");
     expect(JSON.parse(fs.readFileSync(settingsFile(), "utf8")).uiLanguage).toBe("en");
     expect(() => updatePreferences({ uiLanguage: "fr" as "en" })).toThrow();
     expect(getPreferences().uiLanguage).toBe("en");
@@ -136,7 +137,7 @@ describe("settings path handling", () => {
   });
 
   it("keeps YouTube browser selection opt-in, persists it, and rejects arbitrary profile or shell values", () => {
-    saveSettings({ defaultLanguage: "zh-CN" });
+    saveSettings({ });
     expect(getPreferences().youtubeBrowser).toEqual([]);
     updatePreferences({ youtubeBrowser: ["firefox", "chrome", "firefox"] });
     expect(getPreferences().youtubeBrowser).toEqual(["firefox", "chrome"]);
@@ -165,7 +166,7 @@ describe("settings path handling", () => {
     expect(prefs.destructiveOpsRequireApproval).toBe(true);
     expect(prefs.riskScanEnabled).toBe(true);
     expect(prefs.notesDir).toBe("openmind");
-    expect(prefs.defaultPlatform).toBe("公众号");
+
     expect(Array.isArray(prefs.userTags)).toBe(true);
     expect(prefs.schemaVersion).toBeGreaterThanOrEqual(1);
   });
@@ -205,16 +206,6 @@ describe("settings path handling", () => {
     expect(persisted.openmindRoot).toBe(canonical);
     expect(persisted.workspaceRoot).toBe(canonical);
     expect(() => updatePreferences({ openmindRoot: "" } as never)).toThrow("保存目录只能通过专用的目录选择操作修改");
-  });
-
-  it("validates, persists and resets workflow preferences as one group", () => {
-    const updated = updatePreferences({ autoSaveIntervalMs: 15_000, archiveAfterDays: 30, workflowReviewRequiredForReady: false });
-    expect(updated.workflowReviewRequiredForReady).toBe(false);
-    expect(() => updatePreferences({ workflowAutoSaveDraft: "yes" as never })).toThrow("workflowAutoSaveDraft");
-    const reset = resetPreferences("workflow");
-    expect(reset.autoSaveIntervalMs).toBe(30_000);
-    expect(reset.archiveAfterDays).toBe(90);
-    expect(reset.workflowReviewRequiredForReady).toBe(true);
   });
 
   it("persists the first-run onboarding state in app-private settings", () => {

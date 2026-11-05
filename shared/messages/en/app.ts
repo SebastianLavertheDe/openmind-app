@@ -19,7 +19,7 @@ export const appMessages = {
     hintShort: "Describe a task for AI, such as “Summarize today's 3 articles”, or enter keywords to search the library, drafts, conversations, and automations.",
     hintEmpty: "No matching local content, drafts, conversations, or Skills. Press Enter to ask AI to handle this request.",
     actionSection: "AI actions", runningSuffix: "· Running",
-    groups: { content: "Library", project: "Projects", "creative-project": "Drafts", session: "AI conversations", skill: "Automation" },
+    groups: { content: "Library", project: "Projects", session: "AI conversations", skill: "Automation" },
     actions: {
       summarize: { badge: "Read only · Summarize", title: "Summarize today's content", why: (date: string) => `Matches a summary request · Read today's (${date}) inbox and article content and return key points in English` },
       createDraft: { badge: "Create · Edit", title: "Write a content draft", why: "Matches a writing request · Run with edit permissions and return a draft" },

@@ -49,7 +49,7 @@ try {
 
   const settings = require("../.build/electron/electron/lib/settings.js");
   const content = require("../.build/electron/electron/lib/content.js");
-  const creative = require("../.build/electron/electron/lib/creative.js");
+
   const providersYaml = require("../.build/electron/electron/config/providers-yaml.js");
   const processUtils = require("../.build/electron/electron/ai/process-utils.js");
   const codexProvider = require("../.build/electron/electron/ai/providers/codex-app-server.js");
@@ -74,11 +74,9 @@ try {
   const preview = content.readContent(articles[0].path);
   assert(preview.content.length > 0, "Content preview could not be read");
 
-  const creativeProjects = creative.listCreativeProjects();
-  assert(creativeProjects.length > 0, "Creative project listing is empty");
-  assert(creativeProjects.every((project) => project.completion >= 0 && project.completion <= 100), "Creative completion is invalid");
-  const creativeTopics = creative.getCreativeTopics("20260611");
-  assert(creativeTopics.date === "20260611" && creativeTopics.topics.length > 0, "Creative topics do not follow the selected date");
+  const legacyDraft = "openmind/creative/01-内容生产/文稿库/02-制作中/20260610-fixture/topic-brief.md";
+  assert(content.readContent(legacyDraft).content.includes("Integration project"), "Legacy drafts must remain readable");
+  assert(!content.getContent("all", date).some(file => file.path.includes("/creative/")), "Retired drafts must not enter the content index");
 
   const wslPath = processUtils.parseWslPath("\\\\wsl.localhost\\Ubuntu\\home\\example\\openmind");
   assert(wslPath?.distro === "Ubuntu", "WSL distro parsing failed");

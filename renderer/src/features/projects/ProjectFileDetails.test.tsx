@@ -92,7 +92,7 @@ describe("project file detail ownership", () => {
     await waitFor(() => expect((screen.getByRole("textbox", { name: "Output title" }) as HTMLInputElement).value).toBe("Two"));
     expect(fixture.save).toHaveBeenCalledOnce();
     expect(within(fixture.list).getByRole("button", { name: "Renamed" })).toBeTruthy();
-    fireEvent.click(within(fixture.list).getByRole("button", { name: "Source" }));
+    fireEvent.click(within(fixture.list).getByRole("button", { name: "Source 转换失败" }));
     await within(fixture.detail).findByText("资料转换失败");
     fireEvent.click(within(fixture.list).getByRole("button", { name: "Renamed" }));
     await within(fixture.detail).findByRole("textbox", { name: "Output title" });
@@ -104,7 +104,7 @@ describe("project file detail ownership", () => {
     const fixture = mount(vi.fn().mockRejectedValue(new Error("Save failed")));
     const title = await within(fixture.detail).findByRole("textbox", { name: "Output title" });
     fireEvent.change(title, { target: { value: "Unsaved" } });
-    fireEvent.click(within(fixture.list).getByRole("button", { name: "Source" }));
+    fireEvent.click(within(fixture.list).getByRole("button", { name: "Source 转换失败" }));
     const confirm = await screen.findByRole("alertdialog");
     fireEvent.click(within(confirm).getByRole("button", { name: "取消" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());

@@ -46,11 +46,7 @@ const defaultPrefs: UserPreferences = {
   markReadOnOpen: true, defaultProvider: "", youtubeBrowser: [],
   defaultPermissionProfile: "edit",
   notesDir: "openmind", destructiveOpsRequireApproval: true,
-  riskScanEnabled: true, defaultPlatform: "公众号", defaultLanguage: "zh-CN",
-  defaultContentLength: "medium", defaultTemplate: "", userTags: ["AI", "工程"],
-  workflowAutoSaveDraft: true, workflowAutoVersionOnStageChange: true,
-  workflowReviewRequiredForReady: true, workflowPublishChecklistEnabled: true,
-  workflowAutoArchiveEnabled: false
+  riskScanEnabled: true, userTags: ["AI", "工程"],
 };
 
 const archivedSession: AiSession = {
@@ -229,7 +225,7 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "简体中文" }));
     await screen.findByRole("heading", { name: "常规" });
     expect(stored.uiLanguage).toBe("zh-CN");
-    expect(stored.defaultLanguage).toBe(defaultPrefs.defaultLanguage);
+    expect(stored.userTags).toEqual(defaultPrefs.userTags);
   });
 
   it("keeps the current language when persistence fails", async () => {
@@ -935,33 +931,6 @@ describe("SettingsPage", () => {
     expect(screen.getByLabelText("Claude Code 配置模型").textContent).toContain("glm-5.2[1m]");
     // 未配置模型时明确交还 Provider，而不是展示一份内置候选列表。
     expect(screen.getByText("配置未指定，运行时由 Provider 决定")).toBeTruthy();
-  });
-
-  it("previews and persists workflow rules", async () => {
-    const updatePreferences = vi.fn().mockImplementation(async (patch: Partial<UserPreferences>) => ({ ...defaultPrefs, ...patch }));
-    window.openmind = makeApi({ updatePreferences });
-    renderSettings();
-    await screen.findByRole("heading", { name: "常规" });
-    openCategory("内容工作流");
-    await waitFor(() => expect(screen.getByRole("status", { name: "工作流规则预览" })).toBeTruthy());
-    expect(screen.getByText(/每 30 秒自动保存/)).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("switch", { name: "进入待发布需审核通过" }));
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ workflowReviewRequiredForReady: false })));
-    fireEvent.change(screen.getByLabelText("自动保存间隔"), { target: { value: "15000" } });
-    await waitFor(() => expect(updatePreferences).toHaveBeenCalledWith(expect.objectContaining({ autoSaveIntervalMs: 15000 })));
-  });
-
-  it("resets only the workflow preference group after confirmation", async () => {
-    const resetPreferences = vi.fn(async () => defaultPrefs);
-    window.openmind = makeApi({ resetPreferences });
-    renderSettings();
-    await screen.findByRole("heading", { name: "常规" });
-    openCategory("内容工作流");
-    fireEvent.click(await screen.findByRole("button", { name: "恢复默认值" }));
-    const dialog = await screen.findByRole("alertdialog", { name: "恢复默认值" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "恢复默认值" }));
-    await waitFor(() => expect(resetPreferences).toHaveBeenCalledWith("workflow"));
   });
 
   it("lists archived sessions and restores them to recent sessions", async () => {

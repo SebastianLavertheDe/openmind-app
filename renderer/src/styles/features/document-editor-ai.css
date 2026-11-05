@@ -1,0 +1,114 @@
+
+.inline-ai-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.inline-ai-selection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.inline-ai-sel-label {
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.inline-ai-preview {
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent);
+  overflow: hidden;
+}
+
+.inline-ai-preview > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.inline-ai-preview .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: .03em;
+}
+
+.inline-ai-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.inline-ai-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.inline-ai-actions button:not([data-ui-control]) {
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.inline-ai-actions button:not([data-ui-control]):hover {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.inline-ai-out {
+  margin: 0;
+  padding: 12px 14px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: var(--fs-base);
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.inline-ai-foot {
+  margin: 0;
+  padding: 6px 14px 10px;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+}
+
+.inline-ai-bar {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.inline-ai-bar:empty {
+  display: none;
+}
+
+.inline-ai-selection {
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+  background: var(--accent-tint);
+  color: var(--accent-fg);
+}

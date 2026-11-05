@@ -131,6 +131,10 @@ export class RunScheduler {
     } : undefined);
     this.automation = appPaths && openmindRoot ? new AutomationScheduler({
       repository: new AutomationRepository(appPaths),
+      isRetiredTarget: id => {
+        const record = packageService?.getInstalledById(id);
+        return Boolean(record && packageService?.isRetired(record));
+      },
       leader: new AutomationLeader(appPaths.automation),
       fileFingerprint: createAutomationFileFingerprint(openmindRoot),
       rootGeneration,

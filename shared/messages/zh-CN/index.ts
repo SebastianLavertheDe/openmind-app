@@ -1,10 +1,10 @@
+import { documentEditorMessages } from "./document-editor";
 import { rssMessages } from "./rss";
 import { skillLibraryMessages } from "./skill-library";
 import { coreMessages } from "./core";
 import { appMessages } from "./app";
 import { electronMessages } from "./electron";
 import { featureMessages } from "./features";
-import { creativeUiMessages } from "./creative-ui";
 import { aiMessages } from "./ai";
 import { slashMessages } from "./slash";
 import type { TranslationOf } from "../types";
@@ -36,7 +36,8 @@ export const zhCN = {
   ...featureRest,
   settings: { ...settingsDefaults, ...settingsPage },
   brief: { ...briefBackend, ...briefPage },
-  creativeUi: creativeUiMessages,
+  documentEditor: documentEditorMessages,
+
   ai: aiMessages,
   slash: slashMessages
 } as const;

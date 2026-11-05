@@ -84,32 +84,6 @@ export function createExplicitContentSource(openmindRootInput: string): ContentA
     return /^x_/i.test(name) && name.endsWith(".md");
   }
 
-  function latestCreativeTopics(date: string): ContentFileEntry[] {
-    const formatted = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
-    const root = physicalFromLogical("openmind/creative");
-    const matches: ContentFileEntry[] = [];
-
-    function walk(directory: string, depth = 0): void {
-      if (depth > 4 || !fs.existsSync(directory)) return;
-      for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-        const target = path.join(directory, entry.name);
-        if (entry.isDirectory()) walk(target, depth + 1);
-        if (entry.isFile() && entry.name.includes(formatted) && entry.name.endsWith(".md")) {
-          const stat = fs.statSync(target);
-          matches.push({
-            name: entry.name,
-            path: logicalFromPhysical(target),
-            size: stat.size,
-            modifiedAt: stat.mtime.toISOString()
-          });
-        }
-      }
-    }
-
-    walk(root);
-    return matches.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
-  }
-
   return {
     getContent(kind: string, date: string): Array<ContentFileEntry & { kind: string }> {
       const kinds = kind === "all" ? [...LEGACY_GET_CONTENT_ALL_KINDS] : [kind];
@@ -140,9 +114,6 @@ export function createExplicitContentSource(openmindRootInput: string): ContentA
           listFiles(physicalFromLogical(path.join(...dateDirectory, date)), (name) => name.endsWith(".md") || name.endsWith(".json") || name.endsWith(".html"))
             .map((file) => ({ ...file, kind: item }))
         );
-      }
-      if (kind === "all" || kind === "topics") {
-        files = files.concat(latestCreativeTopics(date).map((file) => ({ ...file, kind: "topics" })));
       }
       return files.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
     },

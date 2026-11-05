@@ -1,3 +1,4 @@
+import { AiSessionOriginSchema } from "@shared/ai-session-origin";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiEvent, AiRun, AiSnapshot, AppBootstrap, AppOverview, DesktopApi, OnboardingState, SkillDefinition, UserPreferences } from "@shared/contracts";
@@ -18,10 +19,7 @@ const preferences: UserPreferences = {
   uiLanguage: "zh-CN", density: "default", fontSize: "default",
   autoSaveIntervalMs: 30000, maxVersions: 50, archiveAfterDays: 90, defaultReadFilter: "all", contentPreviewMode: "sidebar",
   markReadOnOpen: true, defaultProvider: "", youtubeBrowser: [], defaultPermissionProfile: "edit",
-  notesDir: "openmind", destructiveOpsRequireApproval: true, riskScanEnabled: true, defaultPlatform: "公众号",
-  defaultLanguage: "zh-CN", defaultContentLength: "medium", defaultTemplate: "", userTags: [],
-  workflowAutoSaveDraft: true, workflowAutoVersionOnStageChange: true, workflowReviewRequiredForReady: true,
-  workflowPublishChecklistEnabled: true, workflowAutoArchiveEnabled: false
+  notesDir: "openmind", destructiveOpsRequireApproval: true, riskScanEnabled: true, userTags: [],
 };
 
 function installApi(overrides: Partial<DesktopApi> = {}) {
@@ -210,22 +208,20 @@ describe("session origin restoration", () => {
   it.each(["project", "topic"] as const)("restores a creative %s file from a freshly mounted app", async kind => {
     const filePath = kind === "project" ? "outline.md" : "openmind/daily-topic/20261025_daily_topic.md";
     const project = { dir: "openmind/creative/research", topic: "创作工程", stage: "drafting" as const, completion: 20, date: "20261025" };
-    const origin = { page: "creative" as const, projectDir: kind === "project" ? project.dir : null, filePath, stage: "drafting" as const };
+    const origin = AiSessionOriginSchema.parse({ page: "creative", projectDir: kind === "project" ? project.dir : null, filePath, stage: "drafting" });
     const session = { ...sessionFixture("创作 A 会话"), origin };
     const live = { ...snapshot, sessions: [session] };
     const readContent = vi.fn(async (path: string) => ({ path, name: "A.md", content: "# 创作原文件 A" }));
     installApi({
-      getBootstrap: async () => bootstrap(live), aiRefresh: async () => live,
-      getAllCreativeTopics: async () => [], getCreativeProjects: async () => [project],
-      getCreativeProject: async () => ({ ...project, files: { "draft.md": "# 其他文件 B", "outline.md": "# 创作原文件 A" }, manifest: { topic: project.topic } }),
-      listCreativeVersions: async () => [], readContent
+      getBootstrap: async () => bootstrap(live), aiRefresh: async () => live, readContent
     });
     render(<App />);
     await waitFor(() => expect(recent(session.id)).toBeTruthy());
     fireEvent.click(recent(session.id));
     await screen.findByRole("heading", { name: "创作原文件 A" }, { timeout: LAZY_ROUTE_TIMEOUT_MS });
     expect(screen.queryByRole("heading", { name: "其他文件 B" })).toBeNull();
-    expect(screen.getByRole("button", { name: "创作" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
+    expect(document.querySelector(".ai-workbench")).toBeTruthy();
     expect(screen.getByLabelText("AI 消息").getAttribute("placeholder")).toContain(session.title);
     if (kind === "topic") expect(readContent).toHaveBeenCalledWith(filePath);
   });
@@ -244,7 +240,7 @@ describe("session origin restoration", () => {
     render(<App />);
     await screen.findByRole("button", { name: "新建任务" });
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    fireEvent.change(await screen.findByLabelText("说一句话或搜索资料、创作、会话和自动化"), { target: { value: "搜索项目会话" } });
+    fireEvent.change(await screen.findByLabelText("说一句话或搜索资料、项目、会话和自动化"), { target: { value: "搜索项目会话" } });
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(await within(dialog).findByText(session.title));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());

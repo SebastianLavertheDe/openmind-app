@@ -1140,17 +1140,7 @@
   background: transparent;
   box-shadow: none;
 }
-
-/* ── SET-WF-001~005: 工作流规则面板 ── */
-.settings-workflow-subtitle { display: block; font-size: var(--fs-sm); font-weight: 500; color: var(--text); }
-.settings-workflow-hint { margin: 4px 0 10px; color: var(--muted); font-size: var(--fs-xs); line-height: 1.5; }
 .settings-inline-controls { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-2); flex-wrap: wrap; }
-.settings-workflow-preview { display: grid; gap: 6px; margin-top: var(--space-3); padding: var(--space-3); border: 0; border-radius: var(--radius-control); background: var(--panel-2); color: var(--muted); font-size: 12px; line-height: 1.45; }
-.settings-workflow-preview strong { color: var(--text); font-size: var(--fs-sm); }
-.settings-stage-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
-.settings-stage-list li { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 0; border-radius: var(--radius-sm); background: var(--panel-2); }
-.settings-stage-list li span { color: var(--muted); font-size: var(--fs-xs); line-height: 1.4; }
-.settings-workflow-stages { margin-bottom: var(--space-3); padding-bottom: var(--space-3); border: 0; }
 
 /* ── BrowserSkill ── */
 .settings-browser-backend {
@@ -1624,28 +1614,6 @@
   border-top: 1px solid color-mix(in srgb, var(--border) 52%, transparent);
 }
 
-.settings-workflow-stages {
-  margin: 0;
-  padding: 2px 0 0;
-}
-
-.settings-stage-list {
-  gap: 4px;
-}
-
-.settings-stage-list li {
-  min-height: 36px;
-  padding: 7px 10px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--panel-muted) 58%, var(--panel));
-}
-
-.settings-workflow-preview {
-  margin-top: 10px;
-  padding: 13px 14px;
-  background: color-mix(in srgb, var(--panel-muted) 64%, var(--panel));
-}
-
 .settings-archived-description {
   margin-top: 0;
 }
@@ -1951,14 +1919,9 @@
  * keep their hierarchy through h1/h2/h3 rather than an incidental <strong>. */
 .settings-page[data-settings-section="browser"] strong,
 .settings-page[data-settings-section="permissions"] strong,
-.settings-page[data-settings-section="workflow"] strong,
 .settings-page[data-settings-section="storage"] strong,
 .settings-page[data-settings-section="sessions"] strong,
 .settings-page[data-settings-section="runtime"] strong {
-  font-weight: 400;
-}
-
-.settings-page[data-settings-section="workflow"] .settings-stage-list .ui-status-badge {
   font-weight: 400;
 }
 

@@ -15,7 +15,7 @@ export type GlobalSearchContext = {
   listSkillDefinitions(): Promise<Array<Record<string, unknown>>>;
 };
 
-/** 全局搜索编排：fan-out 到 AI worker（会话/skill）+ ProductService（内容/创作项目），合并 4 类结果。 */
+/** 全局搜索编排：fan-out 到 AI worker（会话/skill）+ ProductService（内容），合并结果。 */
 export async function globalSearch(rawQuery: unknown, ctx: GlobalSearchContext): Promise<GlobalSearchResult[]> {
   const query = z.string().max(500).parse(rawQuery || "").trim();
   if (!query) return [];
@@ -27,7 +27,7 @@ export async function globalSearch(rawQuery: unknown, ctx: GlobalSearchContext):
     product.searchContent(query, 24)
   ]);
   const normalizedQuery = query.toLocaleLowerCase();
-  const projectResults = product.searchCreativeProjects(query, 16);
+
   const independentProjectResults: GlobalSearchResult[] = ctx.ensureProjectService().listProjects()
     .filter((project) => `${project.name} ${project.description}`.toLocaleLowerCase().includes(normalizedQuery))
     .slice(0, 16)
@@ -68,7 +68,7 @@ export async function globalSearch(rawQuery: unknown, ctx: GlobalSearchContext):
       status: null,
       targetId: String(skill.id)
     }));
-  return [...contentResults, ...independentProjectResults, ...projectResults, ...sessionResults, ...skillResults]
+  return [...contentResults, ...independentProjectResults, ...sessionResults, ...skillResults]
     .slice(0, 64)
     .map((result) => GlobalSearchResultSchema.parse(result));
 }

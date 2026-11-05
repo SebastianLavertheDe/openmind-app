@@ -130,7 +130,7 @@ describe("AppShell", () => {
     try {
       const { container } = render(
         <ResponsiveLayoutProvider>
-          <AppShell defaultSkillsEnabled page="creative" navigate={vi.fn()} onOpenSearch={vi.fn()} navCollapsed={false} setNavCollapsed={vi.fn()} repoRoot="/repo" environment={{ mode: "desktop", platform: "linux" }} pendingApprovals={0} aiMode="collapsed">
+          <AppShell defaultSkillsEnabled page="brief" navigate={vi.fn()} onOpenSearch={vi.fn()} navCollapsed={false} setNavCollapsed={vi.fn()} repoRoot="/repo" environment={{ mode: "desktop", platform: "linux" }} pendingApprovals={0} aiMode="collapsed">
             <div>Creative</div>
           </AppShell>
         </ResponsiveLayoutProvider>
@@ -138,10 +138,10 @@ describe("AppShell", () => {
       expect(container.querySelector(".app-shell")?.classList.contains("layout-shell-rail")).toBe(true);
       expect(container.querySelector(".app-nav")?.classList.contains("collapsed")).toBe(true);
       expect(container.querySelector(".app-nav")?.getAttribute("aria-hidden")).toBeNull();
-      const creative = screen.getByRole("button", { name: "创作" });
+      const creative = screen.getByRole("button", { name: "每日简报" });
       expect(creative.getAttribute("title")).toBeNull();
       fireEvent.focus(creative);
-      expect(screen.getByRole("tooltip").textContent).toBe("创作");
+      expect(screen.getByRole("tooltip").textContent).toBe("每日简报");
       expect(screen.getByRole("tooltip").getAttribute("data-side")).toBe("right");
     } finally {
       window.matchMedia = originalMatchMedia;
@@ -168,7 +168,7 @@ describe("AppShell", () => {
         <ResponsiveLayoutProvider>
           <AppShell
             defaultSkillsEnabled
-            page="creative"
+            page="brief"
             navigate={vi.fn()}
             onOpenSearch={vi.fn()}
             navCollapsed={true}
@@ -238,7 +238,7 @@ describe("AppShell", () => {
         <ResponsiveLayoutProvider>
           <AppShell
             defaultSkillsEnabled
-            page="creative"
+            page="brief"
             navigate={vi.fn()}
             onOpenSearch={vi.fn()}
             navCollapsed={false}
@@ -291,7 +291,7 @@ describe("AppShell", () => {
     render(
       <AppShell
         defaultSkillsEnabled
-        page="creative"
+        page="brief"
         navigate={vi.fn()}
         onOpenSearch={vi.fn()}
         navCollapsed={false}
@@ -310,7 +310,7 @@ describe("AppShell", () => {
     // 新建任务在顶部；项目作为独立创作空间排在现有 Creative 之前。
     const create = screen.getByRole("button", { name: "新建任务" });
     const projects = screen.getByRole("button", { name: "项目" });
-    const creative = screen.getByRole("button", { name: "创作" });
+    const creative = screen.getByRole("button", { name: "每日简报" });
     const settings = screen.getByRole("button", { name: "设置" });
     expect(screen.queryByRole("button", { name: "运行中心" })).toBeNull();
     expect(create.compareDocumentPosition(projects) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -383,7 +383,7 @@ describe("AppShell", () => {
       </AppShell>
     );
 
-    const creative = screen.getByRole("button", { name: "创作" });
+    const creative = screen.getByRole("button", { name: "每日简报" });
     const recent = screen.getByText("最近任务区块");
     const settings = screen.getByRole("button", { name: "设置" });
     expect(creative.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

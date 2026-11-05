@@ -16,7 +16,7 @@ The commands write `.build/audit-evidence.json` and verify:
 - Inbox and AI large lists still use `VirtualList`.
 - Focus-visible and reduced-motion styles exist.
 - Browser preview data is explicitly marked, and Electron preload failure does not silently fall back to preview data.
-- Creative, Inbox, ProductService and RunScheduler are split below their line-count budgets.
+- ProductService and RunScheduler remain below their line-count budgets; the retired Creative page and backend are absent.
 
 `npm run visual:snapshot` renders the production renderer with Electron under Xvfb when needed, captures the primary pages at 1280x720, 1366x768, 1920x1080, 2560x1440, 1366x768 zoom 125%, and 1366x768 zoom 150%, then writes:
 
@@ -35,7 +35,6 @@ Run this matrix with the packaged Windows build and attach screenshots or dated 
 | 资料收集箱 | automated | automated | automated | automated | automated zoom | automated zoom |
 | 数据源 | automated | automated | automated | automated | automated zoom | automated zoom |
 | 每日简报 | automated | automated | automated | automated | automated zoom | automated zoom |
-| 创作中心 | automated | automated | automated | automated | automated zoom | automated zoom |
 | 项目 | automated | automated | automated | automated | automated zoom | automated zoom |
 | 自动化 | automated | automated | automated | automated | automated zoom | automated zoom |
 | AI 工作台 | automated | automated | automated | automated | automated zoom | automated zoom |
@@ -55,3 +54,5 @@ Run this matrix with the packaged Windows build and attach screenshots or dated 
 | Dangerous approval | Screenshot showing action, command/path and decision buttons. |
 
 The automated matrix proves renderer layout integrity in the production build. Windows-native DPI scaling and packaged-app manual review still need dated human evidence before release sign-off.
+
+The retired Creative page is excluded from new captures. Review the remaining navigation, Project editor and AI preview at all supported sizes. UI control baselines remain reviewed source fixtures; inspect actual/expected/diff images before any explicit update. Historical Creative screenshots are not current acceptance evidence.

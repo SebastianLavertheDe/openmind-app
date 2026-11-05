@@ -174,3 +174,7 @@ legacy binding upgrade is performed. When an existing real `.claude/` directory
 is encountered, the app preserves it below `.agent/legacy-claude`, moves only
 non-conflicting entries into `.agent`, and then creates the link; conflicting
 content is never overwritten. The §3 immutability rules carry over unchanged.
+
+## 2026-11-05 compatibility note: writing workspace retirement
+
+The Creative UI and App-owned production packages have been retired. The `creative/` paths above remain historical layout definitions, not an active management or generation contract. Frozen versions v1–v4 are unchanged. No upgrade renames, recategorizes or deletes existing drafts, versions, assets or release records. Generic file/path APIs continue to resolve them under the normal root boundary; active content indexing no longer scans them. See `docs/CREATIVE_MODE_REMOVAL_PLAN.md` and `docs/architecture/data-migration.md`.

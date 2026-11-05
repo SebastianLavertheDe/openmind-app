@@ -20,10 +20,11 @@ import { CONTENT_DATE_ROOTS, CONTENT_FILE_ROOTS } from "../../shared/content-kin
 import { quarantineCorruptState, statePath } from "./state-directory";
 
 // 单个日期的列表/索引结果在搜索键入期间的最短复用窗口。searchContent 会对
-// 最多 120 个日期逐一 ensureDateIndexed，而 getContent 对 creative 等目录做
+// 最多 120 个日期逐一 ensureDateIndexed，而 getContent 对内容目录做
 // 递归遍历——逐键全量重扫不可接受。TTL 内直接复用内存索引；与
 // openmind-file-search 的索引 TTL 语义一致，内容改动最迟一个窗口后可见。
 const SEARCH_DATE_REFRESH_INTERVAL_MS = 30_000;
+const isLegacyCreativePath = (itemPath: string) => /^(?:openmind\/)?creative(?:\/|$)/i.test(itemPath.replaceAll("\\", "/"));
 
 export class ContentIndexStore {
   private readonly contentIndexPath: string;
@@ -65,6 +66,8 @@ export class ContentIndexStore {
     const query = rawQuery.trim();
     if (!query) return [];
     try {
+      // Prune obsolete cached records even when no active content dates remain.
+      this.readContentIndex();
       const normalizedQuery = query.toLocaleLowerCase();
       const results: GlobalSearchResult[] = [];
       const now = Date.now();
@@ -218,6 +221,10 @@ export class ContentIndexStore {
         const items: Record<string, IndexedContent> = {};
         for (const [relativePath, value] of Object.entries(raw.items as Record<string, unknown>)) {
           const parsed = IndexedContentSchema.safeParse(value);
+          if (isLegacyCreativePath(relativePath) || parsed.success && isLegacyCreativePath(parsed.data.path)) {
+            this.indexDirty = true;
+            continue;
+          }
           if (parsed.success) items[relativePath] = parsed.data;
         }
         result = {

@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiRun, AiSession, AiSnapshot, DesktopApi } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
@@ -824,6 +824,31 @@ describe("Project file selection", () => {
 });
 
 describe("Project material creation", () => {
+  it("closes the add dialog after admission and automatically displays the background result", async () => {
+    const pending = {
+      relativePath: "materials/web/background.md", title: "后台网页", kind: "web", status: "converting",
+      source: { type: "url", url: "https://example.com/background" }
+    };
+    let items: typeof pending[] = [];
+    const addProjectUrl = vi.fn(async () => { items = [pending]; return pending; });
+    installApi({
+      listProjectMaterials: vi.fn(async () => items), addProjectUrl,
+      readProjectMaterial: vi.fn(async () => ({ material: items[0], content: "# 后台解析完成" }))
+    });
+    function MaterialCreationHost() {
+      const [requested, setRequested] = useState(true);
+      return <ProjectMaterialsPanel project={project} createRequested={requested} onCreateHandled={() => setRequested(false)} onCreateTask={vi.fn()} onChanged={vi.fn()} />;
+    }
+    renderWithAi(<MaterialCreationHost />);
+    fireEvent.change(await screen.findByRole("textbox", { name: "资料 URL" }), { target: { value: "https://example.com/background" } });
+    fireEvent.click(screen.getByRole("button", { name: "添加链接" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "添加资料" })).toBeNull());
+    expect(await screen.findByText("正在转换为 Markdown")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "添加资料" })).toBeTruthy();
+    items = [{ ...pending, status: "ready" }];
+    expect(await screen.findByText("后台解析完成", {}, { timeout: 2500 })).toBeTruthy();
+  });
+
   it("shows file upload and URL input together in the add-material dialog", async () => {
     installApi({ listProjectMaterials: vi.fn(async () => []) });
     renderWithAi(<ProjectMaterialsPanel project={project} createRequested onCreateHandled={vi.fn()} onCreateTask={vi.fn()} onChanged={vi.fn()} />);

@@ -1,3 +1,4 @@
+import { normalizeLegacyCreativeContext } from "./legacy-creative";
 import { AiSessionOriginSchema } from "./ai-session-origin";
 import { SkillSelectionInputSchema } from "./skill-library";
 import { messages } from "./messages";
@@ -104,15 +105,15 @@ export const EventKindSchema = z.enum([
   "system"
 ]);
 
-export const ContextReferenceSchema = z.object({
+export const ContextReferenceSchema = z.preprocess(normalizeLegacyCreativeContext, z.object({
   id: z.string(),
-  kind: z.enum(["content", "creative", "file", "image", "selection"]),
+  kind: z.enum(["content", "file", "image", "selection"]),
   label: z.string(),
   path: z.string().optional(),
   content: z.string().optional(),
   mediaType: z.string().optional(),
   byteSize: z.number().int().nonnegative().optional()
-});
+}));
 export type ContextReference = z.infer<typeof ContextReferenceSchema>;
 
 export const AiTurnContextSchema = z.object({
@@ -726,8 +727,8 @@ export type AddRssSourceInput = z.input<typeof AddRssSourceInputSchema>;
 
 export const GlobalSearchResultSchema = z.object({
   id: z.string(),
-  /** `project` is the independent Project domain; Creative has its own kind. */
-  kind: z.enum(["content", "project", "creative-project", "session", "skill"]),
+  /** Search categories supported by the active workspace. */
+  kind: z.enum(["content", "project", "session", "skill"]),
   title: z.string(),
   subtitle: z.string(),
   path: z.string().nullable().default(null),
@@ -834,177 +835,6 @@ export const McpServerCatalogSchema = z.array(McpServerDefinitionSchema);
 
 export interface ContentEntry { path: string; name?: string; title?: string; kind?: string; type?: string; size?: number; modifiedAt?: string; }
 export interface ContentRecord { path: string; name?: string; content?: string; ext?: string; extension?: string; truncated?: boolean; }
-export const CreativeStageSchema = z.enum(["today", "drafting", "review", "ready", "published", "archived"]);
-export type CreativeStage = z.infer<typeof CreativeStageSchema>;
-
-export const CreativeReviewIssueSchema = z.object({
-  id: z.string(),
-  dimension: z.enum(["structure", "accuracy", "readability", "platform", "seo"]),
-  severity: z.enum(["info", "warning", "error"]),
-  title: z.string(),
-  detail: z.string(),
-  line: z.number().int().positive().nullable().default(null)
-});
-export type CreativeReviewIssue = z.infer<typeof CreativeReviewIssueSchema>;
-
-export const CreativeReviewReportSchema = z.object({
-  score: z.number().min(0).max(100),
-  status: z.enum(["pending", "changes-requested", "approved"]),
-  dimensions: z.record(z.string(), z.number().min(0).max(100)),
-  issues: z.array(CreativeReviewIssueSchema),
-  createdAt: z.string(),
-  updatedAt: z.string()
-});
-export type CreativeReviewReport = z.infer<typeof CreativeReviewReportSchema>;
-
-export const CreativePublishConfigSchema = z.object({
-  platform: z.string().default(""),
-  scheduledAt: z.string().nullable().default(null),
-  coverPath: z.string().nullable().default(null),
-  summary: z.string().default(""),
-  tags: z.array(z.string()).default([]),
-  status: z.enum(["draft", "scheduled", "exported", "cancelled"]).default("draft"),
-  exportedPath: z.string().nullable().default(null),
-  publishedUrl: z.string().nullable().default(null),
-  publishedAt: z.string().nullable().default(null)
-});
-export const CreativePublishPatchSchema = z.object({
-  platform: z.string().optional(),
-  scheduledAt: z.string().nullable().optional(),
-  coverPath: z.string().nullable().optional(),
-  summary: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  status: z.enum(["draft", "scheduled", "exported", "cancelled"]).optional(),
-  exportedPath: z.string().nullable().optional(),
-  publishedUrl: z.string().nullable().optional(),
-  publishedAt: z.string().nullable().optional()
-});
-
-export const CreativeProjectManifestSchema = z.object({
-  schemaVersion: z.number().default(SCHEMA_VERSION),
-  date: z.string(),
-  topic: z.string(),
-  stage: CreativeStageSchema.default("drafting"),
-  status: z.string().default("topic_ready"),
-  sourceTopicId: z.string().nullable().default(null),
-  sources: z.array(z.string()).default([]),
-  platforms: z.record(z.string(), z.string()).default({}),
-  tags: z.array(z.string()).default([]),
-  owner: z.string().default(() => messages.creative.defaults.owner),
-  notes: z.string().max(20000).default(""),
-  progress: z.number().min(0).max(100).default(0),
-  asset_collection: z.string().nullable().default(null),
-  reviewReport: CreativeReviewReportSchema.nullable().default(null),
-  publish: CreativePublishConfigSchema.default(CreativePublishConfigSchema.parse({})),
-  aiSessionIds: z.array(z.string()).default([]),
-  created_at: z.string(),
-  updated_at: z.string()
-});
-export type CreativeProjectManifest = z.infer<typeof CreativeProjectManifestSchema>;
-
-export interface CreativeTopic {
-  id?: string;
-  title?: string;
-  platform?: string;
-  section?: string;
-  score?: number;
-  body?: string;
-  ignored?: boolean;
-  projectDir?: string | null;
-}
-export interface CreativeProjectSummary {
-  id?: string;
-  dir: string;
-  topic: string;
-  stage: string;
-  completion: number;
-  date?: string;
-  updatedAt?: string;
-  platforms?: Record<string, string>;
-  tags?: string[];
-  archived?: boolean;
-}
-export interface CreativeReleaseEvent {
-  id: string;
-  createdAt: string;
-  action: string;
-  stage?: string;
-  platform?: string;
-  status?: string;
-  target?: string;
-  file?: string;
-  detail?: string;
-  error?: string;
-}
-export interface CreativeProjectDetail {
-  dir: string;
-  stage?: string;
-  manifest?: Partial<CreativeProjectManifest> & { topic?: string; [key: string]: unknown };
-  files?: Record<string, string>;
-  truncatedFiles?: string[];
-  releaseLog?: CreativeReleaseEvent[];
-  reviewReport?: CreativeReviewReport | null;
-}
-export interface CreativeTopicsPayload { date: string; topics: CreativeTopic[]; }
-export interface CreativeTopicDay {
-  date: string;
-  label?: string;
-  topics: CreativeTopic[];
-  file?: string;
-  raw?: string;
-}
-export interface CreativeVersion {
-  id: string;
-  file: string;
-  path: string;
-  createdAt: string;
-  note: string;
-  size: number;
-}
-export const CreativeTopicSchema = z.object({
-  id: z.string().optional(),
-  title: z.string().optional(),
-  platform: z.string().optional(),
-  section: z.string().optional(),
-  score: z.number().optional(),
-  body: z.string().optional(),
-  ignored: z.boolean().optional(),
-  projectDir: z.string().nullable().optional()
-});
-export const CreativeCreateInputSchema = z.object({
-  date: z.string(),
-  topic: CreativeTopicSchema,
-  sourceTopicId: z.string().optional()
-});
-export type CreativeCreateInput = z.infer<typeof CreativeCreateInputSchema>;
-export const CreativeSaveInputSchema = z.object({
-  projectDir: z.string(),
-  file: z.string(),
-  content: z.string(),
-  createVersion: z.boolean().optional(),
-  versionNote: z.string().optional(),
-  acceptTruncated: z.boolean().optional()
-});
-export type CreativeSaveInput = z.infer<typeof CreativeSaveInputSchema>;
-export interface CreativeAnalytics {
-  total: number;
-  stages: Array<{ stage: string; count: number }>;
-  platforms: Array<{ platform: string; count: number }>;
-  averageCompletion: number;
-  averageCycleHours?: number | null;
-  stageDurations?: Array<{ stage: string; averageHours: number | null }>;
-}
-
-export const CreativeManifestPatchSchema = z.object({
-  status: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  owner: z.string().max(120).optional(),
-  notes: z.string().max(20000).optional(),
-  platforms: z.record(z.string(), z.string()).optional(),
-  asset_collection: z.string().nullable().optional(),
-  publish: CreativePublishPatchSchema.optional()
-});
-export type CreativeManifestPatch = z.infer<typeof CreativeManifestPatchSchema>;
 
 
 /**
@@ -1054,22 +884,7 @@ export const UserPreferencesSchema = z.object({
   notesDir: z.string().default("openmind"),
   destructiveOpsRequireApproval: z.boolean().default(true),
   riskScanEnabled: z.boolean().default(true),
-  defaultPlatform: z.string().default("公众号"),
-  defaultLanguage: z.enum(["zh-CN", "en"]).default("zh-CN"),
-  defaultContentLength: z.enum(["short", "medium", "long"]).default("medium"),
-  defaultTemplate: z.string().default(""),
   userTags: z.array(z.string().min(1).max(40)).max(60).default([]),
-  // ── SET-WF-002~005: 创作工作流规则 ──
-  /** 自动保存草稿（true 时按 autoSaveIntervalMs 间隔自动写入版本）。 */
-  workflowAutoSaveDraft: z.boolean().default(true),
-  /** 重要阶段切换时自动创建版本快照。 */
-  workflowAutoVersionOnStageChange: z.boolean().default(true),
-  /** 进入 Ready 前必须审核通过（review → ready 门禁）。 */
-  workflowReviewRequiredForReady: z.boolean().default(true),
-  /** 发布前检查清单（平台、标题、摘要、标签、封面）。 */
-  workflowPublishChecklistEnabled: z.boolean().default(true),
-  /** 自动归档已发布项目（true 时按 archiveAfterDays 自动归档）。 */
-  workflowAutoArchiveEnabled: z.boolean().default(false)
 });
 export type UserPreferences = z.infer<typeof UserPreferencesSchema>;
 
@@ -1252,20 +1067,6 @@ export interface DesktopApi {
   addRssSource(input: AddRssSourceInput): Promise<SourceDefinition>;
   importOpml(): Promise<number>;
   searchWorkspace(query: string): Promise<GlobalSearchResult[]>;
-  getAllCreativeTopics(): Promise<CreativeTopicDay[]>;
-  getCreativeProjects(): Promise<CreativeProjectSummary[]>;
-  getCreativeProject(path: string): Promise<CreativeProjectDetail>;
-  createCreativeProject(input: CreativeCreateInput): Promise<CreativeProjectDetail>;
-  saveCreativeFile(input: CreativeSaveInput): Promise<CreativeProjectDetail>;
-  advanceCreativeProject(path: string, stage: string): Promise<CreativeProjectDetail>;
-  updateCreativeManifest(path: string, patch: CreativeManifestPatch): Promise<CreativeProjectDetail>;
-  listCreativeVersions(path: string, file: string): Promise<CreativeVersion[]>;
-  readCreativeVersion(path: string): Promise<{ path: string; content: string }>;
-  restoreCreativeVersion(projectPath: string, file: string, versionPath: string): Promise<CreativeProjectDetail>;
-  getCreativeReleaseLog(path: string): Promise<CreativeReleaseEvent[]>;
-  copyCreativeProject(path: string): Promise<CreativeProjectDetail>;
-  archiveCreativeProject(path: string): Promise<CreativeProjectDetail>;
-  getCreativeAnalytics(): Promise<CreativeAnalytics>;
   selectFiles(): Promise<string[]>;
   /** Resolve the absolute path of a File dropped into the renderer; preload-only (webUtils), never IPC. */
   pathForFile(file: File): string;

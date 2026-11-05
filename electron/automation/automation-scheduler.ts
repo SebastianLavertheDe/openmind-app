@@ -12,6 +12,7 @@ import { detectAutomationEnvironment, type AutomationEnvironment } from "./autom
 import { AutomationLeader } from "./automation-leader";
 import { isDefaultAutomationRule } from "../../shared/automation-defaults";
 import { messages } from "../../shared/messages";
+import { RETIRED_SKILL_REASON } from "../../shared/retired-skills";
 
 type SkillSubmitter = (request: SkillRunRequest) => BrokerRunRecord;
 type WorkflowSubmitter = (request: WorkflowStartRequest) => WorkflowRunRecord;
@@ -37,6 +38,7 @@ export type AutomationSchedulerOptions = {
   cancelSkill: ChildCanceller;
   cancelWorkflow: ChildCanceller;
   resolveTargetVersion?: (target: AutomationTarget) => string | undefined;
+  isRetiredTarget?: (skillId: string) => boolean;
   leader?: AutomationLeader;
   fileFingerprint?: (paths: readonly string[]) => string | undefined;
   environment?: () => AutomationEnvironment;
@@ -56,6 +58,7 @@ export class AutomationScheduler {
   private readonly environment: () => AutomationEnvironment;
 
   constructor(private readonly options: AutomationSchedulerOptions) {
+    if (options.isRetiredTarget) options.repository.retireRules(options.isRetiredTarget, RETIRED_SKILL_REASON);
     this.now = options.now || (() => new Date());
     this.tickMs = options.tickMs || 30_000;
     this.leader = options.leader;
@@ -143,6 +146,7 @@ export class AutomationScheduler {
 
   saveRule(rawInput: AutomationRuleInput): AutomationRule {
     const input = AutomationRuleInputSchema.parse(rawInput);
+    if (input.enabled && this.options.isRetiredTarget?.(input.target.id)) throw new Error(RETIRED_SKILL_REASON);
     if (isDefaultAutomationRule(input) && input.enabled
       && (this.defaultSkillsStopping)) {
       throw new Error(messages.skillCenter.defaults.enableFirst);
@@ -174,6 +178,7 @@ export class AutomationScheduler {
 
   async runNow(id: string): Promise<AutomationRunRecord> {
     const rule = this.getRule(id);
+    if (this.options.isRetiredTarget?.(rule.target.id)) throw new Error(RETIRED_SKILL_REASON);
     if (this.defaultSkillsStopping && isDefaultAutomationRule(rule)) throw new Error("Built-in package migration is in progress.");
     if (!rule.enabled) throw new Error("Automation Rule 已禁用。 ");
     const at = this.now();

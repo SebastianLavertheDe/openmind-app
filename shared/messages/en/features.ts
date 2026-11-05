@@ -328,7 +328,7 @@ export const featureMessages = {
     filters: {
       projectViewAria: "Project view"
     },
-    actions: { newEmpty: "New empty project", fromTemplate: "Create from template", backToCreative: "Back to creation", openDir: "Open folder" },
+    actions: { newEmpty: "New empty project", fromTemplate: "Create from template", openDir: "Open folder" },
     dateMode: { label: "Date basis", date: "Project date", updatedAt: "Last updated" },
     view: { cards: "Card view", table: "Table view" },
     empty: { title: "No matching projects", description: "Try different filters or search terms." },
@@ -423,7 +423,7 @@ export const featureMessages = {
     collectorSourcesRootRequired: "Choose an OpenMind content folder to manage collection sources.",
     collectorSourcesLoadTimeout: "Loading collection sources timed out. Please try again.",
     retry: "Reload",
-    page: { title: "Settings", description: "Manage OpenMind appearance, AI, permissions, workflows, and local data." },
+    page: { title: "Settings", description: "Manage OpenMind appearance, AI, permissions, and local data." },
     navigation: {
       label: "Settings categories",
       back: "Back to app",
@@ -432,7 +432,7 @@ export const featureMessages = {
       groups: {
         personal: "Personal",
         ai: "AI",
-        creation: "Creation",
+        publishing: "Publishing",
         data: "Data and sessions"
       },
       sections: {
@@ -442,7 +442,6 @@ export const featureMessages = {
         mcp: { title: "MCP services", description: "Manage external services, connection status, and tools available to AI." },
         browser: { title: "Browser", description: "Use BrowserSkill to read and interact with your signed-in browser." },
         permissions: { title: "Permissions and security", description: "Configure permissions for new sessions, approval boundaries, and risk alerts." },
-        workflow: { title: "Content workflow", description: "Configure creation stages, autosave, review, and archiving rules." },
         connectors: { title: "Connectors", description: "Connect content publishing platforms." },
         sources: { title: "Sources", description: "Manage RSS feeds, folders, APIs, and other inputs that Skills can reuse." },
         xSources: { title: "X/Twitter sources", description: "Manage timeline requests and sign-in configuration for X." },
@@ -453,7 +452,7 @@ export const featureMessages = {
       }
     },
     saveStatus: { saving: "Saving…", saved: "Changes are saved locally as you make them" },
-    scopes: { localPreference: "Local preference", newSession: "New session behavior", runtimeRules: "Run rules", localSecurity: "Local security", localProject: "Local project", contentFlow: "Content flow", editBehavior: "Editing behavior", publishGate: "Publishing requirements", contentLifecycle: "Content lifecycle" },
+    scopes: { localPreference: "Local preference", newSession: "New session behavior", runtimeRules: "Run rules", localSecurity: "Local security", localProject: "Local project", },
     duration: { seconds: (value: number) => `${value} seconds`, oneMinute: "1 minute", minutes: (value: number | string) => `${value} minutes`, days: (value: number) => `${value} days` },
     appearance: { title: "Appearance", theme: "Theme", density: "Density", fontSize: "Body text size" },
     theme: { light: "Light", dark: "Dark", description: "Use light mode during the day or dark mode for longer reading sessions." },
@@ -715,7 +714,6 @@ export const featureMessages = {
       notesOpenFailed: "Could not open notes folder",
       sessionOpenFailed: "Could not open archived session",
       sessionRestoreFailed: "Could not restore archived session",
-      workflowReset: "Workflow rules reset to defaults",
       providersLoadFailed: "Could not read config/providers.yaml",
       providersSaved: "AI provider configuration saved",
       providersSaveFailed: "Could not save AI provider configuration",
@@ -725,42 +723,6 @@ export const featureMessages = {
       pythonDisableFailed: "Could not disable built-in Python runtime",
       openmindRootUpdated: "OpenMind private data repository updated",
       openmindRootSelectFailed: "Could not select OpenMind private data repository"
-    },
-    workflow: {
-      panels: { stages: "Stage rules", drafts: "Drafts and versions", review: "Review and publishing", archive: "Automatic archiving" },
-      autoSaveAria: "Autosave interval",
-      archiveAria: "Automatic archive period",
-      preview: {
-        aria: "Workflow rules preview",
-        title: "Current rules",
-        draftAuto: (interval: string) => `Drafts: autosave every ${interval}`,
-        draftManual: "Drafts: manual save only",
-        advance: (autoVersion: boolean, reviewRequired: boolean) => `Advancing: ${autoVersion ? "create a version snapshot" : "no automatic version"}; ${reviewRequired ? "approval required before ready to publish" : "review may be skipped"}`,
-        publishFull: "Publishing: check title, summary, tags, cover, platform, and body",
-        publishBasic: "Publishing: check only exportable body content and platform"
-      },
-      stagesTitle: "Stages and entry requirements",
-      stagesDescription: "Rules for moving creative projects from topic selection to publishing (read only).",
-      stageToday: "Today’s picks",
-      stageDrafting: "Drafting",
-      stageReview: "In review",
-      stageReady: "Ready to publish",
-      stagePublished: "Published",
-      entryNone: "No prerequisites",
-      entryReview: "Approval required before ready to publish",
-      entryPublish: "Moves to published after export or publishing",
-      autoSaveTitle: "Autosave drafts",
-      autoSaveDesc: "Save draft content automatically at regular intervals while editing.",
-      autoVersionTitle: "Create a version on stage changes",
-      autoVersionDesc: "Automatically create a version snapshot when advancing to the next stage.",
-      reviewGateTitle: "Require approval before ready to publish",
-      reviewGateDesc: "Projects in review must be approved before moving to ready to publish.",
-      publishCheckTitle: "Pre-publish checklist",
-      publishCheckDesc: "Check the platform, title, summary, tags, and cover in the ready-to-publish stage.",
-      autoArchiveTitle: "Automatically archive published projects",
-      autoArchiveDesc: "Move published projects to the archive folder after the specified number of days.",
-      resetToDefaults: "Reset to defaults",
-      resetConfirm: "Reset all workflow rules to their defaults?"
     },
     providerConfig: {
       validation: {

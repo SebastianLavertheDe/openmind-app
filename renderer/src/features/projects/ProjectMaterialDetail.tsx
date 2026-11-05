@@ -95,6 +95,21 @@ export function ProjectMaterialDetail({ project, materialPath, material, createR
     onCreateHandled();
   }, [createRequested, onCreateHandled]);
 
+  useEffect(() => {
+    if (!material || material.relativePath !== selectedPathRef.current) return;
+    const current = selectedRef.current;
+    if (!current || current.relativePath !== material.relativePath) return;
+    if (material.status !== "ready") {
+      setSelected(material);
+      if (current.status === "ready") {
+        preview.discard();
+        void preview.close();
+      }
+    } else if (current.status !== "ready" || (material.updatedAt && material.updatedAt !== current.updatedAt)) {
+      void openMaterial(material.relativePath, true);
+    }
+  }, [material, openMaterial, preview.close, preview.discard]);
+
   const links = useMemo(() => parseMaterialLinks(url), [url]);
 
   const addFiles = async (filePaths?: string[]) => {
@@ -172,7 +187,8 @@ export function ProjectMaterialDetail({ project, materialPath, material, createR
         if (next.status === "ready") await openMaterial(next.relativePath, true);
       }
       await load();
-      feedback.notify(next.status === "ready" ? messages.projectUi.materialConverted : next.error || messages.projectUi.materialConversionStillFailed, next.status === "ready" ? "success" : "error");
+      const processing = next.status === "importing" || next.status === "converting";
+      feedback.notify(processing ? messages.projectUi.materialQueued : next.status === "ready" ? messages.projectUi.materialConverted : next.error || messages.projectUi.materialConversionStillFailed, processing || next.status === "ready" ? "success" : "error");
     } catch (cause) {
       if (selectedPathRef.current === material.relativePath) setRetryError({ relativePath: material.relativePath, message: errorText(cause) });
       feedback.notify(errorText(cause), "error");
@@ -234,7 +250,7 @@ export function ProjectMaterialDetail({ project, materialPath, material, createR
       resource={preview.resource}
       projectName={project.name}
       retrying={retryingPath === selected.relativePath}
-      retryError={retryError?.relativePath === selected.relativePath ? retryError.message : undefined}
+      retryError={retryError?.relativePath === selected.relativePath ? retryError.message : selected.status === "ready" ? selected.error : undefined}
       onRetry={() => void retry(selected)}
       onOpenExternal={() => void preview.source?.openExternal?.()}
     />

@@ -1,4 +1,4 @@
-/** The 15 retained native Skills shipped from config/skill-library/packages.
+/** The 10 retained native Skills shipped from config/skill-library/packages.
  * Original migration batch/issue fields document provenance; executable
  * contracts are validated from the current manifests during every build. */
 
@@ -34,46 +34,6 @@ export type SkillLegacyIssue =
 
 
 export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
-  // --- Batch A: low-dependency process skills ---
-  {
-    id: "asset-collector",
-    sourceDir: "asset-collector",
-    targetKind: "process",
-    runtimePacks: ["python-core"],
-    externalExport: false,
-    openmindRead: ["creative/**"],
-    openmindWrite: ["creative/**"],
-    legacyIssues: ["ancestor-repo-walk", "no-pyproject"],
-    batch: "A",
-    primaryArtifact: "creative/01-内容生产/文稿库/02-制作中/<pkg>/assets/",
-    notes: "Input schema; artifact JSON; no custom openmind sub-root."
-  },
-  {
-    id: "collect-interest-markers",
-    sourceDir: "collect-interest-markers",
-    targetKind: "process",
-    runtimePacks: ["python-core"],
-    externalExport: false,
-    openmindRead: ["daily-summary/**"],
-    openmindWrite: ["creative/**"],
-    legacyIssues: ["ancestor-repo-walk", "no-pyproject"],
-    batch: "A",
-    primaryArtifact: "creative/01-内容生产/选题管理/00-兴趣收集箱.md",
-    notes: "dry-run support; move state out of content dir."
-  },
-  {
-    id: "daily-writing-orchestrator",
-    sourceDir: "daily-writing-orchestrator",
-    targetKind: "process",
-    runtimePacks: ["python-core"],
-    externalExport: false,
-    openmindRead: ["daily-topic/**", "creative/**"],
-    openmindWrite: ["creative/**"],
-    legacyIssues: ["ancestor-repo-walk", "no-pyproject"],
-    batch: "A",
-    primaryArtifact: "creative/01-内容生产/文稿库/02-制作中/<pkg>/",
-    notes: "Structured handoff to creative-writing; fix artifact pattern."
-  },
   {
     id: "skill-run-reporter",
     sourceDir: "skill-run-reporter",
@@ -196,32 +156,6 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     notes: "Agent invokes controlled Browser Tool; no fake process run."
   },
   {
-    id: "ai-media-topic-selector",
-    sourceDir: "ai-media-topic-selector",
-    targetKind: "agent",
-    runtimePacks: [],
-    externalExport: false,
-    openmindRead: ["article/**", "post/**", "daily-summary/**"],
-    openmindWrite: ["creative/**"],
-    legacyIssues: [],
-    batch: "C",
-    primaryArtifact: "creative/01-内容生产/选题管理/ai_topic_YYYY-MM-DD.md",
-    notes: "Install references; unified openmindRoot; declare network + write."
-  },
-  {
-    id: "creative-writing",
-    sourceDir: "creative-writing",
-    targetKind: "agent",
-    runtimePacks: [],
-    externalExport: false,
-    openmindRead: ["creative/**", "article/**", "wiki/**"],
-    openmindWrite: ["creative/**"],
-    legacyIssues: [],
-    batch: "C",
-    primaryArtifact: "creative/01-内容生产/文稿库/...",
-    notes: "Claude Code/Codex CLI Agent Bridge; methodology references; capability approval."
-  },
-  {
     id: "rss-to-summary-workflow",
     sourceDir: "rss-to-summary-workflow",
     targetKind: "workflow",
@@ -236,7 +170,7 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
   }
 ] as const;
 
-/** All 15 skill IDs. */
+/** All 10 skill IDs. */
 export const ALL_SKILL_IDS: readonly string[] = SKILL_COMPATIBILITY_MATRIX.map((e) => e.id);
 
 /** Count by kind — used by the §17.7 acceptance gate. */

@@ -105,26 +105,24 @@ describe("InstalledSkillExecutionResolver", () => {
   });
 
   realSkillIt("bridges a usable Agent from the app-private SkillStore without falling back to workspace paths", () => {
-    const fixture = createBatchAFixture("creative-writing", {
+    const fixture = createBatchAFixture("agent-browser", {
       resolveProviderProfile: (profileId) => profileId === "profile-main" ? providerProfile() : null
     });
 
     const snapshot = fixture.resolver.captureSessionSnapshot()
-      .find((entry) => entry.definition.id === "creative-writing")!;
+      .find((entry) => entry.definition.id === "agent-browser")!;
     fixture.packages.setEnabled(snapshot.installed!.key, snapshot.installed!.digest, false);
     const bridge = fixture.resolver.providerSkillBridge(snapshot);
     expect(bridge).toMatchObject({
-      id: "creative-writing",
+      id: "agent-browser",
       version: "1.0.0",
       digest: fixture.digest,
       openmindRoot: fixture.openmindRoot
     });
     expect(bridge?.packageRoot).not.toContain(".claude/skills");
     expect(bridge?.skillPath).toBe(path.join(bridge!.packageRoot, "SKILL.md"));
-    expect(bridge?.referencePaths).toEqual(expect.arrayContaining([
-      "references/cover-image-preferences.md",
-      "references/wechat-methodology.md"
-    ]));
+    expect(bridge?.instructions).toContain("agent-browser");
+    expect(bridge?.capabilities.browser).toBe(true);
 
     expect(fixture.resolver.listDefinitions()).toEqual([]);
 
@@ -270,10 +268,10 @@ describe("InstalledSkillExecutionResolver", () => {
   });
 
   realSkillIt("rejects Broker execution for Agent Skills", async () => {
-    const fixture = createBatchAFixture("creative-writing");
+    const fixture = createBatchAFixture("agent-browser");
 
     await expect(fixture.resolver.resolve(SkillRunRequestSchema.parse({
-      skillId: "creative-writing",
+      skillId: "agent-browser",
       version: "1.0.0",
       digest: fixture.digest,
       inputs: {},

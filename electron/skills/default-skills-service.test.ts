@@ -32,14 +32,14 @@ function harness() {
   return { root, content, paths, packages, sources, automation, service, legacy };
 }
 describe("built-in defaults", () => {
-  it("installs all fifteen kinds locally and keeps packages and content when disabled", async () => {
+  it("installs all ten retained packages locally and keeps packages and content when disabled", async () => {
     const h = harness(); await h.service.setEnabled(true);
     expect(h.packages.listInstalled().map(row => row.id).sort()).toEqual([...ALL_SKILL_IDS].sort());
     expect(h.packages.listInstalled().every(row => row.sourceType === "builtin" && row.publisherId === "openmind-library")).toBe(true);
     expect(h.sources.install).not.toHaveBeenCalled();
     fs.mkdirSync(path.join(h.content, "article")); fs.writeFileSync(path.join(h.content, "article/saved.md"), "keep");
     await h.service.setEnabled(false);
-    expect(h.packages.listInstalled()).toHaveLength(15); expect(fs.readFileSync(path.join(h.content, "article/saved.md"), "utf8")).toBe("keep");
+    expect(h.packages.listInstalled()).toHaveLength(10); expect(fs.readFileSync(path.join(h.content, "article/saved.md"), "utf8")).toBe("keep");
   });
   it("migrates a proven official identity and preserves its disabled preference", () => {
     const h = harness(); const old = h.legacy("rss-article-saver"); h.packages.setEnabled(old.key, old.digest, false);

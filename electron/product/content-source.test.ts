@@ -64,7 +64,7 @@ describe("createExplicitContentSource 与 lib/content 的奇偶校验", () => {
     write("projects/managed/20260617-forbidden.md");
   });
 
-  it("getContent('all', date) 逐项一致（含 x_ 拆分、日期前缀、creative 深度裁剪）", () => {
+  it("getContent('all', date) 逐项一致（含 x_ 拆分、日期前缀、旧创作内容排除）", () => {
     for (const date of ["20260617", "20260618", "20260619"]) {
       expect(source.getContent("all", date)).toEqual(getContent("all", date));
     }
@@ -77,8 +77,8 @@ describe("createExplicitContentSource 与 lib/content 的奇偶校验", () => {
     expect(byPath.get("openmind/reddit/20260617/r2.json")).toBe("reddit");
     expect(byPath.get("openmind/daily-summary/20260617_daily_summary.md")).toBe("summaries");
     expect(byPath.get("openmind/daily-topic/20260617_topic.md")).toBe("topics");
-    expect(byPath.get("openmind/creative/2026-06-17-top.md")).toBe("topics");
-    expect(byPath.get("openmind/creative/l1/l2/l3/l4/2026-06-17-depth4.md")).toBe("topics");
+    expect(byPath.has("openmind/creative/2026-06-17-top.md")).toBe(false);
+    expect(byPath.has("openmind/creative/l1/l2/l3/l4/2026-06-17-depth4.md")).toBe(false);
     expect(byPath.has("openmind/creative/l1/l2/l3/l4/l5/2026-06-17-too-deep.md")).toBe(false);
     expect(byPath.has("openmind/article/20260617/notes.txt")).toBe(false);
     expect(byPath.has("openmind/article/20260618/b.md")).toBe(false);
@@ -95,6 +95,14 @@ describe("createExplicitContentSource 与 lib/content 的奇偶校验", () => {
     const logical = "openmind/article/20260617/a.md";
     expect(source.readContent(logical)).toEqual(readContent(logical));
     expect(() => source.readContent("openmind/article/20260619/missing.md")).toThrow();
+  });
+  it("preserves old Chinese document paths for ordinary file access without indexing them", () => {
+    const relative = "creative/01-内容生产/文稿库/02-制作中/旧文稿/draft.md";
+    write(relative, "# 用户旧文稿\n\nPreserve original content.");
+    expect(source.readContent(`openmind/${relative}`).content).toContain("用户旧文稿");
+    expect(readContent(`openmind/${relative}`).content).toContain("用户旧文稿");
+    expect(source.getContent("all", "20260617").some(file => file.path.startsWith("openmind/creative/"))).toBe(false);
+    expect(fs.readFileSync(path.join(root, relative), "utf8")).toBe("# 用户旧文稿\n\nPreserve original content.");
   });
 
   it("条目携带真实的 size 与 modifiedAt", () => {

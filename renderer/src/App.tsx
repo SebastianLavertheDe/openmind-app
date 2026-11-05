@@ -115,7 +115,7 @@ function Workspace({
     sessionLeaveGuards.add(guard);
     return () => { sessionLeaveGuards.delete(guard); };
   }, [sessionLeaveGuards]);
-  const showAiCompanion = route.page === "creative" || route.page === "brief" || route.page === "projects";
+  const showAiCompanion = route.page === "brief" || route.page === "projects";
   const previousRoutePage = useRef<AppRoute["page"] | null>(null);
   const searchTriggerRef = useRef<HTMLElement | null>(null);
   const refreshBootstrap = useCallback(async (_root?: string): Promise<Bootstrap> => {
@@ -196,7 +196,7 @@ function Workspace({
     setWorkspaceFilePath(path);
   }, []);
   const closeWorkspaceFile = useCallback(() => setWorkspaceFilePath(null), []);
-  const usesEmbeddedFilePreview = route.page === "brief" || route.page === "creative";
+  const usesEmbeddedFilePreview = route.page === "brief";
   const embeddedFilePreviewPath = usesEmbeddedFilePreview ? workspaceFilePath : null;
   const standaloneFilePreviewPath = usesEmbeddedFilePreview ? null : workspaceFilePath;
   const standalonePreviewOpen = Boolean(standaloneFilePreviewPath) && !settingsOpen;
@@ -241,7 +241,7 @@ function Workspace({
   }, [responsiveLayout.companion, route.page, showAiCompanion, ui.panelMode, ui.setPanelMode]);
   useEffect(() => {
     // Project sessions are only valid inside the Project task surface. Clear
-    // the global selection when leaving Projects so Creative, Brief and the
+    // the global selection when leaving Projects so Brief and the
     // ordinary AI workbench cannot accidentally render or continue it.
     if (route.page !== "projects" && activeSession?.scope?.type === "project-task") {
       void actions.setActiveSession(null);

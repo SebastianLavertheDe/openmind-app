@@ -10,7 +10,7 @@ import { ResponsiveActionBar, type ResponsiveAction, Textarea } from "../../desi
 import { useResponsiveLayout } from "../../app/responsive-layout";
 import { useContainerLayoutMode } from "../../design-system/use-container-layout-mode";
 import { useExitPresence } from "../../design-system/use-exit-presence";
-import { MarkdownEditor } from "../creative/MarkdownEditor";
+import { MarkdownEditor } from "../document-editor/MarkdownEditor";
 import { PreviewRenderer, useFilePreviewController } from "../file-preview";
 import { previewResourceTruncated, type FilePreviewSource, type PreviewDraft, type PreviewResource } from "../file-preview/model";
 import { FilePreviewProvider } from "./file-preview-context";

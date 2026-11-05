@@ -2,8 +2,8 @@ import { useLocale } from "../../i18n";
 import { messages } from "@shared/messages";
 import { Textarea } from "../../design-system/components";
 import { useRef, useState } from "react";
-import { MarkdownEditor, type EditorSelectionSnapshot, type MarkdownEditorHandle } from "../creative/MarkdownEditor";
-import { InlineAiBar } from "../creative/InlineAiBar";
+import { MarkdownEditor, type EditorSelectionSnapshot, type MarkdownEditorHandle } from "../document-editor/MarkdownEditor";
+import { InlineAiBar } from "../document-editor/InlineAiBar";
 
 /** The document instance lives across edit/read transitions; changing files remounts it. */
 export function ProjectOutputEditor({ content, title, readOnly, autoFocus, onContent, onTitle }: {

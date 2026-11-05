@@ -6,7 +6,7 @@ import { AiProvider } from "../ai-context";
 import { GlobalSearch } from "./GlobalSearch";
 import type { Navigate } from "./routes";
 
-const INPUT_LABEL = "说一句话或搜索资料、创作、会话和自动化";
+const INPUT_LABEL = "说一句话或搜索资料、项目、会话和自动化";
 
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
@@ -134,18 +134,6 @@ describe("GlobalSearch", () => {
     await act(async () => { vi.advanceTimersByTime(300); });
     await user.click(await screen.findByText("Beta"));
     expect(navigate).toHaveBeenCalledWith("projects", { projectName: "proj-1" });
-  });
-
-  it("keeps Creative search results on the Creative page", async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    searchWorkspace.mockResolvedValue([
-      { id: "creative:p1", kind: "creative-project", title: "旧创作", subtitle: "s", path: "p", date: "20260707", status: "drafting", targetId: "creative-dir" }
-    ]);
-    renderPalette();
-    await user.type(screen.getByLabelText(INPUT_LABEL), "旧创作");
-    await act(async () => { vi.advanceTimersByTime(300); });
-    await user.click(await screen.findByText("旧创作"));
-    expect(navigate).toHaveBeenCalledWith("creative", { projectDir: "creative-dir" });
   });
 
   it("opens the matching Skill detail for skill results", async () => {

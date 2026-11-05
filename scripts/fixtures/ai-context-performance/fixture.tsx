@@ -4,7 +4,6 @@ import { AiProvider, useAiActions, useAiEvents, useAiSnapshot, useAiUi } from ".
 import { AiEventSchema } from "@shared/contracts";
 import { AiSidebar } from "../../../renderer/src/components/AiSidebar";
 import { ResponsiveLayoutProvider } from "../../../renderer/src/app/responsive-layout";
-import { CreativeWorkspacePage } from "../../../renderer/src/features/creative/CreativePage";
 import { ProjectsPage } from "../../../renderer/src/features/projects/ProjectsPage";
 import "../../../renderer/src/styles/index.css";
 
@@ -12,7 +11,7 @@ import "../../../renderer/src/styles/index.css";
 // 构建时注入 layout effect 统计真实页面的提交次数：页面迁移到 slice hooks 后，AI 流式
 // 输出 / durable 事件 / snapshot 推送都不应再让整页重渲染（pageRenders === 0）。
 const probe = window as any;
-const page = new URLSearchParams(location.search).get("page") === "creative" ? "creative" : "projects";
+const page = "projects";
 probe.pageRenders = { [page]: 0 };
 probe.benchReady = false;
 probe.controlRenders = 0;
@@ -71,7 +70,7 @@ function Fixture() {
         <EventSubscriptionControl />
         <div className="ai-context-bench">
           <main className="bench-page" data-bench-page={page}>
-            {page === "creative" ? <CreativeWorkspacePage /> : <ProjectsPage />}
+            <ProjectsPage />
           </main>
           <AiSidebar />
         </div>

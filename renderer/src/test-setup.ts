@@ -33,6 +33,17 @@ if (typeof window !== "undefined" && typeof (window as unknown as { ResizeObserv
 }
 
 // RTL cleanup after each test to keep the DOM isolated across the suite.
+// Milkdown/ProseMirror uses Range geometry for cursor placement. jsdom has no
+// layout engine; real geometry remains covered by Electron editor checks.
+if (typeof Range !== "undefined") {
+  if (typeof Range.prototype.getClientRects !== "function") {
+    Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
+  }
+  if (typeof Range.prototype.getBoundingClientRect !== "function") {
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", { configurable: true, value: () => new DOMRect() });
+  }
+}
+
 afterEach(() => {
   cleanup();
 });

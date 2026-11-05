@@ -73,7 +73,7 @@ const contentItems = [
     capturedAt: now,
     modifiedAt: now,
     size: 8200,
-    excerpt: "多来源资料进入收集箱后，需要可以加入 AI 上下文并创建创作项目。",
+    excerpt: "多来源资料进入收集箱后，可以加入 AI 上下文或项目资料。",
     state: { read: true, starred: false, score: 76, tags: ["讨论"], lastViewedAt: now }
   },
   {
@@ -117,63 +117,6 @@ const automationRuns = [
   { schemaVersion: 1, id: "automation-run-daily-brief", ruleId: "daily-brief", target: automationRules[0].target, state: "succeeded", attempt: 1, retryAt: null, childRunId: "run-ai-2", triggerReason: "scheduled", scheduledFor: "2026-06-17T08:00:00.000Z", createdAt: "2026-06-17T08:00:00.000Z", completedAt: "2026-06-17T08:01:12.000Z", error: null },
   { schemaVersion: 1, id: "automation-run-rss", ruleId: "rss-capture", target: automationRules[2].target, state: "failed", attempt: 1, retryAt: null, childRunId: null, triggerReason: "scheduled", scheduledFor: "2026-06-17T02:15:00.000Z", createdAt: "2026-06-17T02:15:00.000Z", completedAt: "2026-06-17T02:15:05.000Z", error: "Provider unavailable: RSS runner returned exit code 1" }
 ];
-
-const creativeTopics = [
-  { id: "creative-topic-1", title: "如何完整验收本地 AI 桌面工作台", platform: "wechat", section: "AI 产品", score: 96, body: "推荐理由：Provider、视觉、性能和安全边界都需要从真实工作流闭环。\\n\\n预计大纲：背景、验收矩阵、风险清单、发布建议。", ignored: false, projectDir: null },
-  { id: "creative-topic-2", title: "Windows/WSL 桌面应用验收手册", platform: "xiaohongshu", section: "工程效率", score: 88, body: "覆盖 portable、NSIS、UNC 路径和 Provider 登录态。", ignored: false, projectDir: "openmind/creative/visual-audit-project" }
-];
-
-const projectSummary = {
-  dir: "openmind/creative/visual-audit-project",
-  topic: "Windows/WSL 桌面应用验收手册",
-  stage: "ready",
-  completion: 82,
-  date,
-  updatedAt: now,
-  platforms: { wechat: "draft" },
-  tags: ["验收", "Windows", "AI"],
-  archived: false
-};
-
-const projectDetail = {
-  ...projectSummary,
-  files: {
-    "draft.md": "# Windows/WSL 桌面应用验收手册\n\n## 核心结论\n\n这份稿件用于验证长标题、长路径、中英文混排和发布前检查清单。\n\n- Portable EXE\n- NSIS installer\n- Provider E2E\n- Visual matrix\n",
-    "materials.md": "关联资料：openmind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md"
-  },
-  truncatedFiles: [],
-  manifest: {
-    schemaVersion: 1,
-    topic: "Windows/WSL 桌面应用验收手册",
-    date,
-    stage: "ready",
-    platforms: { wechat: "draft" },
-    tags: ["验收", "Windows", "AI"],
-    notes: "发布前需要补齐 Windows GUI 与真实 Provider 证据。",
-    assets: [],
-    aiSessionIds: ["session-1"],
-    publish: { platform: "wechat", title: "Windows/WSL 桌面应用验收手册", summary: "完整验收路径", tags: ["AI", "桌面应用"], coverPath: "", targetPath: "exports/visual-audit.md" },
-    createdAt: now,
-    updatedAt: now,
-    created_at: now,
-    updated_at: now
-  },
-  reviewReport: {
-    generatedAt: now,
-    status: "approved",
-    score: 86,
-    dimensions: [
-      { name: "结构逻辑", score: 88, comment: "主线清晰。" },
-      { name: "准确性", score: 84, comment: "人工验收项已明确标记。" }
-    ],
-    issues: [
-      { severity: "warning", title: "缺少真实 Windows 截图", detail: "发布前需补齐。", anchor: "视觉矩阵" }
-    ]
-  },
-  releaseLog: [
-    { id: "release-1", createdAt: now, action: "export", stage: "ready", platform: "wechat", status: "success", file: "exports/visual-audit.md", detail: "导出成功" }
-  ]
-};
 
 // ADR 会话作用域：AiSessionSchema/AiRunSchema 现要求必填 scope（workspace 或
 // project-task）。渲染进程直接读 session.scope.type，缺失会在 .app-shell 前崩溃。
@@ -348,16 +291,7 @@ const preferences = {
   notesDir: "openmind",
   destructiveOpsRequireApproval: true,
   riskScanEnabled: true,
-  defaultPlatform: "公众号",
-  defaultLanguage: "zh-CN",
-  defaultContentLength: "medium",
-  defaultTemplate: "深度分析",
   userTags: ["AI", "工程", "验收"],
-  workflowAutoSaveDraft: true,
-  workflowAutoVersionOnStageChange: true,
-  workflowReviewRequiredForReady: true,
-  workflowPublishChecklistEnabled: true,
-  workflowAutoArchiveEnabled: false
 };
 
 let visualProviders = {
@@ -401,15 +335,11 @@ const visualProviderKeys = {
 
 const visualSkillSource = "https://github.com/SebastianLavertheDe/cctools-skills";
 const visualSkillDefinitions = [
-  ["creative-writing", "多平台内容生产助手", "串联素材、写作与多平台内容生产。"],
   ["agent-browser", "浏览器自动化 Agent", "使用浏览器完成受控的网页自动化任务。"],
   ["daily-article-summarizer", "每日文章总结", "总结当天文章并同步每日摘要。"],
   ["daily-topic-selector", "每日选题筛选", "从每日摘要中筛选值得继续创作的主题。"],
   ["video-burnin-subtitles", "视频烧录字幕", "将字幕烧录到最终视频文件。"],
   ["video-download", "视频下载", "下载视频与相关元数据。"],
-  ["asset-collector", "素材收集器", "收集并整理创作所需的本地素材。"],
-  ["daily-writing-orchestrator", "写作素材包", "组织每日写作流程需要的素材与步骤。"],
-  ["collect-interest-markers", "兴趣标记整理", "将 daily-summary 中的兴趣标记收集到创作兴趣收集箱。"],
   ["x-following-fetcher", "X Following 抓取", "使用本地 cURL 配置抓取 X Following 时间线。"]
 ];
 let visualInstalledSkills = visualSkillDefinitions.map(([id], index) => ({
@@ -451,7 +381,7 @@ function visualSkillInspection(record) {
       display: { name: definition[1], description: definition[2], group: "进程" },
       config: {},
       capabilities: {
-        openmind: { read: ["daily-summary/**"], write: ["creative/**"] },
+        openmind: { read: ["daily-summary/**"], write: ["daily-topic/**"] },
         network: { required: false, hosts: [] },
         browser: false,
         subprocess: { allowed: false }
@@ -526,24 +456,10 @@ const api = {
     { id: "session:1", kind: "session", title: sessions[0].title, subtitle: "Claude Code · waiting-approval", path: ".", date: now, status: "waiting-approval", targetId: sessions[0].id },
     { id: "skill:rss", kind: "skill", title: "RSS Article Saver", subtitle: "自动化", path: ".claude/skills/rss-article-saver", date: null, status: "ready", targetId: "rss-article-saver" }
   ].filter((item) => item.title.toLocaleLowerCase().includes(String(query || "").toLocaleLowerCase()) || !query),
-  getAllCreativeTopics: async () => [{ date, label: "今日选题", topics: creativeTopics }],
-  getCreativeProjects: async () => [projectSummary, { ...projectSummary, dir: "openmind/creative/review-project", topic: "审核中的长标题项目 Review Stage", stage: "review", completion: 55 }],
-  getCreativeProject: async () => projectDetail,
-  createCreativeProject: async () => projectDetail,
-  saveCreativeFile: async () => projectDetail,
-  advanceCreativeProject: async (_path, stage) => ({ ...projectDetail, stage, manifest: { ...projectDetail.manifest, stage } }),
-  updateCreativeManifest: async (_path, patch) => ({ ...projectDetail, manifest: { ...projectDetail.manifest, ...patch } }),
-  listCreativeVersions: async () => [{ id: "v1", file: "draft.md", path: "openmind/creative/visual-audit-project/versions/draft-v1.md", createdAt: now, note: `视觉验收版本-${"long-version-note-".repeat(12)}end`, size: 2048 }],
-  readCreativeVersion: async () => ({ path: "versions/draft-v1.md", content: projectDetail.files["draft.md"] }),
-  restoreCreativeVersion: async () => projectDetail,
-  getCreativeReleaseLog: async () => projectDetail.releaseLog,
-  copyCreativeProject: async () => projectDetail,
-  archiveCreativeProject: async () => projectDetail,
-  getCreativeAnalytics: async () => ({ total: 2, stages: [{ stage: "drafting", count: 1 }, { stage: "review", count: 1 }, { stage: "ready", count: 1 }, { stage: "published", count: 0 }], platforms: [{ platform: `enterprise-content-distribution-${"platform".repeat(12)}`, count: 1 }], averageCompletion: 68, averageCycleHours: 18, stageDurations: [{ stage: "drafting", averageHours: 10 }, { stage: "review", averageHours: 4 }] }),
   selectFiles: async () => [longPath],
   selectOpenmindFiles: async () => [
     "openmind/daily-summary/20260625_daily_summary.md",
-    "openmind/creative/01-内容生产/文稿库/composer-workflow.md",
+    "openmind/daily-topic/composer-workflow.md",
     "openmind/wiki/concepts/responsive-layout-and-anchored-popover-contract.md",
     "openmind/article/20260617/very-long-title-with-English-and-中文混排-provider-unavailable-state-validation.md",
     "openmind/automation/history/20260617-visual-snapshot-report.md",
@@ -552,7 +468,7 @@ const api = {
   searchOpenmindFiles: async (query, limit = 40) => {
     const files = [
       "openmind/daily-summary/20260625_daily_summary.md",
-      "openmind/creative/01-内容生产/文稿库/composer-workflow.md",
+      "openmind/daily-topic/composer-workflow.md",
       "openmind/wiki/concepts/composer.md"
     ];
     const normalized = String(query || "").toLocaleLowerCase();

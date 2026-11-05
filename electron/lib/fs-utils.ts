@@ -83,7 +83,7 @@ export function writeJsonAtomic(filePath: string, value: unknown, options?: { on
   }
 }
 
-/** 文本原子写（creative 文稿保存等）；可在落盘前收紧临时文件权限。 */
+/** 文本原子写（文档保存等）；可在落盘前收紧临时文件权限。 */
 export function writeTextAtomic(filePath: string, value: string, options: { mode?: number } = {}): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const temporary = `${filePath}.tmp-${process.pid}-${crypto.randomUUID()}`;

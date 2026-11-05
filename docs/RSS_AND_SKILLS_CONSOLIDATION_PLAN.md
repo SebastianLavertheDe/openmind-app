@@ -1,5 +1,7 @@
 # RSS 与 Skills 收敛到 OpenMind 的修改计划
 
+> 2026-11-05：本文保留迁入历史。创作工作台及下文五个创作生产包随后退役，当前分发为 10 个原生包与 21 个 Agent 预设；以 `RSS_AND_SKILLS_GUIDE.md` 和 `CREATIVE_MODE_REMOVAL_PLAN.md` 为准。
+
 日期：2026-10-27（Asia/Shanghai）
 
 状态：P0–P6 已实现；2026-10-28 review 发现的四项问题已修复，见 12.5。P7 已有 2026-10-27 的 Linux ARM64 构建、界面和安装包验收记录，跨平台与真实外部服务验收仍未完成；详细边界见第 12 节。使用方式见 [RSS 与 Skills 使用指南](RSS_AND_SKILLS_GUIDE.md)。

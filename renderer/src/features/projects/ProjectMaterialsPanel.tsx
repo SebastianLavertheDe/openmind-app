@@ -6,6 +6,7 @@ import { useLocale } from "../../i18n";
 import { EmptyState, ErrorState, IconButton, SearchInput, SegmentedControl } from "../../design-system/components";
 import { ProjectListDetail } from "./ProjectListDetail";
 import { projectsApi } from "./projects-api";
+import { useMaterialProcessingRefresh } from "./use-material-processing-refresh";
 import type { ProjectDetail, ProjectMaterial, ProjectMaterialKind } from "./types";
 import type { ProjectTaskSeed } from "./ProjectTasksPanel";
 import { ProjectMaterialDetail } from "./ProjectMaterialDetail";
@@ -35,9 +36,9 @@ export function ProjectMaterialsPanel({ project, initialMaterialPath, createRequ
     callbacks.current.onSelectionChange?.(path);
   }, []);
   const request = useRef(0);
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     const id = ++request.current;
-    setLoading(true);
+    if (!background) setLoading(true);
     try {
       const next = await projectsApi.listMaterials(project.name);
       if (id !== request.current) return;
@@ -49,6 +50,7 @@ export function ProjectMaterialsPanel({ project, initialMaterialPath, createRequ
     } catch (cause) { if (id === request.current) setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { if (id === request.current) setLoading(false); }
   }, [project.name, initialMaterialPath, autoSelectFirst, select]);
+  useMaterialProcessingRefresh(project.name, items, () => load(true));
   useEffect(() => { void load(); return () => { request.current++; }; }, [load]);
   const changed = useCallback(async () => { await load(); callbacks.current.onChanged(); }, [load]);
 
