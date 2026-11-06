@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 import { ALL_SKILL_IDS, SKILL_COMPATIBILITY_MATRIX } from "./skill-compatibility-matrix";
 
 describe("skill-compatibility-matrix", () => {
-  it("contains exactly 10 retained skills (per refactor plan §2.3 / §17.7)", () => {
-    expect(SKILL_COMPATIBILITY_MATRIX.length).toBe(10);
-    expect(ALL_SKILL_IDS.length).toBe(10);
+  it("contains exactly 8 retained native skills", () => {
+    expect(SKILL_COMPATIBILITY_MATRIX.length).toBe(8);
+    expect(ALL_SKILL_IDS.length).toBe(8);
   });
 
-  it("classifies 8 process / 1 workflow / 1 agent (§17.1 acceptance)", () => {
+  it("classifies 6 process / 1 workflow / 1 agent", () => {
     const counts = { process: 0, workflow: 0, agent: 0 } as Record<string, number>;
     for (const e of SKILL_COMPATIBILITY_MATRIX) counts[e.targetKind] += 1;
-    expect(counts).toEqual({ process: 8, workflow: 1, agent: 1 });
+    expect(counts).toEqual({ process: 6, workflow: 1, agent: 1 });
   });
 
   it("ids are unique", () => {
@@ -24,13 +24,13 @@ describe("skill-compatibility-matrix", () => {
     }
   });
 
-  it("batch A has 2 skills, batch B has 4, batch C has 4 (§17.6)", () => {
+  it("retains 1 batch A skill, 4 batch B skills and 3 batch C skills", () => {
     const a = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.batch === "A");
     const b = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.batch === "B");
     const c = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.batch === "C");
-    expect(a.length).toBe(2);
+    expect(a.length).toBe(1);
     expect(b.length).toBe(4);
-    expect(c.length).toBe(4);
+    expect(c.length).toBe(3);
   });
 
   it("content-writing skills declare openmind write patterns only to known content tops", () => {
@@ -45,12 +45,6 @@ describe("skill-compatibility-matrix", () => {
         expect(known.has(top)).toBe(true);
       }
     }
-  });
-
-  it("video-burnin-subtitles keeps the openmind/video contract (§17.7)", () => {
-    const v = SKILL_COMPATIBILITY_MATRIX.find((e) => e.id === "video-burnin-subtitles");
-    expect(v).toBeDefined();
-    expect(v!.openmindWrite).toContain("video/**");
   });
 
   it("VideoDownload is the only external-export process skill (Export Location Binding)", () => {

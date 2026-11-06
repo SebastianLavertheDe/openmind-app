@@ -253,14 +253,22 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.getDailyBriefPreferences, handler: () => rss().repository.preferences() },
     { channel: C.saveDailyBriefPreferences, handler: input => rss().repository.savePreferences(SaveDailyBriefPreferencesSchema.parse(input)) },
     { channel: C.generateDailyBrief, handler: input => projectAdmission.run(async () => { const value = z.object({ date: z.string().regex(/^\d{8}$/), topics: z.boolean().optional() }).parse(input); const id = value.topics ? "daily-topic-selector" : "daily-article-summarizer"; const record = installBuiltinDefault(skillPackages(), id); skillPackages().setEnabled(record.key, record.digest, true); return ai().call("brief-run", value); }) },
-    { channel: C.listSkillLibrary, handler: () => library().list() },
-    { channel: C.readSkillLibraryPrompt, handler: id => library().prompt(SkillLibraryEntryIdSchema.parse(id)) },
+    { channel: C.listSkillLibrary, handler: async () => (await library().snapshot()).entries },
+    { channel: C.getSkillLibrarySnapshot, handler: refresh => library().snapshot(z.boolean().optional().parse(refresh) ?? false) },
+    { channel: C.readSkillLibraryPrompt, handler: async id => {
+      const service = library();
+      await service.snapshot();
+      return service.prompt(SkillLibraryEntryIdSchema.parse(id));
+    } },
     { channel: C.getSkillEditor, handler: id => library().editor(id == null ? undefined : z.string().uuid().parse(id)) },
     { channel: C.saveSkillDraft, handler: raw => library().saveDraft(AuthoredSkillSchema.parse(raw)) },
     { channel: C.readSkillAssetImage, handler: (id, asset) => library().readImage(z.string().uuid().parse(id), SkillAssetSchema.parse(asset)) },
     { channel: C.readSkillAssetThumbnail, handler: (id, asset) => library().readThumbnail(z.string().uuid().parse(id), SkillAssetSchema.parse(asset)) },
     { channel: C.installLibraryPreset, handler: id => projectAdmission.run(async () => {
-      const entry = library().installPreset(parseString(id));
+      const root = settings.resolveOpenmindRoot();
+      const entry = await library().installFromCatalog(parseString(id), () => {
+        if (root !== settings.resolveOpenmindRoot()) throw new Error(messages.skillLibrary.errors.stale);
+      });
       await ai().call("refresh-skills");
       return entry;
     }) },

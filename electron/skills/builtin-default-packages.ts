@@ -28,7 +28,7 @@ function retainedInstall(packages: SkillPackageService, key: string): boolean {
   return fs.existsSync(file) && JSON.parse(fs.readFileSync(file, "utf8")).includes(key);
 }
 
-function assertInactive(packages: SkillPackageService, id: string): void {
+export function assertSkillInactive(packages: SkillPackageService, id: string): void {
   const active = new RunStore(packages.appPaths.runs).list().some(run => run.request.skillId === id && !run.terminalState && [run.ownerPid, run.processPid].some(pid => { if (!pid) return false; try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code !== "ESRCH"; } }));
   if (active) throw new Error(`Wait for active tasks before updating ${id}.`);
 }
@@ -56,7 +56,7 @@ function install(packages: SkillPackageService, id: string, bundleRoot: string, 
       }
       return previous;
     }
-    assertInactive(packages, id);
+    assertSkillInactive(packages, id);
   }
   const legacy = previous && !isAppLibraryInstall(previous) ? { key: previous.key, digest: previous.digest } : undefined;
   journal.packages[id] = { from: journal.packages[id]?.from || previous?.key || null, digest: expected, enabled: wasEnabled, status: "pending" };
@@ -71,7 +71,7 @@ function install(packages: SkillPackageService, id: string, bundleRoot: string, 
 export function removeManagedWikiGenerator(packages: SkillPackageService, retained: (key: string) => boolean): void {
   for (const record of packages.listInstalled()) {
     if (record.id !== "knowledge-wiki-compiler" || !isManagedLegacyDefault(record) || retained(record.key) || retainedInstall(packages, record.key) || !packages.inspectInstalledCopy(record).valid) continue;
-    assertInactive(packages, record.id);
+    assertSkillInactive(packages, record.id);
     packages.uninstall(record.key, record.digest);
   }
 }

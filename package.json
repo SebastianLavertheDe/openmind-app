@@ -76,6 +76,7 @@
     "ui:catalog": "node scripts/ui-catalog.js --preview",
     "perf:ui": "node scripts/ui-catalog.js --performance-only",
     "prepare:skill-library": "tsx scripts/prepare-skill-library.ts",
+    "publish:skill-library": "tsx scripts/publish-skill-registry.ts",
     "cli": "node .build/electron/electron/cli/openmind.js",
     "pretest:unit": "npm run prepare:skill-library",
     "test:rss": "node scripts/test-rss.cjs",

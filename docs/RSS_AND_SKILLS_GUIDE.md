@@ -1,4 +1,4 @@
-# RSS、每日偏好与内置 Skills
+# RSS、每日偏好与 Skill 分发
 
 OpenMind 现在自己维护、构建和分发原 `cctools-skills` 的 10 个保留原生包，以及 `blog-rss-feed` 的 RSS 转换能力。运行和安装均不需要检出这两个仓库；它们可继续保留历史。`knowledge-wiki-compiler` 不再分发，已有知识库文件不会被删除。
 
@@ -121,7 +121,7 @@ App 的定时规则明确保存自己的 IANA 时区；系统 crontab 使用主�
 
 Windows 可通过任务计划程序运行 `openmind.cmd`；macOS 可由 launchd 或用户自己的 cron 调用。两种启动器随包提供，本次实际安装包验证的平台为 Linux ARM64。
 
-## 内置包清单与额外条件
+## 7 个内置包与额外条件
 
 | Skill | 类型 | 输出或使用条件 |
 | --- | --- | --- |
@@ -131,14 +131,27 @@ Windows 可通过任务计划程序运行 `openmind.cmd`；macOS 可由 launchd 
 | `rss-to-summary-workflow` | Workflow | 使用上述采集、总结包，保留同次偏好快照 |
 | `reddit-fetcher` | Process / Python | `reddit/`；用户管理的社区与网站访问条件 |
 | `x-following-fetcher` | Process / Python | `post/`、`article/`；用户自己的登录凭据 |
-| `skill-run-reporter` | Process / Python | 运行报告，不再检查知识库生成器 |
 | `video-download` | Process / Python | 用户选择的导出位置；yt-dlp、Whisper，按需使用 FFmpeg |
-| `video-burnin-subtitles` | Process / Python | `video/`；FFmpeg、Whisper、字幕字体，翻译需要 Provider |
-| `agent-browser` | Agent | 已连接的 Agent CLI 与浏览器能力；用户指定证据导出位置 |
 
 Python 依赖由应用管理的 uv 环境根据已安装包准备。视频包包含较大的语音/模型依赖；下载模型、访问登录网站、配置外部导出位置仍由相应能力的正常设置流程完成。FFmpeg 复用应用的视频工具设置，Whisper 通过同一个 Python 解释器启动。
 
-原有 21 个配置式 Agent 预设继续保留，总技能库为 31 个包（10 个原生包和 21 个 Agent 预设）。Git、目录、ZIP 导入和用户自建 Skill 继续使用各自的来源身份。
+以上 7 个包随 App 分发，默认不在「探索」展示，安装后可在「我的」使用。`agent-browser` 改由下面的独立目录提供，仍要求已连接的 Agent CLI 与浏览器能力，证据导出位置由用户指定。
+
+## 15 张目录卡片与独立发布
+
+资料研究报告、多资料对比、长文写作、改写与润色 4 张卡片，加上 10 张 handraw-style 图像卡片和浏览器自动化 Agent，共 15 张探索卡片使用「远程卡片目录 + Skill ZIP 下载 + 本地缓存」。它们与上面的 7 个内置包共计 22 个 Skill，源码仍统一维护在 `config/skill-library/`；App 安装包只包含 7 个内置包。图像卡片及作者/许可证说明见 [应用技能库配置](../config/skill-library/README.md#handraw-style-图像卡片)。
+
+维护者修改源清单、提示词或资源后，运行 `npm run publish:skill-library` 即可生成项目根目录的 `skill-registry/catalog.json` 和 `skill-registry/packages/*.zip`，无需重新构建 App。生成目录已被 Git 忽略；提交源配置和资源，不提交生成 ZIP、用户内容或缓存。发布包采用内容哈希文件名，目录在全部包验证后才替换，旧包保留供正在使用旧目录的客户端获取。`prepare:skill-library` 也会生成该目录，便于开发启动。
+
+开发环境默认读取项目的 `skill-registry/`，本次没有配置公共线上地址。安装版需要设置 `OPENMIND_SKILL_REGISTRY` 为绝对目录或 HTTP(S) 基础地址，或在 `<userData>/settings/skill-registry.json` 保存 `{"source":"/absolute/path/to/skill-registry"}`；环境变量优先。之后可以将生成目录原样放到 HTTP(S) 服务并调整来源配置。来源 URL 不接受账号密码、查询参数和片段。
+
+客户端获取卡片目录、封面、头像和 prompt 预览，在用户安装/使用时才获取对应 ZIP。目录和下载包按源缓存在 `<userData>/cache/skill-registry/`，安装位置仍是 `<内容根>/.agent/skills/`。源不可用时保留最后有效目录，已有缓存包可离线安装；从未下载的包仍需要访问来源。目录加载不会自动批量安装或更新已安装包。ZIP SHA-256、长度与安装前的包内容摘要校验用于验证完整性，并非发布者签名。
+
+官方目录包使用 App 技能库身份；Git、目录、ZIP 导入和用户自建 Skill 继续使用独立来源，不因 ID 相同而被覆盖。兼容现有客户端的新增卡片可独立发布；需要新客户端能力的 Skill 仍须升级 App。
+
+运行报告（`skill-run-reporter`）和视频烧录字幕（`video-burnin-subtitles`）已退出内置清单，源码不再打包。升级会隐藏并停用确认属于 App 的旧安装，阻止新执行并停用相关定时规则；已有报告、`video/` 内容、安装文件及运行历史保留。用户导入或显式保留的副本继续按独立来源处理。
+
+图片风格编辑、演示内容策划、演示文稿制作、短视频脚本与分镜、短视频制作、落地页制作和交互小工具这 7 个配置式预设已退役，专属脚本不再打包；10 个 handraw-style 图像预设及其参考资源继续保留。旧内置安装沿用上述退役机制；短视频的旧帧渲染命令明确报退役错误，不再加载脚本或启动桌面。
 
 ## 数据与迁移
 
@@ -151,6 +164,8 @@ Python 依赖由应用管理的 uv 环境根据已安装包准备。视频包包
 | `<内容根>/.agent/skill-data/<skill>/` | 各 Skill 的可变状态、生成缓存 |
 | `<内容根>/article/`、`daily-summary/`、`daily-topic/` | 用户内容与历史版本 |
 | `<userData>/runs/`、`settings/migrations/` | App/CLI 共用运行记录、安装迁移记录 |
+| `<userData>/settings/skill-registry.json` | 可选的目录来源配置；环境变量可覆盖 |
+| `<userData>/cache/skill-registry/` | 按目录来源隔离的卡片目录与 ZIP 缓存，可重新获取 |
 
 首次升级优先导入旧持久化 OPML，展开子 OPML，合并旧名称、标签及停用设置，恢复已知 GitHub 中转地址对应的原站地址。原 OPML 保留备份；损坏、循环或缺失引用会阻止提交新配置。不能可靠恢复的中转源显示“待配置”，不会猜测地址。旧文章按原链接建立索引，避免升级后整批重存。
 

@@ -773,7 +773,7 @@ export interface InstalledSkillView {
   version: string;
   digest: string;
   sourcePath: string;
-  sourceType?: "directory" | "zip" | "git" | "builtin";
+  sourceType?: "directory" | "zip" | "git" | "builtin" | "catalog";
   sourceLocator?: string;
   sourceRef?: string;
   sourcePackageRef?: string;
@@ -1122,6 +1122,7 @@ export interface DesktopApi {
   inspectInstalledSkill(key: string, digest?: string): Promise<SkillPackageInspectionView | null>;
   listInstalledSkills(): Promise<InstalledSkillView[]>;
   listSkillLibrary?(): Promise<import("./skill-library").SkillLibraryEntry[]>;
+  getSkillLibrarySnapshot?(refresh?: boolean): Promise<import("./skill-library").SkillLibrarySnapshot>;
   readSkillLibraryPrompt?(id: string): Promise<string>;
   installLibraryPreset?(id: string): Promise<import("./skill-library").SkillLibraryEntry>;
   getSkillEditor?(id?: string): Promise<import("./skill-library").AuthoredSkill>;

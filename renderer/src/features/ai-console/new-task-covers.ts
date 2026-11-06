@@ -3,19 +3,23 @@ import compare from "../../assets/skill-covers/om-source-compare.jpg";
 import article from "../../assets/skill-covers/om-article-writer.jpg";
 import rewrite from "../../assets/skill-covers/om-text-rewriter.jpg";
 import poster from "../../assets/skill-covers/om-poster-maker.jpg";
-import image from "../../assets/skill-covers/om-image-editor.jpg";
-import outline from "../../assets/skill-covers/om-slide-outline.jpg";
-import slides from "../../assets/skill-covers/om-slide-deck.jpg";
-import storyboard from "../../assets/skill-covers/om-storyboard.jpg";
-import video from "../../assets/skill-covers/om-short-video.jpg";
-import landing from "../../assets/skill-covers/om-landing-page.jpg";
-import tool from "../../assets/skill-covers/om-mini-tool.jpg";
+import type { SkillLibraryEntry } from "@shared/skill-library";
 
+// Compatibility for old library providers; remote publication owns its own media and recommendations.
 export const NEW_TASK_COVERS: Record<string, string> = {
   "om-research-brief": research, "om-source-compare": compare,
   "om-article-writer": article, "om-text-rewriter": rewrite,
-  "om-poster-maker": poster, "om-image-editor": image,
-  "om-slide-outline": outline, "om-slide-deck": slides,
-  "om-storyboard": storyboard, "om-short-video": video,
-  "om-landing-page": landing, "om-mini-tool": tool
+  "om-poster-maker": poster
 };
+
+export function isRecommendedSkill(entry: SkillLibraryEntry): boolean {
+  return entry.recommended ?? (entry.distribution !== "remote" && Boolean(NEW_TASK_COVERS[entry.skillId]));
+}
+
+export function skillCardCover(entry: SkillLibraryEntry, entries: SkillLibraryEntry[]): string | undefined {
+  if (entry.coverUrl) return entry.coverUrl;
+  const categoryCover = entries.find(candidate => candidate.category === entry.category && candidate.coverUrl)?.coverUrl;
+  if (categoryCover) return categoryCover;
+  if (entry.distribution === "remote" || entry.recommended !== undefined) return undefined;
+  return NEW_TASK_COVERS[entry.skillId] || entries.map(candidate => candidate.category === entry.category ? NEW_TASK_COVERS[candidate.skillId] : undefined).find(Boolean);
+}

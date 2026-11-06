@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { AuthoredSkillSchema, SkillAssetSchema, SkillLibraryMetadataSchema, type AuthoredSkill, type AuthoredSkillContributor, type SkillAsset, type SkillLibraryEntry, type SkillLibraryMetadata, type SkillSelectionInput } from "../../shared/skill-library";
+import { AuthoredSkillSchema, SkillAssetSchema, SkillLibraryMetadataSchema, type AuthoredSkill, type AuthoredSkillContributor, type SkillAsset, type SkillLibraryEntry, type SkillLibraryMetadata, type SkillLibrarySnapshot, type SkillSelectionInput } from "../../shared/skill-library";
 import { SkillContributorSchema, type SkillContributor, type SkillContributorView } from "../../shared/skill-contributor";
-import { resolveSkillLibraryCopy, SKILL_LIBRARY_PUBLISHER, SKILL_LIBRARY_SOURCE } from "../../shared/skill-library-catalog";
+import { resolveSkillLibraryCopy, SKILL_LIBRARY_PUBLISHER, SKILL_LIBRARY_SOURCE, type SkillLibraryPreset } from "../../shared/skill-library-catalog";
 import { messages } from "../../shared/messages";
 import type { AppPaths } from "../paths/app-paths-service";
 import { writeJsonAtomic } from "../lib/fs-utils";
@@ -12,8 +12,10 @@ import { ImageConfigurationStore } from "../images/image-configuration";
 import { resolveSkillLibraryTools } from "./skill-library-runtime";
 import { isAppLibraryInstall, isLegacyAppLibraryInstall, readSkillLibraryCatalog } from "./skill-library-catalog";
 import { prepareSkillAvatar, readSkillAvatar, skillAvatarDataUrl } from "./skill-avatar";
-import { installBuiltinDefault } from "./builtin-default-packages";
+import { assertSkillInactive, installBuiltinDefault, isManagedLegacyDefault } from "./builtin-default-packages";
 import { skillCoverThumbnails } from "./skill-cover-thumbnails";
+import { RemoteSkillPackageUnavailableError, RemoteSkillRegistry } from "./remote-skill-registry";
+import { resolveSkillRegistrySource } from "./skill-registry-source";
 
 type Bindings = Record<string, { key: string; digest: string }>;
 const METADATA = "openmind.library.json";
@@ -27,12 +29,27 @@ export function readSkillLibraryMetadata(packageRoot: string): SkillLibraryMetad
 export class SkillLibraryService {
   private readonly sources: string;
   private readonly privateRoot: string;
-  constructor(private readonly root: string, private readonly paths: AppPaths, private readonly packages: SkillPackageService, private readonly bundleRoot: string) {
+  private readonly registry: RemoteSkillRegistry;
+  private readonly registryError: string | null;
+  constructor(private readonly root: string, private readonly paths: AppPaths, private readonly packages: SkillPackageService, private readonly bundleRoot: string, registry?: RemoteSkillRegistry) {
     if (!root) throw new Error(m.errors.root);
     this.root = fs.realpathSync(root);
     this.sources = path.join(this.root, ".agent", "authored-skills");
     this.privateRoot = path.join(paths.catalog, crypto.createHash("sha256").update(this.root).digest("hex").slice(0, 24));
+    try {
+      this.registry = registry ?? new RemoteSkillRegistry(paths, resolveSkillRegistrySource(paths, bundleRoot));
+      this.registryError = null;
+    } catch {
+      this.registry = new RemoteSkillRegistry(paths, null);
+      this.registryError = m.errors.catalog;
+    }
     this.recoverPublish();
+  }
+
+  async snapshot(refresh = false): Promise<SkillLibrarySnapshot> {
+    await this.registry.refresh(refresh);
+    return { entries: this.list(), remote: this.registryError
+      ? { state: "unavailable", updatedAt: null, error: this.registryError } : this.registry.status() };
   }
 
   retainUserInstall(key: string): void {
@@ -43,6 +60,12 @@ export class SkillLibraryService {
   isUserRetained(key: string): boolean {
     const file = path.join(this.privateRoot, "user-installations.json");
     return fs.existsSync(file) && (JSON.parse(fs.readFileSync(file, "utf8")) as string[]).includes(key);
+  }
+
+  private isManagedNativeLegacy(preset: SkillLibraryPreset, key: string, digest: string): boolean {
+    if (!preset.packageDirectory || this.isUserRetained(key)) return false;
+    const record = this.packages.getInstalled(key, digest);
+    return Boolean(record && isManagedLegacyDefault(record));
   }
 
   list(): SkillLibraryEntry[] {
@@ -60,16 +83,28 @@ export class SkillLibraryService {
     const dependencyUnavailable = (packagePath: string) => (readSkillLibraryMetadata(packagePath)?.dependencies || []).some(reference =>
       !installed.some(record => record.key === reference.key && record.digest === reference.digest && record.enabled && record.usable));
     const presetKeys = new Set<string>();
-    const result: SkillLibraryEntry[] = readSkillLibraryCatalog(this.bundleRoot).skills.map(preset => {
-      const record = installed.find(item => item.id === preset.id && isAppLibraryInstall(item));
+    const remoteEntries = this.registry.readCached()?.skills || [];
+    const registryStatus = this.registry.status();
+    const remoteById = new Map(remoteEntries.map(entry => [entry.preset.id, entry]));
+    const presets = [...readSkillLibraryCatalog(this.bundleRoot).skills.filter(entry => !remoteById.has(entry.id)), ...remoteEntries.map(entry => entry.preset)];
+    const result: SkillLibraryEntry[] = presets.map(preset => {
+      const remote = remoteById.get(preset.id);
+      const record = installed.find(item => item.id === preset.id && (isAppLibraryInstall(item)
+        || Boolean(remote && this.isManagedNativeLegacy(remote.preset, item.key, item.digest)))
+        && (item.sourceType !== "catalog" || item.sourceLocator === this.registry.source));
       if (record) presetKeys.add(record.key);
       const copy = resolveSkillLibraryCopy(preset);
-      let reason: string | null = !fs.existsSync(path.join(this.bundleRoot, preset.id, "SKILL.md")) && !record ? m.errors.bundle : null;
-      if (!record && installed.some(item => item.id === preset.id && !isAppLibraryInstall(item))) reason = m.errors.sourceConflict;
+      let reason: string | null = !remote && !fs.existsSync(path.join(this.bundleRoot, preset.id, "SKILL.md")) && !record ? m.errors.bundle : null;
+      if (!record && installed.some(item => item.id === preset.id)) reason = m.errors.sourceConflict;
       if (!reason && record && !record.usable) reason = m.errors.stale;
       reason ||= runtimeUnavailable(preset.requirement);
-      const updateAvailable = Boolean(record && bundledDigests[preset.id] && bundledDigests[preset.id] !== record.digest);
-      return { id: preset.id, discoverable: preset.discoverable, updateAvailable, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? true), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? null, skillId: preset.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: m.origin.preset, executionModel: null, updatedAt: record?.installedAt, contributor: this.contributorView(preset.contributor, path.join(this.bundleRoot, preset.id)) };
+      const expectedDigest = remote?.package.digest || bundledDigests[preset.id];
+      const updateAvailable = Boolean(record && expectedDigest && expectedDigest !== record.digest
+        && (!remote || registryStatus.state === "fresh"));
+      const contributor = remote ? preset.contributor && { nick: preset.contributor.nick, profileUrl: preset.contributor.profileUrl, avatarUrl: remote.avatarDataUrl }
+        : this.contributorView(preset.contributor, path.join(this.bundleRoot, preset.id));
+      return { id: preset.id, discoverable: preset.discoverable, updateAvailable, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? true), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? (remote ? preset.version : null), skillId: preset.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: m.origin.preset, executionModel: null, updatedAt: record?.installedAt, contributor,
+        distribution: remote ? "remote" : "builtin", coverUrl: remote?.coverDataUrl, recommended: remote ? preset.recommended : undefined, cached: remote ? registryStatus.state === "cached" : undefined };
     });
     const authored = this.documents();
     for (const doc of authored) {
@@ -113,6 +148,8 @@ export class SkillLibraryService {
       if (!fs.realpathSync(file).startsWith(`${fs.realpathSync(record.packagePath)}${path.sep}`)) throw new Error(m.errors.stale);
       return fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "").replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "").trim();
     }
+    const remote = this.registry.readCached()?.skills.find(item => item.preset.id === entry.id);
+    if (remote) return remote.preset.instructions.join("\n\n");
     const catalog = readSkillLibraryCatalog(this.bundleRoot);
     const preset = catalog.skills.find(item => item.id === entry.id);
     if (!preset) throw new Error(m.errors.missing);
@@ -142,6 +179,47 @@ export class SkillLibraryService {
     this.packages.setEnabled(record.key, record.digest, true);
     writeJsonAtomic(path.join(this.privateRoot, "bindings.json"), { ...this.bindings(), [id]: { key: record.key, digest: record.digest } });
     return this.list().find(entry => entry.id === id)!;
+  }
+
+  /** Download only on an explicit install/use; the installed copy remains the execution source. */
+  async installFromCatalog(id: string, beforeInstall: () => void = () => {}): Promise<SkillLibraryEntry> {
+    await this.registry.refresh();
+    const remote = this.registry.readCached()?.skills.find(entry => entry.preset.id === id);
+    if (!remote) { beforeInstall(); return this.installPreset(id); }
+    const assertSource = () => {
+      const previous = this.packages.getInstalledById(id);
+      if (previous && (!(isAppLibraryInstall(previous) || this.isManagedNativeLegacy(remote.preset, previous.key, previous.digest))
+        || previous.sourceType === "catalog" && previous.sourceLocator !== this.registry.source)) throw new Error(m.errors.sourceConflict);
+      if (previous && !this.packages.inspectInstalledCopy(previous).valid) throw new Error(m.errors.stale);
+      return previous;
+    };
+    assertSource();
+    let archive: string;
+    try { archive = await this.registry.packageFile(remote); }
+    catch (error) {
+      // A previously displayed update may go offline before the user clicks
+      // Use. Keep the verified installed version usable; integrity failures
+      // still fail explicitly and never enter this availability fallback.
+      if (!(error instanceof RemoteSkillPackageUnavailableError)) throw error;
+      beforeInstall();
+      const current = assertSource();
+      if (!current) throw error;
+      this.packages.setEnabled(current.key, current.digest, true);
+      return this.list().find(entry => entry.key === current.key)!;
+    }
+    beforeInstall();
+    const previous = assertSource();
+    const inspection = this.packages.inspect(archive);
+    if (!inspection.valid || inspection.manifest?.id !== id || inspection.manifest.publisher.id !== SKILL_LIBRARY_PUBLISHER
+      || inspection.manifest.version !== remote.preset.version || inspection.manifest.kind !== remote.preset.executionKind
+      || inspection.digest !== remote.package.digest || !this.registry.source) throw new Error(m.errors.stale);
+    if (previous && previous.digest !== inspection.digest) assertSkillInactive(this.packages, id);
+    const legacy = previous && (isLegacyAppLibraryInstall(previous) || this.isManagedNativeLegacy(remote.preset, previous.key, previous.digest))
+      ? { key: previous.key, digest: previous.digest } : undefined;
+    const record = this.packages.install(archive, { sourceType: "catalog", sourceLocator: this.registry.source, sourcePackageRef: id, sourceRevision: remote.package.sha256 }, legacy);
+    this.packages.setEnabled(record.key, record.digest, true);
+    writeJsonAtomic(path.join(this.privateRoot, "bindings.json"), { ...this.bindings(), [id]: { key: record.key, digest: record.digest } });
+    return this.list().find(entry => entry.key === record.key)!;
   }
 
   editor(id?: string): AuthoredSkill {

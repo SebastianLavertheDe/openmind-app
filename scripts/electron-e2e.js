@@ -24,6 +24,8 @@ const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 env.OPENMIND_E2E_USER_DATA_DIR = userData;
 env.OPENMIND_ROOT = openmindRoot;
+// Exercise only the repository's published fixture, never a developer's source.
+env.OPENMIND_SKILL_REGISTRY = path.join(appRoot, "skill-registry");
 
 const useXvfb = process.platform === "linux" && !process.env.DISPLAY && commandExists("xvfb-run");
 const command = useXvfb ? "xvfb-run" : electron;

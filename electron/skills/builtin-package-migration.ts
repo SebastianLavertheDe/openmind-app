@@ -1,5 +1,5 @@
 import path from "node:path";
-import { ALL_SKILL_IDS } from "../../shared/skill-compatibility-matrix";
+import { BUILTIN_SKILL_IDS } from "../../shared/skill-registry";
 import { RssRepository } from "../rss/rss-repository";
 import { readRssCatalog } from "../rss/rss-service";
 import { writeJsonAtomic } from "../lib/fs-utils";
@@ -15,7 +15,7 @@ export function migrateBuiltinPackages(root: string, packages: SkillPackageServi
   for (const record of packages.listInstalled()) {
     if (packages.isRetired(record)) packages.setEnabled(record.key, record.digest, false);
   }
-  const candidates = packages.listInstalled().filter(record => isManagedLegacyDefault(record) || isAppLibraryInstall(record) && ALL_SKILL_IDS.includes(record.id as never));
+  const candidates = packages.listInstalled().filter(record => isManagedLegacyDefault(record) || isAppLibraryInstall(record) && BUILTIN_SKILL_IDS.includes(record.id as never));
   if (!candidates.length) return [];
   const library = new SkillLibraryService(root, packages.appPaths, packages, bundle);
   const retained = (key: string) => library.isUserRetained(key);
@@ -26,7 +26,7 @@ export function migrateBuiltinPackages(root: string, packages: SkillPackageServi
     catch (error) { rssReady = false; warnings.push(String(error)); }
   }
   for (const record of candidates) {
-    if (record.id === "knowledge-wiki-compiler" || !ALL_SKILL_IDS.includes(record.id as never) || record.id === "rss-article-saver" && !rssReady) continue;
+    if (record.id === "knowledge-wiki-compiler" || !BUILTIN_SKILL_IDS.includes(record.id as never) || record.id === "rss-article-saver" && !rssReady) continue;
     try { installBuiltinDefault(packages, record.id, bundle, retained); }
     catch (error) { warnings.push(`${record.id}: ${error instanceof Error ? error.message : String(error)}`); }
   }

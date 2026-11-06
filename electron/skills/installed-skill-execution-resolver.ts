@@ -375,6 +375,9 @@ export class InstalledSkillExecutionResolver {
     const metadata = readSkillLibraryMetadata(record.packagePath);
     let preset: ReturnType<typeof resolveSkillLibraryCopy> | undefined;
     if (isAppLibraryInstall(record) && metadata?.origin === "preset" && metadata.presetId === manifest.id) {
+      // Downloaded packages retain both display languages, so offline chat
+      // admission does not depend on the remote discovery cache being present.
+      if (metadata.display) preset = resolveSkillLibraryCopy({ display: metadata.display });
       try {
         const entry = readSkillLibraryCatalog().skills.find(item => item.id === manifest.id);
         if (entry) preset = resolveSkillLibraryCopy(entry);

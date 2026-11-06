@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AuthoredSkillSchema, type SkillLibraryEntry } from "@shared/skill-library";
+import { AuthoredSkillSchema, type SkillLibraryEntry, type SkillLibrarySnapshot } from "@shared/skill-library";
 import type { DesktopApi } from "@shared/contracts";
 import { setLocale } from "@shared/messages";
 import { FeedbackProvider } from "../../feedback-context";
@@ -26,6 +26,76 @@ function document() { return AuthoredSkillSchema.parse({ id: "1375bbe7-b4b7-4fbe
 function page(use = vi.fn()) { return render(<FeedbackProvider><SkillLibraryPage storageScope="fixture" providers={[]} onUseSkill={use} renderManagement={() => null} renderImport={() => null} /></FeedbackProvider>); }
 
 describe("Skill library product flows", () => {
+  it("refreshes the published catalog and installs an unfamiliar remote card with its supplied cover", async () => {
+    const user = userEvent.setup(); const use = vi.fn();
+    const remote = entry({ id: "newly-published", skillId: "newly-published", title: "New remote skill", distribution: "remote", coverUrl: "data:image/png;base64,remote-cover" });
+    const library = vi.fn<NonNullable<DesktopApi["getSkillLibrarySnapshot"]>>()
+      .mockResolvedValueOnce({ entries, remote: { state: "fresh", updatedAt: "2026-11-05T00:00:00Z", error: null } })
+      .mockResolvedValue({ entries: [...entries, remote], remote: { state: "fresh", updatedAt: "2026-11-06T00:00:00Z", error: null } });
+    window.openmind.getSkillLibrarySnapshot = library;
+    vi.mocked(window.openmind.installLibraryPreset!).mockResolvedValue({ ...remote, installed: true, enabled: true, key: "openmind-library/newly-published", digest });
+    page(use);
+    await screen.findByRole("button", { name: "Research report" });
+    expect(screen.queryByRole("button", { name: "New remote skill" })).toBeNull();
+    expect(library).toHaveBeenCalledWith(false);
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    const card = (await screen.findByRole("button", { name: "New remote skill" })).closest("article")!;
+    expect(library).toHaveBeenCalledWith(true);
+    expect(within(card).getByRole("img", { name: "New remote skill" }).getAttribute("src")).toBe(remote.coverUrl);
+    await user.click(within(card).getByRole("button", { name: "Install and use" }));
+    await waitFor(() => expect(use).toHaveBeenCalledWith(expect.objectContaining({ id: remote.id, installed: true })));
+    expect(window.openmind.installLibraryPreset).toHaveBeenCalledWith(remote.id);
+  });
+
+  it.each(["cached", "unavailable"] as const)("retains personal and imported skills when the online catalog is %s", async state => {
+    const user = userEvent.setup();
+    window.openmind.getSkillLibrarySnapshot = vi.fn(async () => ({
+      entries: state === "cached" ? entries : entries.slice(1),
+      remote: { state, updatedAt: state === "cached" ? "2026-11-05T00:00:00Z" : null, error: "/private/cache/unreachable" }
+    }));
+    page();
+    await screen.findByText(state === "cached" ? "Cannot connect right now. Showing saved skills." : "Online skills are temporarily unavailable. Your installed and personal skills are still available.");
+    expect(screen.queryByText("/private/cache/unreachable")).toBeNull();
+    if (state === "cached") expect(screen.getByRole("button", { name: "Research report" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "My skills" }));
+    expect(screen.getByRole("button", { name: "My article" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Git utility" })).toBeTruthy();
+  });
+
+  it("ignores a catalog refresh that finishes after switching the data root", async () => {
+    const user = userEvent.setup();
+    let finishOldRefresh!: (snapshot: SkillLibrarySnapshot) => void;
+    const fresh = { state: "fresh" as const, updatedAt: "2026-11-06T00:00:00Z", error: null };
+    window.openmind.getSkillLibrarySnapshot = vi.fn<NonNullable<DesktopApi["getSkillLibrarySnapshot"]>>()
+      .mockResolvedValueOnce({ entries, remote: fresh })
+      .mockImplementationOnce(() => new Promise(resolve => { finishOldRefresh = resolve; }))
+      .mockResolvedValue({ entries: [entry({ id: "new-root", title: "New root skill" })], remote: fresh });
+    const content = (scope: string) => <FeedbackProvider><SkillLibraryPage storageScope={scope} providers={[]} renderManagement={() => null} renderImport={() => null} /></FeedbackProvider>;
+    const view = render(content("old-root"));
+    await screen.findByRole("button", { name: "Research report" });
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
+    view.rerender(content("new-root"));
+    await screen.findByRole("button", { name: "New root skill" });
+    await act(async () => finishOldRefresh({ entries, remote: { ...fresh, state: "cached" } }));
+    expect(screen.queryByRole("button", { name: "Research report" })).toBeNull();
+    expect(screen.getByRole("button", { name: "New root skill" })).toBeTruthy();
+    expect(screen.queryByText("Cannot connect right now. Showing saved skills.")).toBeNull();
+  });
+
+  it("does not apply a downloaded skill to the next data root", async () => {
+    const user = userEvent.setup(); const use = vi.fn();
+    let finishInstall!: (value: SkillLibraryEntry) => void;
+    window.openmind.installLibraryPreset = vi.fn(() => new Promise<SkillLibraryEntry>(resolve => { finishInstall = resolve; }));
+    const content = (scope: string) => <FeedbackProvider><SkillLibraryPage storageScope={scope} providers={[]} onUseSkill={use} renderManagement={() => null} renderImport={() => null} /></FeedbackProvider>;
+    const view = render(content("old-root"));
+    await user.click(await screen.findByRole("button", { name: "Install and use" }));
+    view.rerender(content("new-root"));
+    await screen.findByRole("button", { name: "Install and use" });
+    await act(async () => finishInstall({ ...entries[0], installed: true, enabled: false, key: "openmind-library/report", digest }));
+    expect(window.openmind.setInstalledSkillEnabled).not.toHaveBeenCalled();
+    expect(use).not.toHaveBeenCalled();
+  });
+
   it("requests only visible cover thumbnails and discards a previous root's pending cover", async () => {
     const observers = new Map<Element, (visible: boolean) => void>();
     vi.stubGlobal("IntersectionObserver", class {

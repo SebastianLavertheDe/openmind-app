@@ -1,4 +1,4 @@
-/** The 10 retained native Skills shipped from config/skill-library/packages.
+/** The 8 retained native Skills shipped from config/skill-library/packages.
  * Original migration batch/issue fields document provenance; executable
  * contracts are validated from the current manifests during every build. */
 
@@ -34,19 +34,6 @@ export type SkillLegacyIssue =
 
 
 export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
-  {
-    id: "skill-run-reporter",
-    sourceDir: "skill-run-reporter",
-    targetKind: "process",
-    runtimePacks: ["python-core"],
-    externalExport: false,
-    openmindRead: [],
-    openmindWrite: [],
-    legacyIssues: ["ancestor-repo-walk", "no-pyproject"],
-    batch: "A",
-    primaryArtifact: "structured report (run artifact)",
-    notes: "Read RunStore API/export instead of fixed parent-dir inference."
-  },
   {
     id: "reddit-fetcher",
     sourceDir: "reddit-fetcher",
@@ -130,19 +117,6 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     notes: "Remove cwd/parent inference; structured URL/output name; declare download/disk/model needs. Uses Export Location Binding."
   },
   {
-    id: "video-burnin-subtitles",
-    sourceDir: "video-burnin-subtitles",
-    targetKind: "process",
-    runtimePacks: ["python-core", "media-core", "speech-whisper", "cjk-subtitle-fonts"],
-    externalExport: false,
-    openmindRead: [],
-    openmindWrite: ["video/**"],
-    legacyIssues: [],
-    batch: "C",
-    primaryArtifact: "video/<job>/ (existing contract)",
-    notes: "Windows native entry; subtitle steps; large packs on demand. MUST keep openmind/video contract."
-  },
-  {
     id: "agent-browser",
     sourceDir: "agent-browser",
     targetKind: "agent",
@@ -170,7 +144,7 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
   }
 ] as const;
 
-/** All 10 skill IDs. */
+/** All 8 retained native skill IDs. */
 export const ALL_SKILL_IDS: readonly string[] = SKILL_COMPATIBILITY_MATRIX.map((e) => e.id);
 
 /** Count by kind — used by the §17.7 acceptance gate. */

@@ -3,6 +3,7 @@ import type { TranslationOf } from "../types";
 export const skillLibraryMessages = { skillLibrary: {
   title: "Skills", explore: "Explore", mine: "My skills", views: "Skill view", categories: "Skill categories",
   recommended: "For you", browseAll: "Browse all", loadFailed: "Skills could not be loaded. Try again.",
+  refresh: "Refresh", offlineCached: "Cannot connect right now. Showing saved skills.", remoteUnavailable: "Online skills are temporarily unavailable. Your installed and personal skills are still available.",
   uncategorized: "Uncategorized", noImages: "No showcase images",
   prompt: "Prompt", copyPrompt: "Copy prompt", promptLoading: "Loading prompt…", promptEmpty: "This skill does not provide a prompt.", promptFailed: "Could not read the prompt. Try again.",
   scenes: { all: "All", research: "Research", writing: "Writing", image: "Images", slides: "Slides", video: "Video", web: "Web", "github-installed": "GitHub installs", "local-imported": "Local imports" },

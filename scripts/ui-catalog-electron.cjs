@@ -86,7 +86,10 @@ app.whenReady().then(async () => {
         await waitForSelector('.composer-image-submenu [role="menuitemradio"]');
       }
     }
-    if (scenario.id.startsWith("skill-library-")) await waitForSelector(".skill-library-card");
+    if (scenario.id.startsWith("skill-library-")) {
+      await waitForSelector(".skill-library-card");
+      if (scenario.id === "skill-library-explore") assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('.skill-library-card').length"), 15, `${name}: public remote card count`);
+    }
     if (scenario.id.startsWith("rss-source-")) await waitForSelector(".rss-source-card");
     if (scenario.id.startsWith("rss-preferences-")) {
       await waitForSelector('.daily-preferences-editor textarea:not(:disabled)');
@@ -177,10 +180,21 @@ app.whenReady().then(async () => {
           compactInput: document.querySelector('textarea').dataset.size === 'sm',
           allWrapped: cards.every(card => card.scrollWidth <= card.clientWidth + 1) };
       })()`);
-      assert.equal(home.cards, 12, `${name}: curated recommendation count`);
+      assert.equal(home.cards, 5, `${name}: curated recommendation count`);
       assert.equal(home.columns, width <= 720 ? 2 : 4, `${name}: responsive recommendation columns`);
       if (width >= 1280) assert.equal(home.composerWidth, 650, `${name}: welcome composer width`);
       for (const key of ['fillsFrame', 'centered', 'contained', 'compactInput', 'allWrapped']) assert.equal(home[key], true, `${name}: ${key}`);
+      await click('.new-task-categories [data-value="image"]'); await settled();
+      const imageCards = await win.webContents.executeJavaScript(`(() => {
+        const cards = [...document.querySelectorAll('.new-task-skill-card')];
+        return { count: cards.length, coversLoaded: cards.every(card => {
+          const image = card.querySelector('.new-task-skill-cover');
+          return image.complete && image.naturalWidth > 0;
+        }) };
+      })()`);
+      assert.equal(imageCards.count, 10, `${name}: handraw image card count`);
+      assert.equal(imageCards.coversLoaded, true, `${name}: image category covers`);
+      await click('.new-task-categories [data-value="recommended"]'); await settled();
       report.geometry.push({ name, home });
     }
     if (scenario.id.startsWith("composer-queue-")) {

@@ -5,7 +5,9 @@
     "blog-rss-feed": "5aaaceb1cdb9d97257da37fe0a333a56f3e3b482"
   },
   "excluded": [
-    "knowledge-wiki-compiler"
+    "knowledge-wiki-compiler",
+    "skill-run-reporter",
+    "video-burnin-subtitles"
   ],
   "files": [
     {
@@ -545,66 +547,6 @@
       "target": "config/skill-library/packages/rss-to-summary-workflow/cctools.skill.yaml",
       "status": "superseded",
       "reason": "Workflow Engine manifest and packaged CLI replace sibling-repository commands"
-    },
-    {
-      "source": "skill-run-reporter/SKILL.md",
-      "target": "config/skill-library/packages/skill-run-reporter/SKILL.md"
-    },
-    {
-      "source": "skill-run-reporter/cctools.skill.yaml",
-      "target": "config/skill-library/packages/skill-run-reporter/cctools.skill.yaml"
-    },
-    {
-      "source": "skill-run-reporter/pyproject.toml",
-      "target": "config/skill-library/packages/skill-run-reporter/pyproject.toml"
-    },
-    {
-      "source": "skill-run-reporter/scripts/report.py",
-      "target": "config/skill-library/packages/skill-run-reporter/scripts/report.py"
-    },
-    {
-      "source": "skill-run-reporter/scripts/runtime_paths.py",
-      "target": "config/skill-library/packages/skill-run-reporter/scripts/runtime_paths.py"
-    },
-    {
-      "source": "skill-run-reporter/uv.lock",
-      "target": "config/skill-library/packages/skill-run-reporter/uv.lock"
-    },
-    {
-      "source": "video-burnin-subtitles/SKILL.md",
-      "target": "config/skill-library/packages/video-burnin-subtitles/SKILL.md"
-    },
-    {
-      "source": "video-burnin-subtitles/agents/openai.yaml",
-      "target": "config/skill-library/packages/video-burnin-subtitles/agents/openai.yaml"
-    },
-    {
-      "source": "video-burnin-subtitles/cctools.skill.yaml",
-      "target": "config/skill-library/packages/video-burnin-subtitles/cctools.skill.yaml"
-    },
-    {
-      "source": "video-burnin-subtitles/pyproject.toml",
-      "target": "config/skill-library/packages/video-burnin-subtitles/pyproject.toml"
-    },
-    {
-      "source": "video-burnin-subtitles/references/commands.md",
-      "target": "config/skill-library/packages/video-burnin-subtitles/references/commands.md"
-    },
-    {
-      "source": "video-burnin-subtitles/scripts/burnin_subtitles.py",
-      "target": "config/skill-library/packages/video-burnin-subtitles/scripts/burnin_subtitles.py"
-    },
-    {
-      "source": "video-burnin-subtitles/scripts/burnin_subtitles.sh",
-      "target": "config/skill-library/packages/video-burnin-subtitles/scripts/burnin_subtitles.sh"
-    },
-    {
-      "source": "video-burnin-subtitles/scripts/translate_srt_gemini.py",
-      "target": "config/skill-library/packages/video-burnin-subtitles/scripts/translate_srt_gemini.py"
-    },
-    {
-      "source": "video-burnin-subtitles/uv.lock",
-      "target": "config/skill-library/packages/video-burnin-subtitles/uv.lock"
     },
     {
       "source": "x-following-fetcher/SKILL.md",

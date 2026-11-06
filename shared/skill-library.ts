@@ -4,6 +4,16 @@ import { SkillContributorNickSchema, SkillContributorProfileUrlSchema, SkillCont
 
 export const SKILL_SCENES = ["research", "writing", "image", "slides", "video", "web"] as const;
 export const SkillSceneSchema = z.enum(SKILL_SCENES);
+export const SkillLibraryCopySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  subtitle: z.string().max(1_000).default(""),
+  description: z.string().max(5_000).optional(),
+  inputHint: z.string().max(1_000).default("")
+}).strict();
+export const SkillLibraryDisplaySchema = z.object({
+  "zh-CN": SkillLibraryCopySchema.optional(),
+  en: SkillLibraryCopySchema.optional()
+}).strict().refine(value => Boolean(value["zh-CN"] || value.en), "Provide at least one display language");
 const SkillRuntimeRequirementSchema = z.enum(["image", "python", "ffmpeg"]);
 export type SkillScene = z.infer<typeof SkillSceneSchema>;
 export type SkillLibraryMode = "explore" | "mine";
@@ -48,6 +58,8 @@ export const SkillLibraryMetadataSchema = z.object({
   requirement: SkillRuntimeRequirementSchema.optional(),
   document: AuthoredSkillSchema.optional(), category: SkillSceneSchema, inputHint: z.string().max(1000).default(""),
   contributor: SkillContributorSchema.optional(),
+  /** Installed presentation remains localized without the discovery catalog. */
+  display: SkillLibraryDisplaySchema.optional(),
   executionModel: z.object({ provider: z.enum(["codex", "claude"]), model: z.string().max(200) }).nullable().default(null),
   dependencies: z.array(SkillSelectionInputSchema).max(10).default([])
 });
@@ -60,13 +72,23 @@ export interface SkillLibraryEntry {
   authoringId: string | null; revision: number; draft: boolean; imageCount: number; source: string;
   executionModel: AuthoredSkill["executionModel"];
   cover?: SkillAsset;
+  /** Sanitized raster image supplied by the remote catalogue through IPC. */
+  coverUrl?: string;
+  recommended?: boolean;
+  distribution?: "builtin" | "remote";
+  cached?: boolean;
   icon?: SkillScene | "auto";
   updatedAt?: string;
   images?: SkillAsset[];
   discoverable?: boolean;
-  /** A newer bundled definition is applied on the next explicit card use. */
+  /** A newer published definition is applied on the next explicit card use. */
   updateAvailable?: boolean;
   contributor?: SkillContributorView;
+}
+
+export interface SkillLibrarySnapshot {
+  entries: SkillLibraryEntry[];
+  remote: { state: "fresh" | "cached" | "unavailable"; updatedAt: string | null; error: string | null };
 }
 
 export function filterSkillLibrary(entries: SkillLibraryEntry[], mode: SkillLibraryMode, section: SkillLibrarySection, query = "", origin = "all"): SkillLibraryEntry[] {

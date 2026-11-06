@@ -9,8 +9,12 @@ import { SkillPackageService } from "./skill-package-service";
 import { readSkillAvatar } from "./skill-avatar";
 
 /** Compile App-owned definitions into verified installable packages. No external repository is read. */
-export function prepareSkillLibraryBundle(configRoot: string, outputRoot: string): number {
+export function prepareSkillLibraryBundle(configRoot: string, outputRoot: string, options: { includeIds?: readonly string[] } = {}): number {
   const catalog = readSkillLibraryCatalog(configRoot);
+  if (options.includeIds) {
+    const ids = new Set(options.includeIds);
+    catalog.skills = catalog.skills.filter(entry => ids.has(entry.id));
+  }
   fs.mkdirSync(path.dirname(outputRoot), { recursive: true });
   const temporary = fs.mkdtempSync(path.join(path.dirname(outputRoot), ".skill-library-build-"));
   const bundle = path.join(temporary, "bundle");
@@ -53,7 +57,7 @@ export function prepareSkillLibraryBundle(configRoot: string, outputRoot: string
       }
       fs.writeFileSync(path.join(destination, "openmind.library.json"), JSON.stringify({
         schemaVersion: 1, origin: "preset", presetId: entry.id, category: entry.category,
-        requirement: entry.requirement, inputHint: copy.inputHint, capabilityMode: entry.packageDirectory ? undefined : "session", contributor: entry.contributor
+        requirement: entry.requirement, inputHint: copy.inputHint, capabilityMode: entry.packageDirectory ? undefined : "session", contributor: entry.contributor, display: entry.display
       }, null, 2) + "\n");
       const targets = new Set<string>();
       for (const file of entry.files) {

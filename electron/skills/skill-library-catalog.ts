@@ -15,6 +15,7 @@ export function isLegacyAppLibraryInstall(record: LibraryRecord): boolean {
 
 export function isAppLibraryInstall(record: LibraryRecord): boolean {
   return record.sourceType === "builtin" && record.publisherId === SKILL_LIBRARY_PUBLISHER && record.sourceLocator === SKILL_LIBRARY_SOURCE
+    || record.sourceType === "catalog" && record.publisherId === SKILL_LIBRARY_PUBLISHER && Boolean(record.sourceLocator)
     || isLegacyAppLibraryInstall(record);
 }
 

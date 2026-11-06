@@ -17,6 +17,7 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "saveDailyBriefPreferences", channel: IPC.BRIEF_PREFERENCES_SAVE },
   { method: "generateDailyBrief", channel: IPC.BRIEF_GENERATE },
   { method: "listSkillLibrary", channel: IPC.SKILL_LIBRARY_LIST },
+  { method: "getSkillLibrarySnapshot", channel: IPC.SKILL_LIBRARY_SNAPSHOT },
   { method: "readSkillLibraryPrompt", channel: IPC.SKILL_LIBRARY_PROMPT },
   { method: "installLibraryPreset", channel: IPC.SKILL_LIBRARY_INSTALL },
   { method: "getSkillEditor", channel: IPC.SKILL_LIBRARY_EDITOR },

@@ -151,7 +151,7 @@ export type SkillPackageInspection = {
 };
 
 export type SkillPackageSourceMetadata = {
-  sourceType: "directory" | "zip" | "git" | "builtin";
+  sourceType: "directory" | "zip" | "git" | "builtin" | "catalog";
   sourceLocator: string;
   sourceRef?: string;
   /** Path of this package inside a multi-package source repository. */

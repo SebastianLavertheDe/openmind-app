@@ -1,6 +1,6 @@
 # 应用技能库配置
 
-这里维护全部 App 内置技能：配置式 Agent 预设和 `packages/` 下保留的 10 个原生包。Agent、Process、Workflow 保留原执行类型；外部 Git 导入与用户编写的技能继续使用独立来源身份。
+这里维护全部 22 个 App 官方技能源码：14 个配置式 Agent 预设和 `packages/` 下保留的 8 个原生包。其中 7 个采集、总结、视频及工作流包随 App 内置；其余 15 张卡片通过独立目录和 ZIP 下载分发，不进入 App 安装包。Agent、Process、Workflow 保留原执行类型；外部 Git 导入与用户编写的技能继续使用独立来源身份。
 `catalog.json` 包含技能清单、执行指令及中英文展示信息；App 构建不读取外部技能仓库。
 
 ## 添加技能
@@ -31,8 +31,7 @@
 }
 ```
 
-运行 `npm run prepare:skill-library` 后重新进入技能页。无需修改 TypeScript、翻译模块，
-也无需在 `cctools-skills` 添加目录。`build` 和 `dev:electron` 自动执行准备步骤。
+运行 `npm run publish:skill-library`，将上述新条目发布到项目根目录的 `skill-registry/`，然后刷新技能页。无需重新构建 App、修改 TypeScript 或翻译模块，也无需在 `cctools-skills` 添加目录。`prepare:skill-library` 同时准备 7 个内置包并发布目录；`build` 和 `dev:electron` 自动执行这个准备步骤。
 
 ## 可选辅助文件
 
@@ -40,7 +39,7 @@
 
 ```json
 {
-  "files": ["scripts/create_deck.py"],
+  "files": ["scripts/format_report.py"],
   "requirement": "python"
 }
 ```
@@ -54,8 +53,8 @@
 {
   "files": [
     {
-      "source": "_shared/handraw-style/visual-library.json",
-      "target": "references/visual-library.json"
+      "source": "_shared/references/writing-guide.md",
+      "target": "references/writing-guide.md"
     }
   ]
 }
@@ -72,12 +71,14 @@
 - `id`：唯一标识，以小写字母开头，可包含小写字母、数字、`-`、`_`、`.`。
 - `version`：默认 `1.0.0`，使用三段数字版本号。
   修改已经发布的执行流程时递增版本；共享资源变化也会改变包摘要。
-- `instructions`：必填的指令段落数组；构建时生成 `SKILL.md`。
+- `instructions`：配置式预设必填的指令段落数组；构建时生成 `SKILL.md`。原生包可省略，使用包内的 `SKILL.md`。
 - `category`：`research`、`writing`、`image`、`slides`、`video`、`web`，同时决定封面图标。
 - `requirement`：可省略；可选 `image`、`python`、`ffmpeg`，`ffmpeg` 同时要求 Python。
 - `display`：支持 `zh-CN`、`en`，至少提供一种。优先使用当前界面语言，缺失时回退到已有语言。
 - `title` 必填；`subtitle`、`inputHint` 默认空文本；`description` 省略时使用副标题。
 - `files`：可选辅助文件列表，不会扫描或复制外部技能仓库。
+- `recommended`：默认 `false`；设为 `true` 时可在新任务页作为推荐卡片展示，无需向前端添加 ID。
+- `cardCover`：可选，指向 `assets/` 下的 PNG、JPEG 或 WebP，相对路径不得越界，最大 512 KiB。发布时与小头像一同写入远程目录的 data URL，浏览卡片不需要先下载 Skill ZIP。
 
 ## 贡献者昵称和头像
 
@@ -117,22 +118,53 @@ App 中创建的技能保存在本地「我的」，不会自动投稿。公开�
 
 ## 分发与来源隔离
 
-构建输出 `.build/skill-library/`，包括配置、自动生成的技能包和包摘要清单。
-发布时它们位于安装包的 `resources/skill-library/`。已分发客户端需更新应用资源或安装包。
-维护者可用 `OPENMIND_SKILL_LIBRARY_BUNDLE` 指定同样结构的完整资源目录。
+App 安装包仅包含以下 7 个内置 Skill（ID 清单位于 `shared/skill-registry.ts`）：
 
-应用技能的安装记录为 `sourceType: builtin`、发布者 `openmind-library`；GitHub 导入保持
-`sourceType: git` 和实际仓库地址。两者共用执行机制和安装存储，但清单、来源、更新及默认技能
-开关相互独立。GitHub 包即使使用相同 ID，也不会被认作应用技能或被其安装操作覆盖。
+- `video-download`：视频下载
+- `daily-article-summarizer`：每日文章总结
+- `daily-topic-selector`：每日选题筛选
+- `reddit-fetcher`：Reddit 内容抓取
+- `rss-article-saver`：RSS 文章采集
+- `rss-to-summary-workflow`：RSS 到每日总结
+- `x-following-fetcher`：X Following 抓取
 
-只有早期从 App 自带资源安装、且有绑定记录的旧包，才允许在明确重新安装时迁移发布者；
-只迁移具有官方默认来源记录、未被用户保留且内容完整的旧包。第三方、用户主动导入和修改过的副本不会被覆盖。关闭内置集合开关不删除任何已安装包或历史内容。
+这 7 个包输出到 `.build/skill-library/`，随安装包分发到 `resources/skill-library/`，在「探索」隐藏，安装后出现在「我的」。`OPENMIND_SKILL_LIBRARY_BUNDLE` 仍可指定这部分内置资源目录。它们的源码或应用执行能力更新仍按 App 版本交付。
 
-运行时重新读取配置；新增条目不会自动安装，仍由用户点击使用。移出清单的已安装技能
-保留在「我的」，不再出现在「探索」。
+其余 15 张探索卡片（研究/写作 4 张、handraw-style 10 张、浏览器自动化 1 张）通过独立目录发布：
+
+```bash
+npm run publish:skill-library
+```
+
+该命令只读取本项目的 `config/skill-library/`，不执行 App build，也不读取相邻仓库或用户数据。生成目录 `skill-registry/` 已被 Git 忽略：
+
+```text
+skill-registry/
+  catalog.json
+  packages/<skill-id>-<ZIP-SHA256>.zip
+```
+
+目录记录每张卡片的展示信息、完整 prompt 预览、推荐/封面、包版本、相对路径、长度、ZIP SHA-256 和包内容摘要。包版本取自验证后的 manifest；原生包的 prompt 从 `SKILL.md` 读取，目录预览保留公共执行规则。发布先验证全部包，最后原子替换 `catalog.json`；失败保留上次有效目录，旧哈希包继续保留，避免已获取旧目录的客户端下载失败。新增兼容当前客户端的卡片只需再次发布，不用发新版 App；新增客户端能力仍需升级 App。
+
+开发环境默认把项目根目录 `skill-registry/` 当作目录源，模拟后续远程分发。安装版没有项目检出目录，需显式指定来源；本次不包含公共线上地址。配置按以下顺序选择：
+
+1. 环境变量 `OPENMIND_SKILL_REGISTRY`：绝对目录，或 HTTP(S) 基础地址。
+2. `<userData>/settings/skill-registry.json`，例如 `{"source":"/absolute/path/to/skill-registry"}`。Windows JSON 路径中的反斜杠需要写为 `\\`。
+3. 仅开发环境回退到项目的 `skill-registry/`。
+
+后续将整个 `skill-registry/` 原样托管到 HTTP(S)，并把来源设为例如 `https://example.com/skill-registry/` 即可；示例地址不是实际已部署服务。URL 不接受账号密码、查询参数或片段。HTTP 目录默认缓存五分钟，可由界面主动刷新；本地目录每次检查。先更新哈希包，再更新目录文件，避免向客户端提供不存在的包地址。
+
+目录和下载包缓存在 `<userData>/cache/skill-registry/`，按源隔离；安装后的代码仍在 `<内容根>/.agent/skills/`。源不可访问时使用最后有效的目录；已经下载并通过校验的 ZIP 可离线安装，未缓存的包需恢复源访问后才能下载。包读取校验大小和 SHA-256，安装前继续验证 manifest 与包内容摘要。摘要是完整性校验，不是发布者签名，因此来源应由维护者配置为可信目录或服务。浏览目录不会下载所有包，也不会把包安装到缓存目录。
+
+应用技能的发布者为 `openmind-library`。7 个内置包记录为 `sourceType: builtin`；独立目录包记录为 `sourceType: catalog`，保留实际目录来源和 ZIP 哈希。GitHub 导入保持 `sourceType: git` 和实际仓库地址。各来源共用执行机制和安装存储，但清单、更新及默认技能开关相互独立。GitHub 包即使使用相同 ID，也不会被认作应用技能或被其安装操作覆盖；切换独立目录来源也不会静默覆盖另一个目录源的同名安装。
+
+历史 App 内置卡片在明确使用时可迁移为目录来源。旧版官方默认集合的 `agent-browser` 也保留迁移路径：仅原生包、可验证的官方旧 Git 来源、未被用户保留且内容完整的安装可以显式迁移。浏览目录不会触发迁移；第三方、用户保留和修改过的副本不会被覆盖。关闭内置集合开关不删除任何已安装包或历史内容。
+
+运行时获取目录并保留有效缓存；新增条目不会自动安装，仍由用户点击使用。移出清单的已安装技能
+默认保留在「我的」，不再出现在「探索」；列入 `shared/retired-skills.ts` 的退役内置包同时退出「我的」和新任务入口。
 
 已安装的应用卡片发现包摘要变化后，会在用户下次点击「使用」时应用新版并使用新的
-摘要创建会话；浏览列表不更新安装包。已经移出清单的包和历史个人编辑源保持独立。
+摘要创建会话；浏览列表不更新安装包。若显示更新后来源暂时不可达，则继续使用经过校验的已安装版本；新包内容损坏或校验不匹配仍明确报错。已经移出清单的包和历史个人编辑源保持独立。
 
 ## handraw-style 图像卡片
 
@@ -155,7 +187,7 @@ App 中创建的技能保存在本地「我的」，不会自动投稿。公开�
 卡片显示 GitHub 公开头像及 `@yang0`，并在详情中说明改编关系。头像从
 <https://github.com/yang0> 获取，以 128×128 JPEG 保存在
 `assets/_shared/handraw-style/avatars/yang0.jpg`（3416 字节），通过配置映射随每个技能打包。
-显示时读取本地图片，不请求 GitHub；头像来源及抓取时间记录在下方的改编说明中。
+发布时嵌入目录，显示时使用目录缓存中的图片，不请求 GitHub；头像来源及抓取时间记录在下方的改编说明中。
 固定来源版本、对应的上游文件和改编说明见
 [`assets/_shared/handraw-style/ATTRIBUTION.md`](assets/_shared/handraw-style/ATTRIBUTION.md)。
 原始许可证保存在同目录 `LICENSE`，打包为每个技能的 `LICENSE.handraw-style`。
@@ -170,21 +202,25 @@ App 中创建的技能保存在本地「我的」，不会自动投稿。公开�
 文章回填由会话文件工具完成：默认生成新副本，保留正文，并检查图片及原有相对链接。
 模型生成的文字、商品细节及多图角色一致性仍需检查，不保证每个模型一次生成就完全正确。
 
-修改后运行：
+仅修改卡片、提示词或资源时，独立发布并执行相关测试：
 
 ```bash
-npm run build
-npx vitest run shared/skill-library-catalog.test.ts shared/image-composition.test.ts electron/skills/skill-library-bundle.test.ts electron/skills/handraw-library.test.ts electron/skills/skill-library-service.test.ts
-npm run test:image-composition
+npm run publish:skill-library
+npx vitest run shared/skill-library-catalog.test.ts electron/skills/skill-library-bundle.test.ts electron/skills/skill-registry-publisher.test.ts electron/skills/remote-skill-registry.test.ts electron/skills/handraw-library.test.ts electron/skills/skill-library-service.test.ts
 ```
 
-最后一项使用临时图片和真实 Electron 验证尺寸、双拼顺序、原图保留与覆盖保护，
-不连接图片模型，也不读取用户的内容库。
+修改应用执行代码时另运行 `npm run build`。图片合成改动再运行 `npm run test:image-composition`，它使用临时图片和真实 Electron 验证尺寸、双拼顺序、原图保留与覆盖保护，不连接图片模型，也不读取用户的内容库。
+
+## 当前配置式预设
+
+保留资料研究报告、多资料对比、长文写作、改写与润色这 4 个预设，以及上述 10 个 handraw-style 图像预设，共 14 个配置式 Agent 预设。图片风格编辑、演示内容策划、演示文稿制作、短视频脚本与分镜、短视频制作、落地页制作和交互小工具这 7 个预设已退役，其专属脚本不再分发。旧内置安装按来源隐藏并阻止新任务；用户内容、历史记录及独立导入的副本保留。图片生成、图片合成、视频工具等应用共用能力继续由各自模块维护。
 
 ## 原生包与 RSS 转换器
 
-`catalog.json` 的 `packageDirectory` 指向 `packages/` 下源码，`executionKind` 保留 agent/process/workflow，`discoverable` 决定是否展示在探索中。`prepare:skill-library` 将包、共享 `_shared` 和 RSS 源目录复制到忽略的 `.build/skill-library/`，验证并统一生成 `openmind-library` 身份及内容摘要。安装器继续识别两种历史 manifest 文件名。
+`catalog.json` 的 `packageDirectory` 指向 `packages/` 下源码，`executionKind` 保留 agent/process/workflow，`discoverable` 决定是否展示在探索中。`prepare:skill-library` 将 7 个内置包、它们需要的共享 `_shared` 和 RSS 源目录复制到忽略的 `.build/skill-library/`，其余包独立输出到 `skill-registry/`。两种分发都先验证并统一生成 `openmind-library` 身份及内容摘要。安装器继续识别 `cctools.skill.yaml` 和 `openmind.skill.yaml`。
 
 `migration.json` 记录原仓库修订和文件去向。`../rss-sources/catalog.json` 是公开建议清单，不是用户订阅；用户初始化后不会自动追加新版建议。带用户身份的订阅只在用户本地迁移，不能加入公共清单。
 
-Knowledge Wiki 生成器不打包、不列入默认集合，也不进入运行报告。确认归属的官方旧包可卸载；已有 Wiki 文件与用户主动导入的副本保留。RSS/偏好数据格式、调度和安装包验收见 [使用指南](../../docs/RSS_AND_SKILLS_GUIDE.md)。
+Knowledge Wiki 生成器不打包、不列入默认集合。确认归属的官方旧包可卸载；已有 Wiki 文件与用户主动导入的副本保留。
+
+运行报告（`skill-run-reporter`）和视频烧录字幕（`video-burnin-subtitles`）已移除源码并退出分发。升级时按来源识别旧内置安装，隐藏卡片并阻止新任务、停用相关定时规则；已有内容、安装文件和运行历史保留，用户导入或显式保留的副本不受影响。RSS/偏好数据格式、调度和安装包验收见 [使用指南](../../docs/RSS_AND_SKILLS_GUIDE.md)。

@@ -338,7 +338,6 @@ const visualSkillDefinitions = [
   ["agent-browser", "浏览器自动化 Agent", "使用浏览器完成受控的网页自动化任务。"],
   ["daily-article-summarizer", "每日文章总结", "总结当天文章并同步每日摘要。"],
   ["daily-topic-selector", "每日选题筛选", "从每日摘要中筛选值得继续创作的主题。"],
-  ["video-burnin-subtitles", "视频烧录字幕", "将字幕烧录到最终视频文件。"],
   ["video-download", "视频下载", "下载视频与相关元数据。"],
   ["x-following-fetcher", "X Following 抓取", "使用本地 cURL 配置抓取 X Following 时间线。"]
 ];

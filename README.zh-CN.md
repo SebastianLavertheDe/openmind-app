@@ -10,7 +10,7 @@ OpenMind Desktop 是一个面向信息收集、知识整理和 AI 内容创作�
 - **手动添加资料。** 支持将网页 URL、PDF 文件和 YouTube 视频链接添加到项目中，集中整理资料并用于阅读和写作。
 - **从阅读到写作。** 把文章保存为 Markdown，生成每日摘要和选题，再用收集的资料撰写草稿、推进创作项目。
 - **自由配置 AI。** 使用自己的 AI Provider 完成摘要和写作，也可以连接 Claude Code 或 Codex CLI 开始 AI 会话。
-- **通过 Skill 扩展。** 官方库提供 RSS、Reddit、X、知识库编译和写作工作流，也支持从 Git 仓库、ZIP 或本地目录安装更多 Skill。
+- **通过 Skill 扩展。** 官方库提供 RSS、Reddit、X、研究、图像和写作工作流，也支持从 Git 仓库、ZIP 或本地目录安装更多 Skill。
 - **公众号导出。** 预览文章排版、复制富文本，并将草稿推送到已配置的微信公众号。
 - **文件由你掌握。** 文章、笔记和草稿保存在自己选择的本地文件夹中，Markdown 文件也可以用其他编辑器打开和修改。
 
@@ -46,7 +46,7 @@ OpenMind Desktop 是一个面向信息收集、知识整理和 AI 内容创作�
 
 1. **选择数据目录。** 选择保存 OpenMind 内容和个人配置的文件夹。
 2. **配置 AI（可选）。** 在 **设置 → AI 与模型** 中添加 AI Provider，填写 Base URL、API Key 和文本模型，并选择默认 Provider。使用 AI 会话时，还需要安装或连接 Claude Code / Codex CLI，并按应用提示完成连接配置。首启时也可以选择 **稍后配置**，需要 AI 功能时再补充。
-3. **选择订阅和任务。** 其余 15 个 Skill 与 Feed 转换器已随 App 内置，无需克隆 `cctools-skills` 或 `blog-rss-feed`。在 **RSS 源** 管理订阅，通过 **定时任务** 设置周期和时区；新用户的建议源与新建任务默认停用。Python Skill 执行前需在设置开启内置 Python；总结和选题另需配置 Process Provider。关闭内置集合开关保留包、内容、订阅及各任务设置。
+3. **选择订阅和任务。** 7 个采集、总结及视频 Skill 与 Feed 转换器随 App 内置，无需克隆 `cctools-skills` 或 `blog-rss-feed`；其余 15 张官方卡片从独立发布的 Skill 目录获取。在 **RSS 源** 管理订阅，通过 **定时任务** 设置周期和时区；新用户的建议源与新建任务默认停用。Python Skill 执行前需在设置开启内置 Python；总结和选题另需配置 Process Provider。关闭内置集合开关保留包、内容、订阅及各任务设置。
 4. **开始采集和创作。** 在设置中调整订阅，在技能中心运行 RSS 采集或 RSS 到摘要工作流，再到资料库阅读结果，并用于写作项目。
 
 AI 功能会向你配置的 Provider 发送请求。请使用自己的凭据，并将数据目录和 Provider 配置保留为私人数据。
@@ -74,7 +74,9 @@ npm run dev:electron
 
 运行时准备步骤会下载 Skill 使用的 Python 运行时。应用打开后，按上面的首次启动流程完成设置。
 
-App 技能库统一维护在 [`config/skill-library/`](config/skill-library/README.md)：21 个配置式 Agent 预设，以及 `packages/` 下迁入的 15 个原生 Agent、Process 和 Workflow 包。构建包含共享 Python 模块及 RSS 转换器，不依赖相邻仓库。外部 Git 导入和用户编写的 Skill 仍保留独立身份。安装、CLI/crontab、迁移与验证说明见 [RSS 与 Skills 使用指南](docs/RSS_AND_SKILLS_GUIDE.md)。
+22 个官方 Skill 的源码继续统一维护在 [`config/skill-library/`](config/skill-library/README.md)。7 个原生 Process/Workflow 包随 App 内置；14 个配置式 Agent 预设及 `agent-browser` 改为独立发布。运行 `npm run publish:skill-library` 即可更新项目根目录下、已被 Git 忽略的 `skill-registry/`，无需重新构建 App。App 准备步骤也会生成该目录用于本地开发。构建包含共享 Python 模块及 RSS 转换器，不依赖相邻仓库。
+
+开发环境默认读取 `skill-registry/`。安装版需显式配置来源：设置 `OPENMIND_SKILL_REGISTRY` 为绝对目录或 HTTP(S) 基础地址，或在 `<userData>/settings/skill-registry.json` 保存 `{"source":"/绝对路径/skill-registry"}`；环境变量优先。本次没有配置公共线上地址，之后可以将生成目录原样托管到 HTTP(S) 服务。目录及下载包缓存在 `<userData>/cache/skill-registry/`，安装后的包仍位于 `<内容根>/.agent/skills/`。目录和包已有缓存时可离线复用。ZIP 的 SHA-256 和包内容摘要用于完整性校验，不属于发布者签名。外部 Git 导入和用户编写的 Skill 仍保留独立身份。安装、CLI/crontab、迁移与验证说明见 [RSS 与 Skills 使用指南](docs/RSS_AND_SKILLS_GUIDE.md)。
 
 开发约定见 [AGENTS.md](AGENTS.md)。更多说明：[AI 工作台](docs/AI_WORKSPACE.md)、[公众号导出](docs/wechat-export.md)、[支持与恢复](docs/SUPPORT_AND_RECOVERY.md)。
 

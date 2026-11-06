@@ -21,7 +21,9 @@
       ],
       "contributor": {
         "nick": "OpenMind"
-      }
+      },
+      "recommended": true,
+      "cardCover": "_shared/card-covers/om-research-brief.jpg"
     },
     {
       "id": "om-source-compare",
@@ -43,7 +45,9 @@
       ],
       "contributor": {
         "nick": "OpenMind"
-      }
+      },
+      "recommended": true,
+      "cardCover": "_shared/card-covers/om-source-compare.jpg"
     },
     {
       "id": "om-article-writer",
@@ -65,7 +69,9 @@
       ],
       "contributor": {
         "nick": "OpenMind"
-      }
+      },
+      "recommended": true,
+      "cardCover": "_shared/card-covers/om-article-writer.jpg"
     },
     {
       "id": "om-text-rewriter",
@@ -87,7 +93,9 @@
       ],
       "contributor": {
         "nick": "OpenMind"
-      }
+      },
+      "recommended": true,
+      "cardCover": "_shared/card-covers/om-text-rewriter.jpg"
     },
     {
       "id": "om-article-cover",
@@ -358,7 +366,9 @@
           "source": "_shared/handraw-style/avatars/yang0.jpg",
           "target": "avatars/yang0.jpg"
         }
-      ]
+      ],
+      "recommended": true,
+      "cardCover": "_shared/card-covers/om-poster-maker.jpg"
     },
     {
       "id": "om-four-panel-comic",
@@ -631,170 +641,6 @@
       ]
     },
     {
-      "id": "om-image-editor",
-      "category": "image",
-      "requirement": "image",
-      "display": {
-        "zh-CN": {
-          "title": "图片风格编辑",
-          "subtitle": "结合参考图调整风格、构图与细节",
-          "inputHint": "上传图片，说明需要修改及必须保留的内容。"
-        },
-        "en": {
-          "title": "Image style editor",
-          "subtitle": "Edit style, composition and details using reference images",
-          "inputHint": "Upload an image and describe what to change and preserve."
-        }
-      },
-      "instructions": [
-        "Inspect the attached reference image. Identify the requested changes and elements to preserve, then use the application image-generation/editing tool with the selected compatible model and reference images. Keep identity and requested geometry consistent. Deliver a real edited image, not merely editing instructions."
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      }
-    },
-    {
-      "id": "om-slide-outline",
-      "category": "slides",
-      "display": {
-        "zh-CN": {
-          "title": "演示内容策划",
-          "subtitle": "组织演示结构、逐页要点与讲稿",
-          "inputHint": "演示主题、受众、时长和页数是多少？"
-        },
-        "en": {
-          "title": "Presentation planning",
-          "subtitle": "Organize your narrative, slide points and speaker notes",
-          "inputHint": "What is the topic, audience, duration and slide count?"
-        }
-      },
-      "instructions": [
-        "Clarify the audience, objective, duration and number of slides. Read supplied materials. Produce a coherent slide-by-slide outline with titles, concise key points, suggested visuals and speaker notes. Clearly describe the result as a content plan, rather than a completed presentation file."
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      }
-    },
-    {
-      "id": "om-slide-deck",
-      "category": "slides",
-      "requirement": "python",
-      "display": {
-        "zh-CN": {
-          "title": "演示文稿制作",
-          "subtitle": "根据主题与资料制作可打开的演示文稿",
-          "inputHint": "提供主题或大纲，以及页数和视觉要求。"
-        },
-        "en": {
-          "title": "Presentation maker",
-          "subtitle": "Create an openable slide deck from a topic and materials",
-          "inputHint": "Provide a topic or outline, slide count and visual requirements."
-        }
-      },
-      "instructions": [
-        "Plan a focused narrative and write a slides JSON file with an array of objects containing title and bullets. Run the included scripts/create_deck.py with the Python 3 interpreter provided in the available-Skill context and the JSON input and output .pptx paths. The script uses only the Python standard library. Check the resulting ZIP contents and slide count. Deliver the actual .pptx file through the application deliverables protocol; a Markdown outline is not a finished deck."
-      ],
-      "files": [
-        "scripts/create_deck.py"
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      }
-    },
-    {
-      "id": "om-storyboard",
-      "category": "video",
-      "display": {
-        "zh-CN": {
-          "title": "短视频脚本与分镜",
-          "subtitle": "梳理节奏、画面、旁白和素材需求",
-          "inputHint": "视频主题、时长、比例和目标受众是什么？"
-        },
-        "en": {
-          "title": "Script and storyboard",
-          "subtitle": "Plan pacing, shots, narration and required materials",
-          "inputHint": "What is the theme, duration, aspect ratio and target audience?"
-        }
-      },
-      "instructions": [
-        "Clarify the message, audience, duration, aspect ratio and available materials. Deliver a timed storyboard with shots, visual actions, on-screen text, narration and asset requirements. Ensure the durations add up. Clearly label the result as a storyboard rather than an actual rendered video."
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      }
-    },
-    {
-      "id": "om-short-video",
-      "category": "video",
-      "requirement": "ffmpeg",
-      "display": {
-        "zh-CN": {
-          "title": "短视频制作",
-          "subtitle": "从分镜和素材制作可播放的视频",
-          "inputHint": "描述视频内容、时长，并提供可使用的素材。"
-        },
-        "en": {
-          "title": "Short video maker",
-          "subtitle": "Produce a playable video from a storyboard and materials",
-          "inputHint": "Describe your video, its duration and the available materials."
-        }
-      },
-      "instructions": [
-        "Create a timed storyboard from the request and the available materials. Prepare a JSON object containing slides with text and duration plus optional width, height, background and fontSize. Execute scripts/render_video.py using the Python 3 interpreter from the available-Skill context, passing --ffmpeg and its verified path; when drawtext is unavailable, pass --electron and the OpenMind runtime path from the available-Skill context to render frames with an isolated Electron profile. The script uses argument arrays rather than a shell. The script renders a typographic video and can use a background image on each slide via image. Use supplied images when appropriate. Inspect the output with ffprobe and deliver the actual MP4. If ffmpeg or a suitable font is missing, state the missing dependency without claiming a completed video. This package does not provide synthetic live-action footage or voice generation."
-      ],
-      "files": [
-        "scripts/render_frames.cjs",
-        "scripts/render_video.py"
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      }
-    },
-    {
-      "id": "om-landing-page",
-      "category": "web",
-      "display": {
-        "zh-CN": {
-          "title": "落地页制作",
-          "subtitle": "围绕产品内容制作可预览的页面",
-          "inputHint": "介绍产品、页面内容和喜欢的视觉风格。"
-        },
-        "en": {
-          "title": "Landing page maker",
-          "subtitle": "Build a previewable page around your product and message",
-          "inputHint": "Describe the product, page content and visual direction."
-        }
-      },
-      "instructions": [
-        "Turn the product, audience, content and visual direction into a polished responsive landing page. Write actual HTML/CSS/JS and needed assets under the allowed task output directory. Prefer semantic HTML, keyboard-accessible interactions and responsive layouts. Preview and verify the page. Deliver the runnable entry file and explain any required local server."
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      }
-    },
-    {
-      "id": "om-mini-tool",
-      "category": "web",
-      "display": {
-        "zh-CN": {
-          "title": "交互小工具",
-          "subtitle": "把具体需求做成可运行的网页工具",
-          "inputHint": "你希望做什么工具？需要哪些输入和交互？"
-        },
-        "en": {
-          "title": "Interactive tool",
-          "subtitle": "Turn a practical need into a working web tool",
-          "inputHint": "What tool would you like? Describe its inputs and interactions."
-        }
-      },
-      "instructions": [
-        "Translate the requested workflow into a small usable web tool with real inputs, state and results. Write runnable HTML/CSS/JS and assets in the allowed task output directory. Implement validation, keyboard support and a clear empty/error state. Exercise representative inputs and deliver the runnable artifact, not just a source snippet."
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      }
-    },
-    {
       "id": "video-download",
       "version": "1.0.0",
       "category": "video",
@@ -917,42 +763,6 @@
         "en": {
           "title": "rss-to-summary-workflow",
           "subtitle": "按同一个内容根快照依次执行 RSS 采集、文章总结和每日选题筛选。"
-        }
-      }
-    },
-    {
-      "id": "skill-run-reporter",
-      "version": "1.0.0",
-      "category": "research",
-      "packageDirectory": "skill-run-reporter",
-      "executionKind": "process",
-      "discoverable": false,
-      "display": {
-        "zh-CN": {
-          "title": "运行报告",
-          "subtitle": "汇总当天采集、总结和选题任务的状态报告。"
-        },
-        "en": {
-          "title": "skill-run-reporter",
-          "subtitle": "汇总当天采集、总结和选题任务的状态报告。"
-        }
-      }
-    },
-    {
-      "id": "video-burnin-subtitles",
-      "version": "1.0.0",
-      "category": "video",
-      "packageDirectory": "video-burnin-subtitles",
-      "executionKind": "process",
-      "discoverable": false,
-      "display": {
-        "zh-CN": {
-          "title": "视频烧录字幕",
-          "subtitle": "下载或使用本地视频，检测/生成/翻译字幕，并用 ffmpeg 把字幕硬烧进输出视频，产物固定写入绑定根的 video/<job>/。"
-        },
-        "en": {
-          "title": "video-burnin-subtitles",
-          "subtitle": "下载或使用本地视频，检测/生成/翻译字幕，并用 ffmpeg 把字幕硬烧进输出视频，产物固定写入绑定根的 video/<job>/。"
         }
       }
     },

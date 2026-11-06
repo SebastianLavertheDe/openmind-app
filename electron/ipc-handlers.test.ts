@@ -53,9 +53,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks, upgrades and read-only Skill previews.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(151);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(151);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(151);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(152);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(152);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(152);
   });
 
   it("does not expose or register the removed Skill copy operation", () => {
@@ -676,7 +676,7 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.setDefaultSkillsEnabled, "true")).toThrow();
     expect(worker.call).not.toHaveBeenCalled();
     expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.setDefaultSkillsEnabled, true)).toBe(true);
-    expect(calls).toEqual(["default-skills-stop", ...Array(10).fill("install"), "refresh-skills", "default-skills-set"]);
+    expect(calls).toEqual(["default-skills-stop", ...Array(7).fill("install"), "refresh-skills", "default-skills-set"]);
     expect(setEnabled).toHaveBeenCalledWith("openmind-library/default", "a".repeat(64), true);
     expect(ctx.restartAiWorker).not.toHaveBeenCalled();
   });

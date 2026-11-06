@@ -1,5 +1,9 @@
 # Skill 场景目录、创建编辑与会话选择实现方案
 
+> 2026-11-06：本文保留原实施记录。保留研究/写作 4 个预设及 handraw-style 图像 10 个预设，共 14 个配置式预设；其余图片风格编辑、幻灯片、视频和网页制作的 7 个内置预设已退役，清单以 `config/skill-library/catalog.json` 为准。
+
+> 2026-11-06 分发调整：App 仅内置 7 个采集/总结/视频及工作流包；14 个配置式预设加 `agent-browser` 共 15 张探索卡片改为独立目录、ZIP 下载及本地缓存。源码仍在 `config/skill-library/`，`npm run publish:skill-library` 独立发布到项目根目录 `skill-registry/`（Git 忽略），无需重建 App。开发默认使用该目录；安装版需通过 `OPENMIND_SKILL_REGISTRY` 或 `<userData>/settings/skill-registry.json` 配置绝对目录/HTTP(S) 来源，本次没有公共线上地址。目录和包缓存在 `<userData>/cache/skill-registry/`，安装目录仍为内容根下 `.agent/skills/`。ZIP SHA-256 与内容摘要用于完整性校验，不是签名；Git 导入继续保留独立身份。下文随包分发及历史验收描述不代表本次新目录机制，现状见 [技能库配置](../config/skill-library/README.md#分发与来源隔离)。
+
 日期：2026-10-26（Asia/Shanghai）
 
 状态：首版代码及本地验收完成；应用与独立 Skills 仓库的改动均未提交、未推送。验证边界与原有失败项见末尾。

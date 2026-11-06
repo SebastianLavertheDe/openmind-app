@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PNG } from "pngjs";
 import { prepareSkillLibraryBundle } from "./skill-library-bundle";
 import { readSkillLibraryCatalog } from "./skill-library-catalog";
+import { SkillLibraryMetadataSchema } from "../../shared/skill-library";
+import { resolveSkillLibraryCopy } from "../../shared/skill-library-catalog";
 
 const roots: string[] = [];
 afterEach(() => { vi.unstubAllEnvs(); for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
@@ -38,6 +40,23 @@ describe("App-owned Skill bundle", () => {
     fs.rmSync(asset);
     expect(() => prepareSkillLibraryBundle(f.config, f.output)).toThrow();
     expect(fs.readFileSync(path.join(f.output, "bundle.json"), "utf8")).toBe(previous);
+  });
+
+  it("preserves bilingual display in the package without requiring the source catalog", () => {
+    const f = fixture();
+    const catalogFile = path.join(f.config, "catalog.json");
+    const definition = JSON.parse(fs.readFileSync(catalogFile, "utf8"));
+    definition.skills[0].display = {
+      "zh-CN": { title: "中文卡片", subtitle: "中文说明", inputHint: "请提供资料。" },
+      en: { title: "English card", subtitle: "English description", inputHint: "Provide your sources." }
+    };
+    fs.writeFileSync(catalogFile, JSON.stringify(definition));
+    prepareSkillLibraryBundle(f.config, f.output);
+    fs.rmSync(catalogFile);
+    const metadata = SkillLibraryMetadataSchema.parse(JSON.parse(fs.readFileSync(path.join(f.output, "new-independent-skill/openmind.library.json"), "utf8")));
+    expect(metadata.display).toEqual(definition.skills[0].display);
+    expect(resolveSkillLibraryCopy({ display: metadata.display! }, "zh-CN")).toMatchObject({ title: "中文卡片", inputHint: "请提供资料。" });
+    expect(resolveSkillLibraryCopy({ display: metadata.display! }, "en")).toMatchObject({ title: "English card", inputHint: "Provide your sources." });
   });
 
   it("rejects assets that would overwrite generated package instructions", () => {

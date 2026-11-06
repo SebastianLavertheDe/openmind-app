@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { zipSync } from "fflate";
 import { SkillRunRequestSchema } from "../../shared/execution-contracts";
 import { RuntimePackMetadataSchema } from "../../shared/runtime-targets";
@@ -16,13 +16,23 @@ import { canonicalRuntimePackPayload } from "../runtime/runtime-pack-verifier";
 import { RuntimePackService } from "../runtime/runtime-pack-service";
 import { SkillPackageService } from "./skill-package-service";
 import { InstalledSkillExecutionResolver } from "./installed-skill-execution-resolver";
+import { prepareSkillLibraryBundle } from "./skill-library-bundle";
 
 const roots: string[] = [];
-const INTERNAL_SKILLS_ROOT = path.resolve(__dirname, "../../.build/skill-library");
+let internalSkillsRoot = "";
 const BRIEF_LABELS = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../../tests/rss/fixtures/brief-labels.json"), "utf8"));
 const realSkillIt = it;
 const linuxRealSkillIt = it.skipIf(process.platform !== "linux");
 const ORIGINAL_WORKSPACE_ROOT = process.env.OPENMIND_WORKSPACE_ROOT;
+
+// The production bundle contains only the seven runtime integrations. Generate
+// test packages from maintained sources so agent-browser coverage is independent
+// of both old build artifacts and the user's installed Skills.
+beforeAll(() => {
+  internalSkillsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-resolver-packages-"));
+  prepareSkillLibraryBundle(path.resolve(__dirname, "../../config/skill-library"), internalSkillsRoot);
+});
+afterAll(() => { if (internalSkillsRoot) fs.rmSync(internalSkillsRoot, { recursive: true, force: true }); });
 
 afterEach(() => {
   for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
@@ -422,34 +432,6 @@ describe("InstalledSkillExecutionResolver", () => {
     expect(broker.get(run.id).runtime).toMatchObject({ packId: "node-22", packDigest: fixture.runtimePack.digest });
   }, 15_000);
 
-  linuxRealSkillIt("executes the real Batch A skill-run-reporter package", async () => {
-    const fixture = createBatchAFixture();
-    const python = resolvePythonExecutable();
-    expect(python).toBeTruthy();
-
-    const broker = new ExecutionBroker(
-      fixture.paths,
-      (request, runId) => fixture.resolver.resolve(request, runId),
-      undefined,
-      { maxConcurrentRuns: 1 }
-    );
-    const run = broker.submit(SkillRunRequestSchema.parse({
-      skillId: "skill-run-reporter",
-      version: "1.0.0",
-      digest: fixture.digest,
-      inputs: { date: "20260805" },
-      providerBindings: {},
-      trigger: { type: "manual" },
-      externalExportBindingIds: [],
-      rootGeneration: 1
-    }));
-    await waitFor(() => broker.get(run.id).state === "succeeded");
-
-    const events = broker.events(run.id).map((event) => event.text || "").join("\n");
-    expect(events).toContain("# Skill Run Report: 2026-08-05");
-    expect(broker.get(run.id).artifacts).toHaveLength(0);
-  });
-
   linuxRealSkillIt("executes the real Batch B reddit-fetcher package against a local feed and persists the declared Artifact", async () => {
     const python = resolvePythonExecutable();
     expect(python).toBeTruthy();
@@ -483,7 +465,7 @@ describe("InstalledSkillExecutionResolver", () => {
       // Start without an existing reddit-fetcher. Updating an existing copy is
       // intentionally source-preserving now, so a test-only package overlay
       // must be installed as the initial copy.
-      const fixture = createBatchAFixture();
+      const fixture = createBatchAFixture("agent-browser");
       const sourceCopy = path.join(fixture.paths.staging, "reddit-source-overlay");
       copyTree(skillSourcePath("reddit-fetcher"), sourceCopy);
       fs.writeFileSync(
@@ -694,7 +676,7 @@ describe("InstalledSkillExecutionResolver", () => {
   }, 120_000);
 
   it("does not distribute the retired knowledge wiki generator", () => {
-    expect(fs.existsSync(path.join(INTERNAL_SKILLS_ROOT, "knowledge-wiki-compiler"))).toBe(false);
+    expect(fs.existsSync(path.join(internalSkillsRoot, "knowledge-wiki-compiler"))).toBe(false);
   });
 
   linuxRealSkillIt("executes the real x-following-fetcher package with Skill-data credentials", async () => {
@@ -1189,7 +1171,7 @@ function createWorkflowAdmissionFixture() {
   return { ...fixture, first, second, workflow };
 }
 
-function createBatchAFixture(packageName = "skill-run-reporter") {
+function createBatchAFixture(packageName: string) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-batch-a-installed-"));
   roots.push(root);
   const paths = buildAppPaths(path.join(root, "user-data"), resolveSkillStoreRoot(path.join(root, "openmind")));
@@ -1268,7 +1250,7 @@ function resolveSkillPython(_skillId: string): string | undefined {
 }
 
 function skillSourcePath(skillId: string): string {
-  return path.join(INTERNAL_SKILLS_ROOT, skillId);
+  return path.join(internalSkillsRoot, skillId);
 }
 
 function bindEmptyProviderWorkspace(workspaceRoot: string): void {

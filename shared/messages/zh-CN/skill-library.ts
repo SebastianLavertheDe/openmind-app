@@ -1,6 +1,7 @@
 export const skillLibraryMessages = { skillLibrary: {
   title: "技能", explore: "探索", mine: "我的", views: "技能视图", categories: "技能分类",
   recommended: "为你推荐", browseAll: "浏览全部", loadFailed: "技能暂时未能加载，请重试。",
+  refresh: "刷新", offlineCached: "暂时无法连接，正在展示已保存的技能。", remoteUnavailable: "在线技能暂时不可用，已安装和个人技能仍可使用。",
   uncategorized: "未分类", noImages: "暂无展示图片",
   prompt: "Prompt", copyPrompt: "复制 Prompt", promptLoading: "正在加载 Prompt…", promptEmpty: "此技能没有提供 Prompt。", promptFailed: "无法读取 Prompt，请重试。",
   scenes: { all: "全部", research: "研究", writing: "写作", image: "图片", slides: "幻灯片", video: "视频", web: "网页", "github-installed": "GitHub 安装", "local-imported": "本地导入" },

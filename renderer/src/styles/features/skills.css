@@ -850,6 +850,7 @@
 .skill-library-search { width: 200px; max-width: 100%; min-width: 120px; }
 .skill-library-filter-actions { flex-wrap: wrap; justify-content: flex-end; }
 .skill-library-results { color: var(--muted); font-size: var(--fs-sm); }
+.skill-library-status { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .skill-library-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: var(--space-4); }
 .skill-library-card.workspace-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 12px; }
 .skill-library-card-select { display: flex; flex-direction: column; gap: 12px; width: 100%; text-align: left; padding: 0; border: 0; border-radius: var(--radius-lg); background: transparent; color: inherit; cursor: pointer; }

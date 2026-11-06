@@ -2,6 +2,10 @@
 
 > 2026-11-05：本文保留迁入历史。创作工作台及下文五个创作生产包随后退役，当前分发为 10 个原生包与 21 个 Agent 预设；以 `RSS_AND_SKILLS_GUIDE.md` 和 `CREATIVE_MODE_REMOVAL_PLAN.md` 为准。
 
+> 2026-11-06：运行报告、视频烧录字幕及图片风格编辑/幻灯片/视频/网页制作的 7 个配置式预设随后移除；10 个 handraw-style 图像预设继续保留，当前分发为 8 个原生包与 14 个 Agent 预设。下文保留迁入时的记录；当前清单以 `RSS_AND_SKILLS_GUIDE.md` 为准。
+
+> 2026-11-06 分发调整：源码继续统一保留在 `config/skill-library/`，App 安装包只携带 7 个采集/总结/视频及工作流包，其余 15 张探索卡片（含 `agent-browser` 和 10 个 handraw-style）改由独立目录、ZIP 下载和本地缓存提供。`npm run publish:skill-library` 发布到被忽略的项目根目录 `skill-registry/`，无需重建 App。开发默认读取该目录；安装版通过 `OPENMIND_SKILL_REGISTRY` 或 `<userData>/settings/skill-registry.json` 配置绝对目录/HTTP(S) 来源，本次无公共线上地址。缓存位于 `<userData>/cache/skill-registry/`，安装位置和第三方来源隔离保持不变。下文“全部随 App 打包”属于历史实施记录，当前流程见 [使用指南](RSS_AND_SKILLS_GUIDE.md#15-张目录卡片与独立发布)。
+
 日期：2026-10-27（Asia/Shanghai）
 
 状态：P0–P6 已实现；2026-10-28 review 发现的四项问题已修复，见 12.5。P7 已有 2026-10-27 的 Linux ARM64 构建、界面和安装包验收记录，跨平台与真实外部服务验收仍未完成；详细边界见第 12 节。使用方式见 [RSS 与 Skills 使用指南](RSS_AND_SKILLS_GUIDE.md)。

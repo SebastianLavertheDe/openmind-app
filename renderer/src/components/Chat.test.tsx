@@ -174,6 +174,39 @@ afterEach(() => {
 });
 
 describe("Chat composer", () => {
+  it("uses published recommendation flags and covers for new remote skills, including offline cached cards", async () => {
+    const user = userEvent.setup();
+    const entry: SkillLibraryEntry = {
+      id: "new-remote-image", skillId: "new-remote-image", title: "远程新技能", subtitle: "新上架的图片技能", description: "新上架",
+      inputHint: "描述要画的图片", category: "image", origin: "preset", distribution: "remote", recommended: true,
+      coverUrl: "data:image/png;base64,new-remote-cover", installed: false, enabled: false,
+      usable: true, reason: null, key: null, digest: null, version: "1.0.0", authoringId: null, revision: 0, draft: false, imageCount: 0, source: "应用预设", executionModel: null
+    };
+    const categoryEntry = { ...entry, id: "another-remote-image", skillId: "another-remote-image", title: "同类新技能", recommended: false, coverUrl: undefined };
+    // A known legacy ID must not override the remote publisher's recommendation choice.
+    const excluded = { ...entry, id: "om-article-writer", skillId: "om-article-writer", title: "未推荐的技能", category: "writing" as const, recommended: false };
+    const all = [entry, categoryEntry, excluded];
+    window.openmind.listSkillLibrary = vi.fn(async () => all);
+    window.openmind.getSkillLibrarySnapshot = vi.fn<NonNullable<DesktopApi["getSkillLibrarySnapshot"]>>(async () => ({ entries: all, remote: { state: "cached", updatedAt: "2026-11-05T00:00:00Z", error: "offline" } }));
+    window.openmind.installLibraryPreset = vi.fn(async () => ({ ...entry, installed: true, enabled: true, key: `openmind-library/${entry.id}`, digest: "a".repeat(64) }));
+    render(<AiProvider initial={snapshot}><Chat /></AiProvider>);
+    await screen.findByRole("button", { name: entry.title });
+    await screen.findByText(m.skillLibrary.offlineCached);
+    expect(screen.queryByRole("button", { name: excluded.title })).toBeNull();
+    expect(screen.queryByRole("button", { name: categoryEntry.title })).toBeNull();
+    const card = screen.getByRole("button", { name: entry.title }).closest("article")!;
+    expect(card.querySelector("img")?.getAttribute("src")).toBe(entry.coverUrl);
+    await user.click(screen.getByRole("tab", { name: m.skillLibrary.scenes.image }));
+    const categoryCard = screen.getByRole("button", { name: categoryEntry.title }).closest("article")!;
+    expect(categoryCard.querySelector("img")?.getAttribute("src")).toBe(entry.coverUrl);
+    await user.click(screen.getByRole("button", { name: m.skillLibrary.retry }));
+    expect(window.openmind.getSkillLibrarySnapshot).toHaveBeenCalledWith(true);
+    await user.click(screen.getByRole("button", { name: `${entry.title} · ${m.skillLibrary.use}` }));
+    await waitFor(() => expect((screen.getByLabelText("AI 消息") as HTMLTextAreaElement).placeholder).toBe(entry.inputHint));
+    expect(window.openmind.installLibraryPreset).toHaveBeenCalledWith(entry.id);
+    expect(startRun).not.toHaveBeenCalled();
+  });
+
   it("filters welcome skills, previews their Prompt and installs only when explicitly chosen, preserving the draft", async () => {
     const user = userEvent.setup();
     const entry: SkillLibraryEntry = {

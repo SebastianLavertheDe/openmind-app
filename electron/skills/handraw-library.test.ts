@@ -7,6 +7,10 @@ import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
 import { SkillPackageService } from "./skill-package-service";
 import { SkillLibraryService } from "./skill-library-service";
 import { readSkillLibraryCatalog } from "./skill-library-catalog";
+import { filterSkillLibrary } from "../../shared/skill-library";
+import { InstalledSkillExecutionResolver } from "./installed-skill-execution-resolver";
+import { RuntimeManager } from "../runtime/runtime-manager";
+import { migrateBuiltinPackages } from "./builtin-package-migration";
 
 describe("Handraw cards from configuration to installed packages", () => {
   it("ships all ten self-contained workflows with shared references and source credit", () => {
@@ -20,6 +24,7 @@ describe("Handraw cards from configuration to installed packages", () => {
       const service = new SkillLibraryService(content, paths, packages, bundle);
       const ids = ["om-article-cover", "om-article-illustrator", "om-social-cards", "om-knowledge-infographic", "om-poster-maker", "om-four-panel-comic", "om-photo-diptych", "om-product-highlights", "om-brand-character", "om-style-fusion"];
       const catalog = readSkillLibraryCatalog(bundle);
+      expect(filterSkillLibrary(service.list(), "explore", "image").map(entry => entry.id)).toEqual(ids);
       for (const id of ids) {
         const preset = catalog.skills.find(entry => entry.id === id)!;
         expect(preset.requirement).toBe("image");
@@ -39,6 +44,18 @@ describe("Handraw cards from configuration to installed packages", () => {
         expect(fs.readFileSync(path.join(record.packagePath, "LICENSE.handraw-style"), "utf8")).toContain("Copyright (c) 2026 yang0");
         expect(fs.readFileSync(path.join(record.packagePath, "ATTRIBUTION.md"), "utf8")).toContain("https://github.com/yang0/handraw-style");
         expect(packages.inspectInstalledCopy(record).valid).toBe(true);
+      }
+      migrateBuiltinPackages(content, packages, bundle);
+      const reloaded = new SkillPackageService(paths);
+      const resolver = new InstalledSkillExecutionResolver(reloaded, new RuntimeManager(paths), content, 1);
+      const snapshots = resolver.captureSessionSnapshot();
+      expect(snapshots.map(entry => entry.definition.id)).toEqual(expect.arrayContaining(ids));
+      for (const id of ids) {
+        const record = reloaded.getInstalledById(id)!;
+        expect(reloaded.isRetired(record)).toBe(false);
+        expect(reloaded.isEnabled(record)).toBe(true);
+        const snapshot = snapshots.find(entry => entry.definition.id === id)!;
+        expect(() => resolver.providerSkillBridge(snapshot)).not.toThrow();
       }
       // An installed card remains complete after discovery resources disappear.
       fs.rmSync(bundle, { recursive: true });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BookOpen, FileText, Film, Globe, Image, Layers, LayoutGrid, Package, Plus, Search } from "lucide-react";
+import { BookOpen, FileText, Film, Globe, Image, Layers, LayoutGrid, Package, Plus, RefreshCw, Search } from "lucide-react";
 import { messages } from "@shared/messages";
-import { filterSkillLibrary, SKILL_SCENES, type AuthoredSkill, type SkillLibraryEntry, type SkillLibraryMode, type SkillLibrarySection, type SkillScene } from "@shared/skill-library";
+import { filterSkillLibrary, SKILL_SCENES, type AuthoredSkill, type SkillLibraryEntry, type SkillLibraryMode, type SkillLibrarySection, type SkillLibrarySnapshot, type SkillScene } from "@shared/skill-library";
 import type { ProviderCapabilities } from "@shared/contracts";
 import { useLocale } from "../../i18n";
 import { useFeedback } from "../../feedback-context";
@@ -37,7 +37,8 @@ function SkillCover({ entry }: { entry: SkillLibraryEntry }) {
   }, [visible, entry.cover?.id, entry.authoringId, entry.revision]);
   const scene = entry.icon && entry.icon !== "auto" ? entry.icon : entry.category;
   const Icon = scene ? ICONS[scene] : Package;
-  return <div ref={host} className={`skill-library-cover ${entry.category ? COVER_CLASSES[entry.category] : "skill-library-cover-imported"}${src ? " skill-library-cover-preview" : ""}`}>{src ? <img src={src} alt={entry.title} decoding="async" /> : <><Icon size={32} strokeWidth={1.5} aria-hidden /><span>{entry.category ? m.scenes[entry.category] : m.origin[entry.origin]}</span></>}</div>;
+  const cover = entry.coverUrl || src;
+  return <div ref={host} className={`skill-library-cover ${entry.category ? COVER_CLASSES[entry.category] : "skill-library-cover-imported"}${cover ? " skill-library-cover-preview" : ""}`}>{cover ? <img src={cover} alt={entry.title} decoding="async" /> : <><Icon size={32} strokeWidth={1.5} aria-hidden /><span>{entry.category ? m.scenes[entry.category] : m.origin[entry.origin]}</span></>}</div>;
 }
 
 export function SkillLibraryPage({ providers, initialMode, storageScope, initialSourcePickerOpen, initialManagementSkillId, onUseSkill, onConfigure, onCatalogChange, renderManagement, renderImport }: {
@@ -54,6 +55,8 @@ export function SkillLibraryPage({ providers, initialMode, storageScope, initial
   const [filters, setFilters] = useState<Record<SkillLibraryMode, Filters>>({ explore: { ...emptyFilters(), ...preferences.explore }, mine: { ...emptyFilters(), ...preferences.mine } });
   const [entries, setEntries] = useState<SkillLibraryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [remote, setRemote] = useState<SkillLibrarySnapshot["remote"] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [selected, setSelected] = useState<SkillLibraryEntry | null>(null);
@@ -62,13 +65,24 @@ export function SkillLibraryPage({ providers, initialMode, storageScope, initial
   const [management, setManagement] = useState<string | null>(initialManagementSkillId ?? null);
   const [importOpen, setImportOpen] = useState(Boolean(initialSourcePickerOpen));
   const loadSequence = useRef(0);
-  const load = useCallback(async () => {
+  const scopeEpoch = useRef(0);
+  const load = useCallback(async (refresh = false) => {
     const request = ++loadSequence.current;
-    try { const next = await window.openmind.listSkillLibrary!(); if (request === loadSequence.current) { setEntries(next); setError(""); } }
+    setRefreshing(refresh);
+    try {
+      const snapshot = window.openmind.getSkillLibrarySnapshot ? await window.openmind.getSkillLibrarySnapshot(refresh) : null;
+      const next = snapshot?.entries ?? await window.openmind.listSkillLibrary!();
+      if (request === loadSequence.current) { setEntries(next); setRemote(snapshot?.remote ?? null); setError(""); }
+    }
     catch (cause) { if (request === loadSequence.current) setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { if (request === loadSequence.current) setLoading(false); }
+    finally { if (request === loadSequence.current) { setLoading(false); setRefreshing(false); } }
   }, [storageScope]);
-  useEffect(() => { setEntries([]); setLoading(true); void load(); window.addEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, load); return () => { loadSequence.current++; window.removeEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, load); }; }, [load, locale]);
+  useEffect(() => {
+    setEntries([]); setSelected(null); setRemote(null); setLoading(true); setBusy(null); setError("");
+    const reload = () => { void load(); };
+    reload(); window.addEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, reload);
+    return () => { loadSequence.current++; scopeEpoch.current++; window.removeEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, reload); };
+  }, [load, locale]);
   useEffect(() => { localStorage.setItem(storageKey, JSON.stringify({ mode, ...filters })); }, [storageKey, mode, filters]);
   const filter = filters[mode];
   const update = (patch: Partial<Filters>) => setFilters(current => ({ ...current, [mode]: { ...current[mode], ...patch } }));
@@ -78,17 +92,26 @@ export function SkillLibraryPage({ providers, initialMode, storageScope, initial
     return filter.sort === "name" ? result.sort((a, b) => a.title.localeCompare(b.title, locale)) : filter.sort === "updated" ? result.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "")) : result;
   }, [entries, mode, section, filter, locale]);
   const sections: SkillLibrarySection[] = ["all", ...SKILL_SCENES, ...(mode === "mine" ? ["github-installed", "local-imported"] as const : [])];
-  const changed = async () => { await load(); await onCatalogChange?.(); notifyInstalledSkillCatalogChanged(); };
+  const changed = async () => {
+    const epoch = scopeEpoch.current;
+    await load(); if (scopeEpoch.current !== epoch) return;
+    await onCatalogChange?.(); if (scopeEpoch.current !== epoch) return;
+    notifyInstalledSkillCatalogChanged();
+  };
   const run = async (entry: SkillLibraryEntry) => {
+    const epoch = scopeEpoch.current;
     setBusy(entry.id); setError("");
     try {
       let usable = entry;
       if (!entry.installed || entry.origin === "preset" && entry.updateAvailable) usable = await window.openmind.installLibraryPreset!(entry.id);
+      if (scopeEpoch.current !== epoch) return;
       if (!usable.key || !usable.digest) throw new Error(m.errors.stale);
       if (!usable.enabled) { await window.openmind.setInstalledSkillEnabled(usable.key, usable.digest, true); usable = { ...usable, enabled: true }; }
-      await changed(); setSelected(null); await onUseSkill?.(usable);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setBusy(null); }
+      if (scopeEpoch.current !== epoch) return;
+      await changed(); if (scopeEpoch.current !== epoch) return;
+      setSelected(null); await onUseSkill?.(usable);
+    } catch (cause) { if (scopeEpoch.current === epoch) setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { if (scopeEpoch.current === epoch) setBusy(null); }
   };
   const openEditor = async (entry?: SkillLibraryEntry) => {
     if (entry && (entry.origin !== "authored" || !entry.authoringId)) return;
@@ -108,12 +131,14 @@ export function SkillLibraryPage({ providers, initialMode, storageScope, initial
       <div className="skill-library-heading"><SegmentedControl value={mode} onChange={setMode} variant="compact" label={m.views} options={[{ value: "explore", label: m.explore }, { value: "mine", label: m.mine }]} /></div>
       <div className="skill-library-toolbar-actions">
         <div className="skill-library-search"><SearchInput aria-label={m.search} placeholder={m.search} value={filter.query} onChange={event => update({ query: event.target.value })} clearAction={filter.query ? { label: messages.skillCenter.clearSearch, onClear: () => update({ query: "" }) } : undefined} /></div>
+        <Button variant="ghost" disabled={loading || refreshing} loading={refreshing} onClick={() => void load(true)} leadingIcon={<RefreshCw size={15} />}>{m.refresh}</Button>
         <Button variant="ghost" onClick={() => setImportOpen(true)}>{m.import}</Button>
         <Button variant="primary" onClick={() => void openEditor()}><Plus size={15} />{m.create}</Button>
       </div>
     </header>
     <div className="skill-library-category-scroll"><Tabs<SkillLibrarySection> value={section} onChange={value => update({ section: value })} variant="pill" label={m.categories} tabs={sections.map(value => ({ value, label: m.scenes[value], icon: value === "all" ? <LayoutGrid size={14} /> : value in ICONS ? (() => { const Icon = ICONS[value as SkillScene]; return <Icon size={14} />; })() : <Package size={14} /> }))} /></div>
     {error ? <p role="alert" className="ui-error-state">{error}</p> : null}
+    {remote && remote.state !== "fresh" ? <p role="status" className="skill-library-status">{remote.state === "cached" ? m.offlineCached : m.remoteUnavailable}</p> : null}
     <div className="skill-library-results">
       <span role="status">{loading ? m.loading : m.count(shown.length)}</span>
       <div className="skill-library-filter-actions">

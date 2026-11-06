@@ -330,7 +330,6 @@ describe("SkillPackageService", () => {
   realSkillIt("recognizes the formal packages from the bundled Skill library", () => {
     const skillsRoot = INTERNAL_SKILLS_ROOT;
     const expected = [
-      "skill-run-reporter",
       "reddit-fetcher",
       "daily-article-summarizer",
       "daily-topic-selector",
@@ -358,27 +357,6 @@ describe("SkillPackageService", () => {
       const inspection = inspections.find((item) => item.manifest?.id === id);
       expect(inspection?.files.map((entry) => entry.path)).toContain(file);
     }
-    const video = service.inspect(path.join(skillsRoot, "video-burnin-subtitles"));
-    expect(video?.manifest?.entrypoint.runtime).toBe("python");
-    expect(video?.manifest?.entrypoint.script).toBe("scripts/burnin_subtitles.py");
-    expect(video?.manifest?.entrypoint.args).toEqual([
-      "--input", "{{ inputs.source }}",
-      "--lang", "{{ inputs.language }}",
-      "--subtitle", "{{ inputs.subtitleFile }}",
-      "--output-name", "{{ inputs.outputName }}"
-    ]);
-    // Provider config moved to config/providers.yaml; the manifest no longer
-    // carries the OPENMIND_PROVIDER_* env templates.
-    expect(video?.manifest?.entrypoint.env).toBeFalsy();
-    expect(video?.manifest?.runtime.lockFile).toBe("uv.lock");
-    expect(video?.manifest?.artifacts[0]).toMatchObject({ path: "video/**" });
-    const videoScript = fs.readFileSync(path.join(skillsRoot, "video-burnin-subtitles", "scripts", "burnin_subtitles.py"), "utf8");
-    expect(videoScript).toContain('os.environ.get("OPENMIND_ROOT")');
-    expect(videoScript).not.toContain("CCTOOLS_MYMIND_ROOT");
-    expect(videoScript).not.toContain("MYMIND_ROOT");
-    expect(videoScript).not.toContain("load_dotenv");
-    expect(videoScript).not.toContain("--env-file");
-
     const videoDownload = service.inspect(path.join(skillsRoot, "video-download"));
     expect(videoDownload?.manifest?.entrypoint.args).toEqual([
       "{{ inputs.url }}",
@@ -410,21 +388,18 @@ describe("SkillPackageService", () => {
       .map((entry) => path.join(INTERNAL_SKILLS_ROOT, entry.name));
     const installed = packageDirectories.map((source) => service.install(source));
 
-    // GitHub packages are independent from the App-owned skill library.
+    // Only the seven core packages ship in the App; browser is downloaded.
     // `_shared` has no manifest and remains outside the installation catalog.
     expect(installed.map((record) => record.id).sort()).toEqual([
-      "agent-browser",
       "daily-article-summarizer",
       "daily-topic-selector",
       "reddit-fetcher",
       "rss-article-saver",
       "rss-to-summary-workflow",
-      "skill-run-reporter",
-      "video-burnin-subtitles",
       "video-download",
       "x-following-fetcher"
     ].sort());
-    expect(installed.length).toBe(10);
+    expect(installed.length).toBe(7);
     expect(installed.every((record) => service.isInstalledCopyUsable(record))).toBe(true);
 
     const sharedRoot = path.join(INTERNAL_SKILLS_ROOT, "rss-article-saver", "_shared");

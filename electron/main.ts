@@ -643,11 +643,15 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
       const automationRules = await api.listAutomationRules();
       if (defaultSkillsEnabled || automationRules.length) throw new Error("Fresh startup enabled default Skills or schedules");
       if (await api.setDefaultSkillsEnabled(false)) throw new Error("Default Skills opt-out failed");
-      const library = await api.listSkillLibrary();
-      const availablePreset = library.find(entry => entry.origin === "preset" && entry.usable);
-      if (!availablePreset) throw new Error("Scene Skill library has no usable configured preset");
+      const librarySnapshot = await api.getSkillLibrarySnapshot(true);
+      const library = librarySnapshot.entries;
+      if (librarySnapshot.remote.state !== "fresh" || library.filter(entry => entry.distribution === "builtin").length !== 7) throw new Error("Skill registry or built-in package boundary is incorrect");
+      const availablePreset = library.find(entry => entry.distribution === "remote" && entry.usable);
+      if (!availablePreset) throw new Error("Scene Skill library has no usable remote preset");
       const preset = await api.installLibraryPreset(availablePreset.id);
       if (preset.key !== "openmind-library/" + preset.skillId || !preset.digest || !preset.enabled) throw new Error("Preset installation did not activate an independent App package");
+      const installedPreset = (await api.listInstalledSkills()).find(record => record.key === preset.key);
+      if (installedPreset?.sourceType !== "catalog" || !installedPreset.sourceRevision) throw new Error("Remote package source did not survive the real IPC installation");
       const chatPreset = (await api.aiRefreshSkills()).find(skill => skill.id === preset.skillId);
       if (chatPreset?.title !== preset.title || chatPreset?.inputHint !== preset.inputHint) throw new Error("Chat Skill metadata differs from the configured library");
       const skillDocument = await api.getSkillEditor();

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ALL_SKILL_IDS } from "../../shared/skill-compatibility-matrix";
+import { BUILTIN_SKILL_IDS } from "../../shared/skill-registry";
 import { OPENMIND_SKILLS_REPO_URL } from "../../shared/skill-package-sources";
 import { buildAppPaths, ensureAppPaths } from "../paths/app-paths-service";
 import { SkillPackageService } from "./skill-package-service";
@@ -32,14 +32,14 @@ function harness() {
   return { root, content, paths, packages, sources, automation, service, legacy };
 }
 describe("built-in defaults", () => {
-  it("installs all ten retained packages locally and keeps packages and content when disabled", async () => {
+  it("installs only the seven built-in packages locally and keeps packages and content when disabled", async () => {
     const h = harness(); await h.service.setEnabled(true);
-    expect(h.packages.listInstalled().map(row => row.id).sort()).toEqual([...ALL_SKILL_IDS].sort());
+    expect(h.packages.listInstalled().map(row => row.id).sort()).toEqual([...BUILTIN_SKILL_IDS].sort());
     expect(h.packages.listInstalled().every(row => row.sourceType === "builtin" && row.publisherId === "openmind-library")).toBe(true);
     expect(h.sources.install).not.toHaveBeenCalled();
     fs.mkdirSync(path.join(h.content, "article")); fs.writeFileSync(path.join(h.content, "article/saved.md"), "keep");
     await h.service.setEnabled(false);
-    expect(h.packages.listInstalled()).toHaveLength(10); expect(fs.readFileSync(path.join(h.content, "article/saved.md"), "utf8")).toBe("keep");
+    expect(h.packages.listInstalled()).toHaveLength(7); expect(fs.readFileSync(path.join(h.content, "article/saved.md"), "utf8")).toBe("keep");
   });
   it("migrates a proven official identity and preserves its disabled preference", () => {
     const h = harness(); const old = h.legacy("rss-article-saver"); h.packages.setEnabled(old.key, old.digest, false);

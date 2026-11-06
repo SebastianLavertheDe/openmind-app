@@ -1,4 +1,4 @@
-import { ALL_SKILL_IDS } from "../../shared/skill-compatibility-matrix";
+import { BUILTIN_SKILL_IDS } from "../../shared/skill-registry";
 import { installBuiltinDefault, removeManagedWikiGenerator } from "./builtin-default-packages";
 import { resolveSkillLibraryBundleRoot } from "./skill-library-catalog";
 import type { SkillPackageService } from "./skill-package-service";
@@ -16,7 +16,7 @@ export class DefaultSkillsService {
     if (enabled) {
       await this.automation.stop();
       try {
-        for (const id of ALL_SKILL_IDS) {
+        for (const id of BUILTIN_SKILL_IDS) {
           const record = installBuiltinDefault(this.packages, id, this.bundleRoot, this.userRetained);
           this.packages.setEnabled(record.key, record.digest, true);
         }

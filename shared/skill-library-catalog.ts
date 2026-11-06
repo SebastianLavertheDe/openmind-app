@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_LOCALE, getLocale, type Locale } from "./messages";
-import { SkillSceneSchema } from "./skill-library";
+import { SkillLibraryDisplaySchema, SkillSceneSchema } from "./skill-library";
 import { SkillIdSchema } from "./skill-manifest-schema";
 import { SkillContributorSchema } from "./skill-contributor";
 
@@ -15,13 +15,6 @@ const AssetPathSchema = z.string().min(1).max(512).refine(value =>
 // explicitly declared source under assets/ without coupling installed packages.
 const AssetSchema = z.union([AssetPathSchema, z.object({ source: AssetPathSchema, target: AssetPathSchema }).strict()]);
 
-const SkillLibraryCopySchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  subtitle: z.string().max(1_000).default(""),
-  description: z.string().max(5_000).optional(),
-  inputHint: z.string().max(1_000).default("")
-}).strict();
-
 export const SkillLibraryPresetSchema = z.object({
   id: SkillIdSchema,
   version: z.string().regex(/^\d+\.\d+\.\d+$/).default("1.0.0"),
@@ -31,12 +24,12 @@ export const SkillLibraryPresetSchema = z.object({
   packageDirectory: AssetPathSchema.optional(),
   executionKind: z.enum(["agent", "process", "workflow"]).default("agent"),
   discoverable: z.boolean().default(true),
+  recommended: z.boolean().default(false),
+  /** Registry presentation asset, relative to the configuration assets directory. */
+  cardCover: AssetPathSchema.optional(),
   files: z.array(AssetSchema).max(50).default([]),
   requirement: z.enum(["image", "ffmpeg", "python"]).optional(),
-  display: z.object({
-    "zh-CN": SkillLibraryCopySchema.optional(),
-    en: SkillLibraryCopySchema.optional()
-  }).strict().refine(value => Boolean(value["zh-CN"] || value.en), "Provide at least one display language")
+  display: SkillLibraryDisplaySchema
 }).strict().refine(value => Boolean(value.packageDirectory) || value.instructions.length > 0, "Provide instructions or a manifest package directory");
 
 export const SkillLibraryCatalogSchema = z.object({
@@ -54,6 +47,6 @@ export const SkillLibraryCatalogSchema = z.object({
 export type SkillLibraryCatalog = z.infer<typeof SkillLibraryCatalogSchema>;
 export type SkillLibraryPreset = z.infer<typeof SkillLibraryPresetSchema>;
 
-export function resolveSkillLibraryCopy(preset: SkillLibraryPreset, locale: Locale = getLocale()) {
+export function resolveSkillLibraryCopy(preset: Pick<SkillLibraryPreset, "display">, locale: Locale = getLocale()) {
   return preset.display[locale] ?? preset.display[DEFAULT_LOCALE] ?? preset.display.en!;
 }
