@@ -5,7 +5,7 @@ import { IMAGE_PROVIDERS, type ImageSelection, type ImageConfiguration } from "@
 import { announceProviderConfiguration } from "../../provider-configuration-events";
 import { ChatMarkdown, UserMessage } from "./message";
 import { AiProvider } from "../../ai-context";
-import { ChatImageGallery, GeneratedImages } from "./ChatImages";
+import { ChatImage, ChatImageGallery, GeneratedImages } from "./ChatImages";
 import { ComposerModelPicker } from "./ComposerModelPicker";
 
 const thumbnail = "data:image/png;base64,AAA=";
@@ -61,6 +61,41 @@ describe("sent image attachments", () => {
 });
 
 describe("conversation image gallery", () => {
+  it("adds no DOM or image requests for an empty source catalog", () => {
+    const read = api();
+    const { container } = render(<ChatImageGallery catalog={[]}>plain text</ChatImageGallery>);
+    expect(container.innerHTML).toBe("plain text");
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it("keeps unmounted image sources navigable without fetching them and unregisters a closed process", async () => {
+    const read = api();
+    const catalog = ["first", "middle", "last"].map(name => ({ source: `openmind/assets/${name}.png`, title: name }));
+    const fixture = (process: boolean, visible: boolean, session = "one") => <ChatImageGallery key={session}>
+      {process ? <ChatImageGallery catalog={catalog}>
+        {visible ? <ChatImage {...catalog[1]} /> : null}
+      </ChatImageGallery> : null}
+      <ChatImage source="openmind/assets/after.png" title="after" />
+    </ChatImageGallery>;
+    const { rerender } = render(fixture(true, true));
+    await screen.findByAltText("middle");
+    expect(read.mock.calls.some(([request]) => request.variant === "original")).toBe(false);
+    expect(read.mock.calls.some(([request]) => "source" in request && request.source === catalog[0].source)).toBe(false);
+    rerender(fixture(true, false));
+    fireEvent.click(screen.getByRole("button", { name: "查看原图：after" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.keyDown(dialog, { key: "ArrowLeft" });
+    await waitFor(() => expect(within(dialog).getByAltText("last")).toBeTruthy());
+    fireEvent.keyDown(dialog, { key: "ArrowLeft" });
+    await waitFor(() => expect(within(dialog).getByAltText("middle")).toBeTruthy());
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    rerender(fixture(false, false));
+    fireEvent.click(screen.getByRole("button", { name: "查看原图：after" }));
+    expect(within(screen.getByRole("dialog")).queryByRole("button", { name: "上一张图片" })).toBeNull();
+    rerender(fixture(false, false, "two"));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("waits for visibility before reading offscreen attachments without showing an error", async () => {
     let intersect: IntersectionObserverCallback | undefined;
     vi.stubGlobal("IntersectionObserver", class {

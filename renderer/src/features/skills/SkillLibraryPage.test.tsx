@@ -26,6 +26,39 @@ function document() { return AuthoredSkillSchema.parse({ id: "1375bbe7-b4b7-4fbe
 function page(use = vi.fn()) { return render(<FeedbackProvider><SkillLibraryPage storageScope="fixture" providers={[]} onUseSkill={use} renderManagement={() => null} renderImport={() => null} /></FeedbackProvider>); }
 
 describe("Skill library product flows", () => {
+  it("requests only visible cover thumbnails and discards a previous root's pending cover", async () => {
+    const observers = new Map<Element, (visible: boolean) => void>();
+    vi.stubGlobal("IntersectionObserver", class {
+      target?: Element;
+      constructor(private callback: IntersectionObserverCallback) {}
+      observe(target: Element) { this.target = target; observers.set(target, visible => this.callback([{ target, isIntersecting: visible } as IntersectionObserverEntry], this as unknown as IntersectionObserver)); }
+      disconnect() { if (this.target) observers.delete(this.target); }
+    });
+    let resolve!: (value: string) => void;
+    const thumbnail = vi.fn(() => new Promise<string>(done => { resolve = done; }));
+    window.openmind.readSkillAssetThumbnail = thumbnail;
+    entries = Array.from({ length: 200 }, (_, index) => entry({ id: `cover-${index}`, origin: "authored", authoringId: `author-${index}`, cover: { id: `image-${index}`, name: "cover.png", extension: ".png", kind: "image" } }));
+    const renderPage = (scope: string) => <FeedbackProvider><SkillLibraryPage storageScope={scope} initialMode="mine" providers={[]} renderManagement={() => null} renderImport={() => null} /></FeedbackProvider>;
+    const view = render(renderPage("first-root"));
+    try {
+      await waitFor(() => expect(observers.size).toBe(200));
+      expect(thumbnail).not.toHaveBeenCalled();
+      const target = [...observers.keys()][0];
+      await act(async () => observers.get(target)!(true));
+      expect(thumbnail).toHaveBeenCalledTimes(1);
+      expect(window.openmind.readSkillAssetImage).not.toHaveBeenCalled();
+      const firstResponse = resolve;
+      await act(async () => view.rerender(renderPage("second-root")));
+      await act(async () => firstResponse("data:image/jpeg;base64,old-root"));
+      expect(view.container.querySelector(".skill-library-cover img")).toBeNull();
+      const nextTarget = [...observers.keys()][0];
+      await act(async () => observers.get(nextTarget)!(true));
+      await act(async () => resolve("data:image/jpeg;base64,new-root"));
+      expect(nextTarget.querySelector("img")?.getAttribute("src")).toBe("data:image/jpeg;base64,new-root");
+      await act(async () => observers.get(nextTarget)!(false));
+      expect(nextTarget.querySelector("img")).toBeNull();
+    } finally { view.unmount(); vi.unstubAllGlobals(); }
+  });
   it("shows contributors on cards and in details and supports nickname search", async () => {
     const user = userEvent.setup();
     entries[0].contributor = { nick: "Contributor", avatarUrl: "data:image/png;base64,fixture", profileUrl: "https://github.com/contributor" };

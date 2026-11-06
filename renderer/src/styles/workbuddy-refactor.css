@@ -1009,9 +1009,6 @@ select:not([data-ui-control]):focus-visible,
   box-shadow: none;
 }
 
-/* Creative workspace */
-
-
 .tab-row {
   border-color: var(--border);
   background: var(--page-bg);

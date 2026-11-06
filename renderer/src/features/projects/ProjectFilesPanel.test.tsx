@@ -16,19 +16,53 @@ function deferred<T>() {
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 }
-function mount(listProjectMaterials: ReturnType<typeof vi.fn>) {
+function mount(listProjectMaterials: ReturnType<typeof vi.fn>, initialItem = "materials/甲.md") {
   window.openmind = { onAiEvent: () => () => {}, listProjectMaterials, listProjectOutputs: async () => [] } as unknown as DesktopApi;
   const listHost = document.createElement("div");
   const detailHost = document.createElement("div");
   document.body.append(listHost, detailHost);
   render(<AiProvider initial={{ projectRoot: "/fixture", providers: [], sessions: [], runs: [], pendingApprovals: [] }}>
-    <ProjectFilesPanel project={project} initialSection="materials" initialItem="materials/甲.md" createRequested={null} onCreateHandled={() => {}} onCreateTask={() => {}} onChanged={() => {}} listHost={listHost} detailHost={detailHost} />
+    <ProjectFilesPanel project={project} initialSection="materials" initialItem={initialItem} createRequested={null} onCreateHandled={() => {}} onCreateTask={() => {}} onChanged={() => {}} listHost={listHost} detailHost={detailHost} />
   </AiProvider>);
   return listHost;
 }
 afterEach(() => { cleanup(); document.body.replaceChildren(); localStorage.clear(); });
 
 describe("Project file background refresh", () => {
+  it("bounds a thousand files, preserves the current page through refresh, and searches every page", async () => {
+    const rows = Array.from({ length: 1000 }, (_, index) => material(`file-${String(index).padStart(4, "0")}`));
+    const api = vi.fn().mockResolvedValue(rows);
+    const host = mount(api);
+    await within(host).findByRole("button", { name: "file-0000" });
+    expect(host.querySelectorAll(".project-file-row")).toHaveLength(50);
+    fireEvent.click(within(host).getByRole("button", { name: "下一页" }));
+    const row = within(host).getByRole("button", { name: "file-0050" });
+    const list = host.querySelector<HTMLElement>(".project-file-list")!;
+    expect(document.activeElement).toBe(list);
+    list.scrollTop = 90; row.focus();
+    fireEvent.click(screen.getByText("资料已更新"));
+    await waitFor(() => expect(list.getAttribute("aria-busy")).toBeNull());
+    expect(within(host).getByRole("button", { name: "file-0050" })).toBe(row);
+    expect(document.activeElement).toBe(row);
+    expect(list.scrollTop).toBe(90);
+    fireEvent.change(within(host).getByRole("searchbox"), { target: { value: "file-0999" } });
+    expect(within(host).getByRole("button", { name: "file-0999" })).toBeTruthy();
+    expect(host.querySelectorAll(".project-file-row")).toHaveLength(1);
+    fireEvent.change(within(host).getByRole("searchbox"), { target: { value: "" } });
+    expect(within(host).getByRole("button", { name: "file-0000" })).toBeTruthy();
+  });
+
+  it("restores a selected file on a later page and clamps a page after removal", async () => {
+    const rows = Array.from({ length: 120 }, (_, index) => material(`file-${String(index).padStart(4, "0")}`));
+    const api = vi.fn().mockResolvedValueOnce(rows).mockResolvedValue(rows.slice(0, 60));
+    const host = mount(api, rows[110].relativePath);
+    const selected = await within(host).findByRole("button", { name: "file-0110" });
+    expect(selected.getAttribute("aria-pressed")).toBe("true");
+    expect(within(host).getByRole("status").textContent).toBe("3 / 3");
+    fireEvent.click(screen.getByText("资料已更新"));
+    await within(host).findByRole("button", { name: "file-0000" });
+    expect(host.querySelectorAll(".project-file-row")).toHaveLength(50);
+  });
   it("shows pending status, polls until parsing finishes, and then stops polling", async () => {
     const pending = { ...items[0], status: "converting" as const };
     const api = vi.fn().mockResolvedValueOnce([pending]).mockResolvedValue([items[0]]);

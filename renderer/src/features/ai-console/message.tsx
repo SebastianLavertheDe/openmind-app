@@ -4,7 +4,7 @@ import { CopyButton } from "../../design-system/CopyButton";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { isValidElement, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type AnchorHTMLAttributes, type HTMLAttributes, type ImgHTMLAttributes, type ReactNode } from "react";
-import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
@@ -21,6 +21,7 @@ import { localFileReference, useFilePreview } from "./file-preview-context";
 import { DocumentReader, useDocumentCodeText, type ReaderComponents } from "../../components/document/DocumentReader";
 import { ArtifactMessageBlock } from "./ArtifactMessageBlock";
 import { ChatImage, ChatImageGallery } from "./ChatImages";
+import { chatImageSource, chatUrlTransform } from "./markdown-images";
 import { assistantBlocksVisibleText, parseAssistantContent, type AssistantContentBlock } from "./artifact-fence";
 
 const MARKDOWN_CACHE_LIMIT = 96;
@@ -374,13 +375,8 @@ function MarkdownCode({ children, className, ...props }: HTMLAttributes<HTMLElem
 export function SafeMarkdownImage({ src, alt }: ImgHTMLAttributes<HTMLImageElement>) {
   useLocale();
   if (typeof src !== "string" || !src) return null;
-  const source = src.startsWith("//") ? `https:${src}` : localFileReference(src) || src;
+  const source = chatImageSource(src);
   return <ChatImage source={source} title={String(alt || uiMessages.interface.image)} />;
-}
-
-function chatUrlTransform(url: string, key: string): string {
-  if (key === "src" && (/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(url) || /^file:\/\//i.test(url) || /^[a-z]:[\\/]/i.test(url))) return url;
-  return defaultUrlTransform(url);
 }
 
 function MarkdownPre({ children, copyText, ...props }: HTMLAttributes<HTMLPreElement> & { copyText?: string }) {

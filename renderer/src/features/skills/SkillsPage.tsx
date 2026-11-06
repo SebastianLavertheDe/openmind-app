@@ -103,16 +103,16 @@ export function InstalledSkillsManager({ initialSkillId, embedded = false, initi
           .catch(() => ({ nextRuns: [] as BrokerRunRecord[], unavailable: true })),
         window.openmind.listSources().catch(() => [])
       ]);
-      const inspectedInstalled = window.openmind.inspectInstalledSkill
-        ? await Promise.all(nextInstalled.map(async (record) => {
-          try {
-            const inspection = await window.openmind.inspectInstalledSkill(record.key, record.digest);
-            return inspection ? [installedInspectionKey(record), inspection] as const : null;
-          } catch {
-            return null;
-          }
-        }))
-        : [];
+      const inspectedInstalled = await Promise.all(nextInstalled.map(async (record) => {
+        try {
+          const inspection = record.inspection !== undefined
+            ? record.inspection
+            : await window.openmind.inspectInstalledSkill?.(record.key, record.digest);
+          return inspection ? [installedInspectionKey(record), inspection] as const : null;
+        } catch {
+          return null;
+        }
+      }));
       const nextInstalledInspections: Record<string, SkillPackageInspectionView> = {};
       for (const entry of inspectedInstalled) {
         if (entry) nextInstalledInspections[entry[0]] = entry[1];

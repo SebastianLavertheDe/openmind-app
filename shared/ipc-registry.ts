@@ -26,6 +26,7 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "importSkillAssets", channel: IPC.SKILL_LIBRARY_ASSETS },
   { method: "importSkillAvatar", channel: IPC.SKILL_LIBRARY_AVATAR },
   { method: "readSkillAssetImage", channel: IPC.SKILL_LIBRARY_IMAGE },
+  { method: "readSkillAssetThumbnail", channel: IPC.SKILL_LIBRARY_THUMBNAIL },
   { method: "suggestSkillField", channel: IPC.SKILL_LIBRARY_SUGGEST },
 
   { method: "getWechatAccount", channel: IPC.WECHAT_ACCOUNT_GET },
@@ -101,6 +102,7 @@ export const IPC_INVOKE_REGISTRY = [
   { method: "listSkillRuns", channel: IPC.SKILL_RUN_LIST },
   { method: "getSkillRun", channel: IPC.SKILL_RUN_GET },
   { method: "getSkillRunEvents", channel: IPC.SKILL_RUN_EVENTS },
+  { method: "getSkillRunEventsPage", channel: IPC.SKILL_RUN_EVENTS_PAGE },
   { method: "listRunArtifacts", channel: IPC.RUN_LIST_ARTIFACTS },
   { method: "retrySkillRun", channel: IPC.RUN_RETRY },
   { method: "retryWorkflowStep", channel: IPC.RUN_RETRY_STEP },

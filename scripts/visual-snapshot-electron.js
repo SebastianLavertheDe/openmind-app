@@ -1999,6 +1999,29 @@ async function captureComposerSuggestions(win, report) {
   await win.webContents.executeJavaScript("window.openmind.__setVisualMode('normal')");
   await clickNav(win, "新建任务");
   await waitForReady(win, "新建任务");
+  // New task opens an empty composer. Approval belongs to the existing fixture
+  // session, so select it explicitly instead of relying on stale active state.
+  await ensureExpandedNavigation(win);
+  await win.webContents.executeJavaScript(`
+    (() => {
+      const recent = document.querySelector('.app-nav .nav-recent-toggle');
+      if (recent?.getAttribute('aria-expanded') === 'false') recent.click();
+      const list = document.querySelector('.app-nav .nav-recent-list');
+      if (list) list.scrollTop = 0;
+    })()
+  `);
+  await waitForSelector(win, '.app-nav button.nav-recent-item');
+  const openedApprovalSession = await win.webContents.executeJavaScript(`
+    (() => {
+      const session = [...document.querySelectorAll('.app-nav button.nav-recent-item')]
+        .find(item => item.textContent.includes('真实 Provider E2E 验收'));
+      if (!(session instanceof HTMLButtonElement)) return false;
+      session.scrollIntoView({ block: 'nearest' });
+      session.click();
+      return true;
+    })()
+  `);
+  if (!openedApprovalSession) throw new Error('Pending approval session fixture was not found.');
 
   await waitForSelector(win, ".approval-banner .approval-card");
   await waitForSelector(win, 'textarea[aria-label="AI 消息"]');
@@ -2068,7 +2091,8 @@ async function captureComposerSuggestions(win, report) {
   await settle();
   await assertComposerContextGeometry(win);
   await captureState(win, report, "ai-composer-file-context", pages[0].label, "Selected long file remains compact and readable in the composer", {
-    requiredSelector: ".context-tray"
+    requiredSelector: ".context-tray",
+    expectIdleSession: true
   });
   const contextPopoverOpened = await win.webContents.executeJavaScript(`
     (() => {
@@ -2146,14 +2170,14 @@ async function captureComposerSuggestions(win, report) {
     portaled: caretMenuGeometry.portaled,
     insideViewport: caretMenuGeometry.insideViewport
   });
-  await captureState(win, report, "ai-skill-menu", "新建任务", "Registered skill suggestion menu follows the active textarea caret");
+  await captureState(win, report, "ai-skill-menu", "新建任务", "Registered skill suggestion menu follows the active textarea caret", { expectIdleSession: true });
 
   await setComposerValue(win, "@composer");
   await waitForText(win, "composer-workflow.md");
-  await captureState(win, report, "ai-file-mention", "新建任务", "Project file mention search");
+  await captureState(win, report, "ai-file-mention", "新建任务", "Project file mention search", { expectIdleSession: true });
 
   await win.webContents.executeJavaScript("document.documentElement.setAttribute('data-theme', 'dark')");
-  await captureState(win, report, "ai-file-mention-dark", "新建任务", "Project file mention search in dark theme");
+  await captureState(win, report, "ai-file-mention-dark", "新建任务", "Project file mention search in dark theme", { expectIdleSession: true });
   await win.webContents.executeJavaScript("document.documentElement.setAttribute('data-theme', 'light')");
 }
 

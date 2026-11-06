@@ -304,6 +304,7 @@ export class AutomationScheduler {
   }
 
   private async reconcile(at: Date): Promise<void> {
+    if (this.options.isRetiredTarget) this.options.repository.retireRules(this.options.isRetiredTarget, RETIRED_SKILL_REASON);
     for (const record of this.options.repository.listRuns()) {
       if (record.state !== "running" || !record.childRunId) continue;
       const rule = this.options.repository.getRule(record.ruleId);
@@ -324,7 +325,8 @@ export class AutomationScheduler {
         continue;
       }
       if (!["succeeded", "failed", "timed_out", "cancelled"].includes(child.state)) continue;
-      if (child.state !== "succeeded" && child.state !== "cancelled" && record.attempt <= rule.retryPolicy.maxAttempts) {
+      if (child.state !== "succeeded" && child.state !== "cancelled" && record.attempt <= rule.retryPolicy.maxAttempts
+        && !this.options.isRetiredTarget?.(rule.target.id)) {
         this.options.repository.updateRun(record.id, {
           state: "queued",
           childRunId: null,
@@ -499,26 +501,68 @@ function nextRunAt(rule: AutomationRule, from: Date): string | null {
     const every = rule.trigger.everyMinutes * 60_000;
     return Number.isFinite(last) ? new Date(Math.max(from.getTime(), last + every)).toISOString() : from.toISOString();
   }
-  const start = new Date(from);
-  start.setSeconds(0, 0);
-  if (start.getTime() < from.getTime()) start.setMinutes(start.getMinutes() + 1);
-  if (rule.trigger.type === "hourly") {
-    const parts = zonedParts(start, rule.timezone);
-    return (parts.minute === 0 ? start : new Date(start.getTime() + (60 - parts.minute) * 60_000)).toISOString();
-  }
-  for (let offset = 0; offset <= 8 * 24 * 60; offset++) {
-    const candidate = new Date(start.getTime() + offset * 60_000);
-    const parts = zonedParts(candidate, rule.timezone);
-    if (rule.trigger.type === "daily" && `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}` === rule.trigger.at) return candidate.toISOString();
-    if (rule.trigger.type === "weekly" && rule.trigger.daysOfWeek.includes(parts.weekday) && `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}` === rule.trigger.at) return candidate.toISOString();
-    if (rule.trigger.type === "cron" && matchesCron(rule.trigger.expression, parts)) return candidate.toISOString();
+  const start = new Date(Math.ceil(from.getTime() / 60_000) * 60_000);
+  // Search calendar candidates, not every UTC minute. Weekly schedules used
+  // to allocate up to 11,521 Intl formatters for a single list row. Testing
+  // each candidate against its zone also preserves gaps and repeated DST hours.
+  const trigger = rule.trigger;
+  const fields = trigger.type === "cron" ? trigger.expression.trim().split(/\s+/) : null;
+  const clock = trigger.type === "daily" || trigger.type === "weekly" ? trigger.at.split(":").map(Number) : [0, 0];
+  const minutes = fields ? matchingValues(fields[0], 0, 59) : [clock[1]];
+  const hours = fields ? matchingValues(fields[1], 0, 23)
+    : trigger.type === "hourly" ? matchingValues("*", 0, 23) : [clock[0]];
+  const first = zonedParts(start, rule.timezone);
+  const firstDay = Date.UTC(first.year, first.month - 1, first.day);
+  const until = start.getTime() + 8 * 24 * 60 * 60_000;
+  let next = Infinity;
+  for (let day = 0; day <= 8; day++) {
+    const localDay = firstDay + day * 24 * 60 * 60_000;
+    const date = new Date(localDay);
+    const weekday = date.getUTCDay();
+    if (trigger.type === "weekly" && !trigger.daysOfWeek.includes(weekday)) continue;
+    if (fields && (!matchesCronField(fields[2], date.getUTCDate(), 1, 31)
+      || !matchesCronField(fields[3], date.getUTCMonth() + 1, 1, 12)
+      || !matchesCronField(fields[4], weekday, 0, 7))) continue;
+    // Probe both sides of the local day. Offset changes may be 30 minutes
+    // (Lord Howe), and a repeated local time must retain both UTC candidates.
+    const offsets = new Set<number>();
+    for (const shift of [-24, -12, 0, 12, 24, 36, 48]) {
+      const probe = localDay + shift * 60 * 60_000;
+      const parts = zonedParts(new Date(probe), rule.timezone);
+      offsets.add(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute) - probe);
+    }
+    for (const hour of hours) for (const minute of minutes) for (const offset of offsets) {
+      const candidate = localDay + (hour * 60 + minute) * 60_000 - offset;
+      if (candidate < start.getTime() || candidate > until || candidate >= next) continue;
+      const actual = zonedParts(new Date(candidate), rule.timezone);
+      if (actual.year === date.getUTCFullYear() && actual.month === date.getUTCMonth() + 1
+        && actual.day === date.getUTCDate() && actual.hour === hour && actual.minute === minute) next = candidate;
+    }
+    // Even a repeated or skipped hour remains on this local calendar day.
+    if (Number.isFinite(next)) return new Date(next).toISOString();
   }
   return null;
 }
 
+function matchingValues(field: string, min: number, max: number): number[] {
+  return Array.from({ length: max - min + 1 }, (_, index) => index + min)
+    .filter(value => matchesCronField(field, value, min, max));
+}
+
+const timezoneFormatters = new Map<string, Intl.DateTimeFormat>();
+function timezoneFormatter(timezone: string): Intl.DateTimeFormat {
+  let formatter = timezoneFormatters.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    // Rule editing can visit arbitrary valid zones. Keep this cache bounded.
+    if (timezoneFormatters.size >= 64) timezoneFormatters.delete(timezoneFormatters.keys().next().value!);
+    timezoneFormatters.set(timezone, formatter);
+  }
+  return formatter;
+}
+
 function zonedParts(date: Date, timezone: string): { year: number; month: number; day: number; hour: number; minute: number; weekday: number } {
-  const formatter = new Intl.DateTimeFormat("en-US", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-  const values = Object.fromEntries(formatter.formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+  const values = Object.fromEntries(timezoneFormatter(timezone).formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
   const weekday = new Date(Date.UTC(values.year, values.month - 1, values.day)).getUTCDay();
   return { year: values.year, month: values.month, day: values.day, hour: values.hour, minute: values.minute, weekday };
 }

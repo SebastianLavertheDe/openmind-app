@@ -190,9 +190,9 @@ type InstalledInspectionCacheEntry = {
 };
 
 /**
- * 逐文件 lstat 指纹（相对路径、类型、大小、mtime），用于判断已装包自上次
- * 全量检查后是否被改动。只 stat 不读取内容：命中时省掉全部字节读取与
- * sha256，任何真实的增删改都会反映在路径集合、size 或 mtime 上。
+ * Display-only lstat fingerprint. File identity and ctime detect replacement
+ * and ordinary edits even when mtime is restored. This saves byte reads on
+ * catalog refreshes; it never substitutes for execution-time hashing.
  */
 type PackageContentSignature = string;
 
@@ -201,17 +201,18 @@ function packageContentSignature(root: string): PackageContentSignature | null {
   const visit = (absoluteDir: string, logicalDir: string): boolean => {
     let entries: fs.Dirent[];
     try { entries = fs.readdirSync(absoluteDir, { withFileTypes: true }); } catch { return false; }
-    for (const entry of entries) {
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
       const logicalPath = logicalDir ? `${logicalDir}/${entry.name}` : entry.name;
       const absolutePath = path.join(absoluteDir, entry.name);
       let linkStat: fs.Stats;
       try { linkStat = fs.lstatSync(absolutePath); } catch { return false; }
+      const metadata = `${linkStat.dev}\0${linkStat.ino}\0${linkStat.mode}\0${linkStat.size}\0${linkStat.mtimeMs}\0${linkStat.ctimeMs}`;
       if (linkStat.isDirectory()) {
-        parts.push(`d\0${logicalPath}\0${linkStat.mtimeMs}\n`);
+        parts.push(`d\0${logicalPath}\0${metadata}\n`);
         if (!visit(absolutePath, logicalPath)) return false;
         continue;
       }
-      parts.push(`${linkStat.isSymbolicLink() ? "l" : "f"}\0${logicalPath}\0${linkStat.size}\0${linkStat.mtimeMs}\n`);
+      parts.push(`${linkStat.isSymbolicLink() ? "l" : "f"}\0${logicalPath}\0${metadata}\n`);
     }
     return true;
   };
@@ -234,11 +235,10 @@ export class SkillPackageService {
   private readonly repository: InstalledSkillRepository;
   private readonly preferences: InstalledSkillPreferencesRepository;
   /**
-   * 最近一次全量检查通过后的包内容签名 → 检查结果。列表类 IPC
-   * （listInstalledViews/listInstalledRunnableViews）每次都会对全部已装包
-   * 重跑 walkPackage + digestPackage（读入并 sha256 全部字节）；内容签名
-   * （逐文件 lstat）未变时复用上次结果，避免重复哈希。任何文件的增删、
-   * 替换或修改都会改变签名并触发下一次全量重查。
+   * Display-only inspections shared by catalog, management and detail views.
+   * A changed file fingerprint triggers a fresh package walk and hash; an
+   * unchanged fingerprint avoids reading package bytes. Execution inspections
+   * deliberately bypass this cache.
    */
   private readonly installedInspectionCache = new Map<string, InstalledInspectionCacheEntry>();
 
@@ -554,14 +554,22 @@ export class SkillPackageService {
   }
 
   listInstalledViews(): InstalledSkillView[] {
-    return this.listInstalled().filter(record => !this.isRetired(record)).map((record) => ({
-      ...record,
-      enabled: this.isEnabled(record),
-      // This catalog field is informational only. Execution admission always
-      // goes through inspectInstalledCopy(), which deliberately bypasses this
-      // metadata cache and re-hashes the package bytes.
-      usable: this.isInstalledCopyUsableForDisplay(record)
-    }));
+    return this.listInstalled().filter(record => !this.isRetired(record)).map((record) => {
+      let inspection: SkillPackageInspection | undefined;
+      let usable = false;
+      try {
+        inspection = this.readInstalledInspectionForDisplay(record);
+        this.validateInstalledInspection(record, inspection);
+        usable = true;
+      } catch { /* Keep damaged installations visible and diagnosable. */ }
+      return {
+        ...record,
+        enabled: this.isEnabled(record),
+        // Informational only: execution admission still hashes current bytes.
+        usable,
+        inspection: inspection ? this.toInstalledInspectionView(record, inspection) : null
+      };
+    });
   }
 
   /**
@@ -626,19 +634,36 @@ export class SkillPackageService {
   }
 
   /** Metadata-cached inspection for non-authoritative catalog rendering only. */
-  private inspectInstalledCopyForDisplay(record: InstalledSkillRecord): SkillPackageInspection {
+  inspectInstalledCopyForDisplay(record: InstalledSkillRecord): SkillPackageInspection {
+    return this.validateInstalledInspection(record, this.readInstalledInspectionForDisplay(record));
+  }
+
+  /** Static diagnostics for the installed package; never execution admission. */
+  inspectInstalledView(record: InstalledSkillRecord): SkillPackageInspectionView {
+    return this.toInstalledInspectionView(record, this.readInstalledInspectionForDisplay(record));
+  }
+
+  private toInstalledInspectionView(record: InstalledSkillRecord, inspection: SkillPackageInspection): SkillPackageInspectionView {
+    return toSkillPackageInspectionView({
+      ...inspection,
+      sourcePath: record.sourceLocator || inspection.sourcePath,
+      sourceKind: record.sourceType === "git" ? "git" : inspection.sourceKind
+    });
+  }
+
+  private readInstalledInspectionForDisplay(record: InstalledSkillRecord): SkillPackageInspection {
     this.assertInstalledPackageExists(record);
     const cached = this.installedInspectionCache.get(record.packagePath);
     if (cached) {
       const signature = packageContentSignature(record.packagePath);
       if (signature && samePackageSignature(signature, cached.signature)) {
-        return this.validateInstalledInspection(record, cached.inspection);
+        return cached.inspection;
       }
     }
     const inspection = this.reinspectInstalledCopy(record.packagePath);
     const signature = packageContentSignature(record.packagePath);
     if (signature) this.installedInspectionCache.set(record.packagePath, { signature, inspection });
-    return this.validateInstalledInspection(record, inspection);
+    return inspection;
   }
 
   private assertInstalledPackageExists(record: InstalledSkillRecord): void {
@@ -674,15 +699,6 @@ export class SkillPackageService {
   isInstalledCopyUsable(record: InstalledSkillRecord): boolean {
     try {
       this.inspectInstalledCopy(record);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  private isInstalledCopyUsableForDisplay(record: InstalledSkillRecord): boolean {
-    try {
-      this.inspectInstalledCopyForDisplay(record);
       return true;
     } catch {
       return false;

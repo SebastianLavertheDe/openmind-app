@@ -71,11 +71,25 @@ export class AutomationRepository {
   retireRules(isRetired: (skillId: string) => boolean, reason: string): void {
     const registry = this.read();
     let changed = false;
+    const retiredRules = new Set<string>();
+    const retiredTargets = new Map<string, boolean>();
+    const now = new Date().toISOString();
     for (const rule of registry.rules) {
-      if (!rule.enabled || !isRetired(rule.target.id)) continue;
+      if (!retiredTargets.has(rule.target.id)) retiredTargets.set(rule.target.id, isRetired(rule.target.id));
+      if (!retiredTargets.get(rule.target.id)) continue;
+      retiredRules.add(rule.id);
+      if (!rule.enabled) continue;
       rule.enabled = false;
       rule.description = `${rule.description.slice(0, Math.max(0, 1999 - reason.length))}\n${reason}`.trim();
-      rule.updatedAt = new Date().toISOString();
+      rule.updatedAt = now;
+      changed = true;
+    }
+    // Queued automation has not passed Broker/Workflow admission yet. Keep its
+    // record, but do not leave impossible retries waiting forever. Running
+    // children retain their identity and are reconciled to their actual result.
+    for (const run of registry.runs) {
+      if (!retiredRules.has(run.ruleId) || run.state !== "queued" || run.childRunId) continue;
+      Object.assign(run, { state: "blocked", retryAt: null, completedAt: now, error: reason });
       changed = true;
     }
     if (changed) this.write(registry);

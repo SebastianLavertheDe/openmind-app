@@ -168,9 +168,11 @@ async function revealLongHistory(win) {
     if (hasCompletedHistory) return;
     const clicked = await win.webContents.executeJavaScript(`
       (() => {
-        const button = document.querySelector('button.load-history');
-        button?.click();
-        return Boolean(button);
+        const scroller = document.querySelector('.chat-scroll');
+        if (!scroller) return false;
+        scroller.scrollTop = 0;
+        scroller.dispatchEvent(new WheelEvent('wheel', { deltaY: -120, bubbles: true }));
+        return true;
       })()
     `);
     if (!clicked) break;
@@ -198,6 +200,8 @@ async function openCompletedToolGroup(win) {
       const process = document.querySelector('.completed-process:not(.processing)');
       const group = process?.querySelector('.command-group');
       const trigger = group?.querySelector(':scope > .ui-disclosure-trigger');
+      // Flat groups already expose their virtual tool list without a header.
+      if (group?.classList.contains('flat')) return true;
       if (!trigger) return false;
       if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click();
       return true;

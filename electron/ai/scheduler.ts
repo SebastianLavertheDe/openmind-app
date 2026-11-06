@@ -36,7 +36,7 @@ import type { SkillDefinition } from "../../shared/contracts";
 import { prewarmProviderSession, recoverInterruptedRuns } from "./scheduler-lifecycle";
 import { titleFromPrompt } from "./scheduler-prompts";
 import { matchesSemverRange } from "../../shared/skill-manifest-schema";
-import { WorkflowResumeRequestSchema, type BrokerRunEvent, type BrokerRunRecord, type WorkflowResumeRequest, type WorkflowRunRecord } from "../../shared/execution-contracts";
+import { WorkflowResumeRequestSchema, type BrokerRunEvent, type BrokerRunEventsQuery, type BrokerRunRecord, type WorkflowResumeRequest, type WorkflowRunRecord } from "../../shared/execution-contracts";
 import type { AutomationRule, AutomationRuleInput, AutomationRunRecord, AutomationScheduleSnapshot } from "../../shared/automation-contracts";
 import { buildAppPaths, resolveSkillStoreRoot } from "../paths/app-paths-service";
 import { SkillPackageService } from "../skills/skill-package-service";
@@ -131,10 +131,7 @@ export class RunScheduler {
     } : undefined);
     this.automation = appPaths && openmindRoot ? new AutomationScheduler({
       repository: new AutomationRepository(appPaths),
-      isRetiredTarget: id => {
-        const record = packageService?.getInstalledById(id);
-        return Boolean(record && packageService?.isRetired(record));
-      },
+      isRetiredTarget: id => installedResolver?.isRetiredTarget(id) ?? false,
       leader: new AutomationLeader(appPaths.automation),
       fileFingerprint: createAutomationFileFingerprint(openmindRoot),
       rootGeneration,
@@ -265,6 +262,7 @@ export class RunScheduler {
   }
   getSkillRun(runId: string): BrokerRunRecord { return this.skillTools.getRun(runId); }
   getSkillRunEvents(runId: string): BrokerRunEvent[] { return this.skillTools.getRunEvents(runId); }
+  getSkillRunEventsPage(runId: string, query: BrokerRunEventsQuery = {}) { return this.skillTools.getRunEventsPage(runId, query); }
   listRunArtifacts(runId?: string): BrokerRunRecord["artifacts"] { return this.skillTools.listRunArtifacts(runId); }
   retrySkillRun(runId: string): BrokerRunRecord { return this.skillTools.retryRun(runId); }
   deleteRunHistory(runId: string): boolean { return this.skillTools.deleteRunHistory(runId); }

@@ -1,46 +1,69 @@
 import { ImageThumbnail } from "../../design-system/components";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
-import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ImageOff, LoaderCircle, Maximize2 } from "lucide-react";
 import type { ChatImageData, GeneratedImage } from "@shared/image-generation";
 import { IMAGE_PROVIDERS } from "@shared/image-generation";
 import { AnimatedDisclosure, ImageViewer } from "../../design-system/components";
 import type { ImageThumbnailVariant } from "../../design-system/control-contract";
+import type { ImageSource } from "./markdown-images";
 
 type GalleryImage = { id: string; source: string; title: string; element?: HTMLElement | null };
 type GalleryContextValue = {
   projectName?: string;
   register(image: GalleryImage): () => void;
+  registerCatalog(id: string, images: readonly ImageSource[], element: HTMLElement | null): () => void;
   open(image: GalleryImage): void;
 };
 const GalleryContext = createContext<GalleryContextValue | null>(null);
 
 /** One gallery per conversation, shared by generated artifacts and Markdown. */
-export function ChatImageGallery({ children, projectName }: { children: ReactNode; projectName?: string }) {
+export function ChatImageGallery({ children, projectName, catalog }: { children: ReactNode; projectName?: string; catalog?: readonly ImageSource[] }) {
   useLocale();
   const parent = useContext(GalleryContext);
-  return parent ? children : <OwnedGallery projectName={projectName}>{children}</OwnedGallery>;
+  const content = <>{catalog?.length ? <ImageCatalog images={catalog} /> : null}{children}</>;
+  return parent ? content : <OwnedGallery projectName={projectName}>{content}</OwnedGallery>;
+}
+
+/** Keep source metadata for unmounted virtual rows without retaining their DOM. */
+function ImageCatalog({ images }: { images: readonly ImageSource[] }) {
+  const gallery = useContext(GalleryContext);
+  const id = useId();
+  const anchor = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => gallery?.registerCatalog(id, images, anchor.current), [gallery, id, images]);
+  return <span ref={anchor} hidden aria-hidden="true" />;
 }
 
 function OwnedGallery({ children, projectName }: { children: ReactNode; projectName?: string }) {
   const locale = useLocale();
   const images = useRef(new Map<string, GalleryImage>());
+  const catalogs = useRef(new Map<string, GalleryImage[]>());
   const [viewer, setViewer] = useState<{ images: GalleryImage[]; index: number; open: boolean; revision: number } | null>(null);
   const register = useCallback((image: GalleryImage) => {
     images.current.set(image.id, image);
     return () => { images.current.delete(image.id); };
   }, []);
+  const registerCatalog = useCallback((id: string, sources: readonly ImageSource[], element: HTMLElement | null) => {
+    catalogs.current.set(id, sources.map((image, index) => ({ ...image, title: image.title || uiMessages.interface.image, id: `${id}:${index}`, element })));
+    return () => { catalogs.current.delete(id); };
+  }, []);
   const open = useCallback((image: GalleryImage) => {
-    const ordered = [...images.current.values()].sort((a, b) => {
+    const ordered = [...catalogs.current.values()].flat().concat([...images.current.values()]).sort((a, b) => {
       if (!a.element || !b.element) return 0;
+      if (a.element === b.element) return 0;
       return a.element.compareDocumentPosition(b.element) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
     });
     if (!ordered.some(value => value.id === image.id)) ordered.push(image);
-    const unique = ordered.filter((value, index) => ordered.findIndex(other => other.source === value.source) === index);
+    const seen = new Set<string>();
+    const unique = ordered.filter(value => {
+      if (seen.has(value.source)) return false;
+      seen.add(value.source);
+      return true;
+    });
     setViewer(previous => ({ images: unique, index: Math.max(0, unique.findIndex(value => value.source === image.source)), open: true, revision: (previous?.revision || 0) + 1 }));
   }, []);
-  const value = useMemo(() => ({ register, open, projectName }), [register, open, projectName, locale]);
+  const value = useMemo(() => ({ register, registerCatalog, open, projectName }), [register, registerCatalog, open, projectName, locale]);
   return <GalleryContext.Provider value={value}>
     {children}
     {viewer ? <ImageLightbox key={viewer.revision} images={viewer.images} initialIndex={viewer.index} open={viewer.open} projectName={projectName} onClose={() => setViewer(value => value ? { ...value, open: false } : null)} /> : null}

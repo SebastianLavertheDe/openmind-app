@@ -534,7 +534,7 @@ function fileName(value: string): string {
 }
 
 /** Only successful read/view calls with explicit image paths become previews. */
-function viewedImageSources(events: AiEvent[], runStatus?: RunStatus): string[] {
+export function viewedImageSources(events: AiEvent[], runStatus?: RunStatus): string[] {
   if (!events.length || toolCallState(events, runStatus) !== "completed") return [];
   const first = events[0].payload;
   const tool = String(first.tool || first.command || "");

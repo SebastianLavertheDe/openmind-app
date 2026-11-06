@@ -5,6 +5,14 @@ import type { AiEvent, AiRun, AiSnapshot, AppBootstrap, AppOverview, DesktopApi,
 import { App } from "./App";
 import { setLocale } from "@shared/messages";
 
+// This suite verifies navigation and restored file identity. Rich editing is
+// exercised by document-editor/milkdown-runtime.test.ts; avoid starting its
+// asynchronous editor timers in a route fixture that immediately unmounts it.
+vi.mock("./features/projects/ProjectOutputEditor", async () => {
+  const { MarkdownReader } = await import("./components/MarkdownReader");
+  return { ProjectOutputEditor: ({ content }: { content: string }) => <MarkdownReader content={content} /> };
+});
+
 const snapshot: AiSnapshot = {
   projectRoot: "/project",
   providers: [{ id: "codex-native", provider: "codex", label: "Codex", runtime: "native", available: true, version: "1", supportsApprovals: true, supportsResume: true, supportsImages: true, diagnostic: null, detectedModel: null, contextWindow: null, installable: false, oneMillion: false }],
@@ -223,7 +231,23 @@ describe("session origin restoration", () => {
     expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
     expect(document.querySelector(".ai-workbench")).toBeTruthy();
     expect(screen.getByLabelText("AI 消息").getAttribute("placeholder")).toContain(session.title);
-    if (kind === "topic") expect(readContent).toHaveBeenCalledWith(filePath);
+    expect(readContent).toHaveBeenCalledWith(kind === "topic" ? filePath : `${project.dir}/${filePath}`);
+  });
+
+  it("keeps a retired session usable when its original file no longer exists", async () => {
+    const origin = AiSessionOriginSchema.parse({ page: "creative", projectDir: "openmind/creative/旧文稿", filePath: "draft.md" });
+    const session = { ...sessionFixture("已删除文稿的历史会话"), origin };
+    const live = { ...snapshot, sessions: [session] };
+    const readContent = vi.fn(async () => { throw new Error("原文稿已不存在"); });
+    installApi({ getBootstrap: async () => bootstrap(live), aiRefresh: async () => live, readContent });
+    render(<App />);
+    await waitFor(() => expect(recent(session.id)).toBeTruthy());
+    fireEvent.click(recent(session.id));
+    await waitFor(() => expect(readContent).toHaveBeenCalledWith("openmind/creative/旧文稿/draft.md"), { timeout: LAZY_ROUTE_TIMEOUT_MS });
+    expect(await screen.findByText("文件不存在或者已经删除")).toBeTruthy();
+    expect(screen.getByLabelText("AI 消息").getAttribute("placeholder")).toContain(session.title);
+    expect(screen.queryByRole("button", { name: "创作" })).toBeNull();
+    expect(recent(session.id)).toBeTruthy();
   });
 
   it("opens project search results in their owning project with the conversation selected", async () => {

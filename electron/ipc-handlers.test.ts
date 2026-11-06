@@ -53,9 +53,9 @@ describe("ipc registry", () => {
     // rollback endpoints (and the retired workspace-import surface) while
     // exposing the current onboarding/source-cancel/install controls,
     // including CLI version checks, upgrades and read-only Skill previews.
-    expect(IPC_INVOKE_REGISTRY).toHaveLength(149);
-    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(149);
-    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(149);
+    expect(IPC_INVOKE_REGISTRY).toHaveLength(151);
+    expect(new Set(IPC_INVOKE_REGISTRY.map((item) => item.channel)).size).toBe(151);
+    expect(Object.keys(IPC_METHOD_CHANNELS)).toHaveLength(151);
   });
 
   it("does not expose or register the removed Skill copy operation", () => {
@@ -363,6 +363,17 @@ describe("handler forwarding — AI 透传类", () => {
     ]);
   });
 
+  it("validates incremental run event windows before forwarding them", async () => {
+    const ai = makeAiSpy();
+    const ctx = makeCtx({ ensureAiWorker: () => ai as never });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.getSkillRunEventsPage, "run-1");
+    expect(ai.call).toHaveBeenLastCalledWith("skill-run-events-page", "run-1", { after: -1, limit: 200 });
+    await invokeHandler(ctx, IPC_METHOD_CHANNELS.getSkillRunEventsPage, "run-1", { after: 400, limit: 50 });
+    expect(ai.call).toHaveBeenLastCalledWith("skill-run-events-page", "run-1", { after: 400, limit: 50 });
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.getSkillRunEventsPage, "run-1", { after: -2 })).toThrow();
+    expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.getSkillRunEventsPage, "run-1", { limit: 1001 })).toThrow();
+  });
+
   it("Run 历史、产物和重试操作转发到 worker", async () => {
     const ai = makeAiSpy();
     const ctx = makeCtx({ ensureAiWorker: () => ai as never });
@@ -522,7 +533,7 @@ describe("handler forwarding — Skill package installation", () => {
     };
     const service = {
       getInstalled: vi.fn(() => ({ packagePath: "/userData/skills/openmind/installed/1.0.0" })),
-      inspect: vi.fn(() => inspection),
+      inspectInstalledView: vi.fn(() => inspection),
       listInstalled: vi.fn(() => []),
       listInstalledViews: vi.fn(() => []),
       listInstalledRunnableViews: vi.fn(() => [{ id: "installed", kind: "process", title: "Installed", enabled: true }]),
@@ -537,7 +548,7 @@ describe("handler forwarding — Skill package installation", () => {
       expect.objectContaining({ id: "installed", kind: "process", title: "Installed", enabled: true })
     ]);
     expect(service.getInstalled).toHaveBeenCalledWith("openmind/installed", "digest-installed");
-    expect(service.inspect).toHaveBeenCalledWith("/userData/skills/openmind/installed/1.0.0");
+    expect(service.inspectInstalledView).toHaveBeenCalledWith({ packagePath: "/userData/skills/openmind/installed/1.0.0" });
     vi.restoreAllMocks();
   });
 

@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   BrokerRunEventSchema,
+  BrokerRunEventsQuerySchema,
+  type BrokerRunEventsQuery,
   BrokerRunRecordSchema,
   EXECUTION_SCHEMA_VERSION,
   type BrokerRunEvent,
@@ -14,6 +16,7 @@ import {
 } from "../../shared/execution-contracts";
 import { writeJsonAtomic } from "../lib/fs-utils";
 import type { RssRunContext } from "../../shared/rss-contracts";
+import { readRunEventsPage } from "./run-events-reader";
 
 const TERMINAL_STATES = new Set<BrokerRunState>(["succeeded", "failed", "timed_out", "cancelled"]);
 const ALLOWED_TRANSITIONS: Record<BrokerRunState, readonly BrokerRunState[]> = {
@@ -228,6 +231,12 @@ export class RunStore {
       .split("\n")
       .filter(Boolean)
       .map((line) => BrokerRunEventSchema.parse(JSON.parse(line))));
+  }
+
+  eventsPage(runId: string, query: BrokerRunEventsQuery = {}) {
+    this.get(runId);
+    const input = BrokerRunEventsQuerySchema.parse(query);
+    return readRunEventsPage(this.root, runId, input.after, input.limit);
   }
 
   /** Marks in-flight work as failed after a Main/Worker restart. */

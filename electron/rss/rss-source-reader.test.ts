@@ -110,4 +110,91 @@ describe("source-scoped run history", () => {
     expect(() => reader.runs({ sourceId: "two", cursor: first.nextCursor! })).toThrow(/cursor/);
     expect(() => new RunStore(runs).bindRssContext("run-00", { root: temp(), mode: "sync", sourceIds: [] })).toThrow();
   });
+
+  it("reuses the ordered history across readers and refreshes changed records, outcomes and deletions", () => {
+    const { root, runs, repository, reader } = fixture();
+    const store = run(runs, root, "seed");
+    const sample = store.get("seed");
+    for (let index = 0; index < 60; index++) {
+      const id = `history-${String(index).padStart(3, "0")}`;
+      write(path.join(runs, id, "run.json"), JSON.stringify({ ...sample, id, createdAt: new Date(Date.UTC(2030, 0, 1, 0, index)).toISOString() }));
+    }
+    const first = reader.runs({ sourceId: "one", limit: 20 });
+    const read = vi.spyOn(fs, "readSync"), scan = vi.spyOn(fs, "readdirSync");
+    try {
+      const next = new RssSourceReader(repository, runs).runs({ sourceId: "one", cursor: first.nextCursor!, limit: 20 });
+      expect(next.runs[0].id).toBe("history-039");
+      expect(read).not.toHaveBeenCalled(); expect(scan).not.toHaveBeenCalled();
+      reader.runs({ sourceId: "one" });
+      expect(read).not.toHaveBeenCalled(); // A first-page refresh stats, but does not parse unchanged history.
+
+      const file = path.join(runs, "history-059", "run.json");
+      const previous = JSON.parse(fs.readFileSync(file, "utf8"));
+      write(file, JSON.stringify({ ...previous, state: "succeeded", completedAt: "2030-01-01T02:00:00.000Z", terminalState: "succeeded" }));
+      write(path.join(runs, "history-059", "work", "result.json"), JSON.stringify({ results: [{ sourceId: "one", status: "succeeded", collected: 42 }] }));
+      expect(reader.runs({ sourceId: "one" }).runs[0]).toMatchObject({ id: "history-059", state: "succeeded", outcome: "succeeded", collected: 42 });
+      expect(read).toHaveBeenCalledTimes(2);
+      write(path.join(runs, "newest", "run.json"), JSON.stringify({ ...sample, id: "newest", createdAt: "2031-01-01T00:00:00.000Z" }));
+      expect(reader.runs({ sourceId: "one" }).runs[0].id).toBe("newest");
+      fs.rmSync(path.join(runs, "newest"), { recursive: true });
+      fs.rmSync(path.join(runs, "history-059"), { recursive: true });
+      expect(reader.runs({ sourceId: "one" }).runs[0].id).toBe("history-058");
+    } finally { read.mockRestore(); scan.mockRestore(); }
+  });
+
+  it("keeps cached history and event authorization scoped to the current content root and source", () => {
+    const { root, runs, repository, reader } = fixture();
+    const other = fixture();
+    const store = run(runs, root, "bound", ["one"]);
+    expect(reader.runs({ sourceId: "one" }).runs).toHaveLength(1);
+    expect(new RssSourceReader(other.repository, runs).runs({ sourceId: "one" }).runs).toEqual([]);
+    expect(() => new RssSourceReader(other.repository, runs).events({ sourceId: "one", runId: "bound" })).toThrow(/unavailable/);
+    const file = path.join(runs, "bound", "run.json");
+    write(file, JSON.stringify({ ...store.get("bound"), rssContext: { root: other.root, mode: "pipeline", sourceIds: ["two"] } }));
+    expect(() => reader.events({ sourceId: "one", runId: "bound" })).toThrow(/unavailable/);
+    expect(reader.runs({ sourceId: "one" }).runs).toEqual([]);
+    repository.remove("one", 1);
+    expect(() => reader.runs({ sourceId: "one" })).toThrow(/deleted/);
+  });
+
+  it("uses the same ordering for tied run timestamps and page cursors", () => {
+    const { root, runs, reader } = fixture();
+    const store = run(runs, root, "seed");
+    const sample = store.get("seed");
+    const ids = ["alpha", "Alpha", "ALPHA", "beta", "Beta", "BETA", "run-1", "run-2"];
+    for (const id of ids) write(path.join(runs, id, "run.json"), JSON.stringify({ ...sample, id }));
+    const actual: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = reader.runs({ sourceId: "one", cursor, limit: 2 });
+      actual.push(...page.runs.map(row => row.id));
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    expect(actual).toEqual([...ids, "seed"].sort((left, right) => right.localeCompare(left)));
+  });
+
+  it("loads only page-candidate outcomes and preserves results outside the original source selection", () => {
+    const { root, runs, reader } = fixture();
+    const store = run(runs, root, "older", ["two"]);
+    write(path.join(runs, "older", "work", "result.json"), JSON.stringify({ results: [{ sourceId: "one", status: "succeeded", collected: 3 }] }));
+    expect(reader.runs({ sourceId: "one" }).runs[0]).toMatchObject({ id: "older", outcome: "succeeded", collected: 3 });
+    const sample = store.get("older");
+    for (let index = 0; index < 10; index++) {
+      const id = `newer-${index}`;
+      write(path.join(runs, id, "run.json"), JSON.stringify({ ...sample, id, createdAt: "2030-01-01T00:00:00.000Z", rssContext: { ...sample.rssContext, sourceIds: ["one"] } }));
+    }
+    // An unrelated old result must not be opened merely to render the first page.
+    write(path.join(runs, "older", "work", "result.json"), "x".repeat(8 * 1024 * 1024 + 1));
+    expect(reader.runs({ sourceId: "one", limit: 5 }).runs).toHaveLength(5);
+  });
+
+  it("does not trust an escaping link installed after a history cache hit", () => {
+    const { root, runs, reader } = fixture();
+    run(runs, root, "bound");
+    reader.runs({ sourceId: "one" });
+    const file = path.join(runs, "bound", "run.json");
+    const outside = path.join(temp(), "run.json"); fs.copyFileSync(file, outside); fs.unlinkSync(file); fs.symlinkSync(outside, file);
+    expect(() => reader.runs({ sourceId: "one" })).toThrow(/escapes/);
+    expect(() => reader.events({ sourceId: "one", runId: "bound" })).toThrow(/escapes/);
+  });
 });

@@ -3,12 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectPathError, ProjectPathResolver } from "./project-path-resolver";
 
 const fixtures: string[] = [];
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const fixture of fixtures.splice(0)) fs.rmSync(fixture, { recursive: true, force: true });
 });
 
@@ -19,6 +20,45 @@ function fixture(): { root: string; resolver: ProjectPathResolver } {
 }
 
 describe("ProjectPathResolver", () => {
+  it("enumerates project identities once per locked batch while checking every selected path", () => {
+    const { root, resolver } = fixture();
+    for (let index = 0; index < 20; index++) {
+      const project = resolver.createProjectRoot(`Project ${index}`);
+      fs.mkdirSync(path.join(project.rootPath, "outputs"));
+      fs.writeFileSync(path.join(project.rootPath, "outputs", "one.md"), "fixture");
+    }
+    const readdir = vi.spyOn(fs, "readdirSync");
+    const enumerate = () => readdir.mock.calls.filter(([directory]) => directory === resolver.projectsRoot).length;
+    resolver.withProjectMutationLock(() => {
+      for (let index = 0; index < 20; index++) {
+        for (let read = 0; read < 10; read++) resolver.resolveInsideProject(`project ${index}`, "outputs/one.md");
+      }
+      expect(enumerate()).toBe(1);
+      // A cached project identity must never make a replaced leaf trusted.
+      const leaf = path.join(root, "projects", "Project 0", "outputs", "one.md");
+      fs.unlinkSync(leaf);
+      fs.symlinkSync(path.join(root, "projects", "Project 1", "outputs", "one.md"), leaf);
+      expect(() => resolver.resolveInsideProject("Project 0", "outputs/one.md")).toThrowError(ProjectPathError);
+    });
+    resolver.withProjectMutationLock(() => resolver.listProjectNames());
+    expect(enumerate()).toBe(2);
+  });
+
+  it("refreshes a locked identity snapshot after creates, renames and external conflicts", () => {
+    const { resolver } = fixture();
+    resolver.createProjectRoot("Alpha");
+    resolver.withProjectMutationLock(() => {
+      expect(resolver.listProjectNames()).toEqual(["Alpha"]);
+      resolver.createProjectRoot("Beta");
+      expect(resolver.resolveProject("beta").name).toBe("Beta");
+      resolver.renameProjectRoot("Beta", "Gamma");
+      expect(resolver.listProjectNames()).toEqual(["Alpha", "Gamma"]);
+      expect(() => resolver.resolveProject("Beta")).toThrowError(ProjectPathError);
+      fs.mkdirSync(path.join(resolver.projectsRoot, "Ａlpha"));
+      expect(() => resolver.resolveProject("Alpha")).toThrow(expect.objectContaining({ code: "project-name-conflict" }));
+    });
+  });
+
   it("enforces global case and NFKC-insensitive project-name uniqueness", () => {
     const { resolver } = fixture();
     resolver.createProjectRoot("Ａlpha");

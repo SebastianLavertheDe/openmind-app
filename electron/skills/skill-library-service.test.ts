@@ -252,6 +252,21 @@ describe("Skill library and authoring", () => {
     expect(f.service.list().find(entry => entry.key === record.key)).toMatchObject({ usable: false, reason: expect.any(String) });
   });
 
+  it("reuses display inspections when repeatedly listing imported packages", () => {
+    const f = fixture();
+    const source = path.join(f.directory, "imported");
+    fs.cpSync(path.join(f.bundle, "om-research-brief"), source, { recursive: true });
+    const record = f.packages.install(source, { sourceType: "directory", sourceLocator: source });
+    const first = f.service.list().find(entry => entry.key === record.key);
+    expect(first).toMatchObject({ usable: true });
+    const inspect = vi.spyOn(f.packages, "inspect");
+    expect(f.service.list().find(entry => entry.key === record.key)).toEqual(first);
+    expect(inspect).not.toHaveBeenCalled();
+    // Execution admission remains a fresh check even after catalog warming.
+    f.packages.inspectInstalledCopy(record);
+    expect(inspect).toHaveBeenCalledOnce();
+  });
+
   it("keeps Explore separate from installed and authored Mine entries", () => {
     const f = fixture();
     expect(filterSkillLibrary(f.service.list(), "explore", "all")).toHaveLength(1);

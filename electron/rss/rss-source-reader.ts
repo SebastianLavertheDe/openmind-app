@@ -3,19 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { z } from "zod";
-import { BrokerRunEventSchema, BrokerRunRecordSchema, type BrokerRunRecord } from "../../shared/execution-contracts";
-import { RssEntriesQuerySchema, RssErrorSchema, RssRunEventsQuerySchema, RssRunsQuerySchema, RssUrlSchema,
+import { RssEntriesQuerySchema, RssRunEventsQuerySchema, RssRunsQuerySchema, RssUrlSchema,
   type RssEntriesQuery, type RssEntriesPage, type RssEntry, type RssRunEventsQuery, type RssRunEventsPage,
-  type RssRunsQuery, type RssRunsPage, type RssSourceRun } from "../../shared/rss-contracts";
+  type RssRunsQuery, type RssRunsPage } from "../../shared/rss-contracts";
 import { rssPrivateDirectory } from "./file-lock";
 import type { RssRepository } from "./rss-repository";
+import { rssRunHistory } from "./rss-run-history";
+import { readRunEventsPage } from "../execution/run-events-reader";
 
 const MAX_FEED = 8 * 1024 * 1024;
-const ResultSchema = z.object({ results: z.array(z.object({
-  sourceId: z.string(), status: z.enum(["succeeded", "failed", "skipped"]),
-  updated: z.number().int().nonnegative().optional(), collected: z.number().int().nonnegative().optional(),
-  error: RssErrorSchema.optional(), reason: z.string().optional()
-})) });
 const CursorSchema = z.object({ scope: z.string(), version: z.string().optional(), offset: z.number().int().nonnegative().optional(), before: z.string().optional() }).strict();
 const hash = (text: string | Buffer) => crypto.createHash("sha256").update(text).digest("hex");
 const encode = (value: z.infer<typeof CursorSchema>) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -77,13 +73,7 @@ export class RssSourceReader {
     this.source(input.sourceId);
     const scope = this.scope(input.sourceId, "runs");
     const cursor = this.cursor(input.cursor, scope);
-    const records = this.records().filter(run => !cursor?.before || runKey(run) < cursor.before);
-    const rows: RssSourceRun[] = [];
-    for (const record of records) {
-      const row = this.sourceRun(record, input.sourceId);
-      if (row) rows.push(row);
-      if (rows.length > input.limit) break;
-    }
+    const rows = rssRunHistory(this.repository.root, this.runsRoot).page(input.sourceId, cursor?.before, input.limit + 1);
     const runs = rows.slice(0, input.limit);
     const last = runs.at(-1);
     return { runs, nextCursor: rows.length > input.limit && last ? encode({ scope, before: `${last.createdAt}|${last.id}` }) : null };
@@ -93,19 +83,8 @@ export class RssSourceReader {
     const input = RssRunEventsQuerySchema.parse(raw);
     this.assertRoot(input.rootKey);
     this.source(input.sourceId);
-    const file = path.join(this.runsRoot, input.runId, "run.json");
-    const bytes = readBounded(this.runsRoot, file, 1024 * 1024);
-    const record = bytes && BrokerRunRecordSchema.parse(JSON.parse(bytes.toString("utf8")));
-    if (!record || !this.belongsToRoot(record) || !this.sourceRun(record, input.sourceId)) throw new Error("RSS run is unavailable for this source.");
-    const events = [3, 2, 1, 0].flatMap(index => {
-      const content = readBounded(this.runsRoot, path.join(this.runsRoot, input.runId, index ? `events.jsonl.${index}` : "events.jsonl"), MAX_FEED + 128 * 1024);
-      return content ? content.toString("utf8").split("\n").filter(Boolean).flatMap(line => {
-        try { const event = BrokerRunEventSchema.parse(JSON.parse(line)); return event.runId === input.runId && event.sequence > input.after ? [event] : []; }
-        catch { return []; } // A live append may end in an incomplete line; the next query retries it.
-      }) : [];
-    }).sort((a, b) => a.sequence - b.sequence);
-    const page = events.slice(0, input.limit);
-    return { events: page, nextAfter: events.length > input.limit ? page.at(-1)!.sequence : null };
+    if (!rssRunHistory(this.repository.root, this.runsRoot).get(input.runId, input.sourceId)) throw new Error("RSS run is unavailable for this source.");
+    return readRunEventsPage(this.runsRoot, input.runId, input.after, input.limit);
   }
 
   private assertRoot(key?: string) { if (key && key !== this.repository.rootKey()) throw new Error("Content folder changed; refresh the source list."); }
@@ -123,36 +102,7 @@ export class RssSourceReader {
       return cursor;
     } catch { throw new Error("Invalid RSS page cursor."); }
   }
-  private belongsToRoot(run: BrokerRunRecord) {
-    return run.request.skillId === "rss-article-saver" && run.rssContext?.root === fs.realpathSync(this.repository.root);
-  }
-  private records(): BrokerRunRecord[] {
-    if (!fs.existsSync(this.runsRoot)) return [];
-    return fs.readdirSync(this.runsRoot, { withFileTypes: true }).flatMap(entry => {
-      if (!entry.isDirectory() || !/^[a-zA-Z0-9-]{1,120}$/.test(entry.name)) return [];
-      const bytes = readBounded(this.runsRoot, path.join(this.runsRoot, entry.name, "run.json"), 1024 * 1024);
-      if (!bytes) return [];
-      try {
-        const run = BrokerRunRecordSchema.parse(JSON.parse(bytes.toString("utf8")));
-        return run.id === entry.name && this.belongsToRoot(run) ? [run] : [];
-      } catch { return []; } // Preserve malformed and pre-binding history without guessing its root.
-    }).sort((a, b) => runKey(b).localeCompare(runKey(a)));
-  }
-  private sourceRun(run: BrokerRunRecord, sourceId: string): RssSourceRun | null {
-    const bytes = readBounded(this.runsRoot, path.join(this.runsRoot, run.id, "work", "result.json"), MAX_FEED);
-    let result: z.infer<typeof ResultSchema>["results"][number] | undefined;
-    if (bytes) {
-      try { result = ResultSchema.parse(JSON.parse(bytes.toString("utf8"))).results.find(row => row.sourceId === sourceId); }
-      catch { /* Never infer a source outcome from the batch terminal status. */ }
-    }
-    if (!result && !run.rssContext?.sourceIds.includes(sourceId)) return null;
-    return { id: run.id, mode: run.rssContext!.mode, createdAt: run.createdAt, completedAt: run.completedAt, state: run.state,
-      outcome: result?.status || null, updated: result?.updated ?? null, collected: result?.collected ?? null,
-      error: result?.error || null, reason: result?.reason || null };
-  }
 }
-
-function runKey(run: BrokerRunRecord) { return `${run.createdAt}|${run.id}`; }
 
 function readBounded(root: string, file: string, max: number): Buffer | null {
   if (!fs.existsSync(file)) return null;

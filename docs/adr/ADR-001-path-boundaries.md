@@ -147,7 +147,7 @@ to travel with the private repository is explicitly listed in ADR-002 instead
   well-defined because state is partitioned by `root-id` under
   `userData/state/<root-id>/`.
 - **Negative:** every existing `ProductService` / `ContentIndexStore` /
-  `SourceRegistry` / `OpenmindFileSearch` / creative file service must be
+  `SourceRegistry` / `OpenmindFileSearch` / generic file service must be
   refactored to take a `OpenmindPathResolver` (or `openmindRootSnapshot`) via
   dependency injection instead of calling `findRepoRoot()`.
 - **Negative:** pre-release users with only a legacy `repoRoot` setting must

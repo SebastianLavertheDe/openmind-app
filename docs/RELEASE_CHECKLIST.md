@@ -189,5 +189,5 @@ npm run dist:win
 - Creative navigation, search category, workflow settings and IPC methods are absent.
 - Project output editing, AI file preview, local AI editing, WeChat export, daily briefs and daily-topic generation remain covered.
 - Old session origins and run contexts normalize without losing messages, IDs or retry/fork history.
-- App-owned retired packages stop new admission; schedules are disabled with a reason. Imported/retained copies and admitted work remain distinct.
+- App-owned retired packages stop new admission; direct schedules and dependent workflows are disabled with a reason. Pending retries become blocked, while admitted children finish with their original identity and are not retried after retirement. Imported/retained copies remain usable.
 - Original creative drafts, versions, assets and release records remain byte-for-byte unchanged; only derived search records are pruned. Frozen layout contracts v1–v4 remain unchanged.

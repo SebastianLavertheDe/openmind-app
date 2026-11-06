@@ -2287,3 +2287,9 @@
   overflow-y: auto;
   flex: 1;
 }
+
+
+/* Process cycles share the chat scroller and the document flow geometry owner. */
+.trace-cycle-list { min-width: 0; display: grid; gap: 12px; }
+.trace-cycle-list.is-virtual { position: relative; display: block; width: 100%; overflow-anchor: none; }
+.trace-cycle-list.is-virtual > .trace-cycle { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: 12px; }

@@ -5,6 +5,7 @@ import type { AppPaths } from "../paths/app-paths-service";
 import {
   SkillRunRequestSchema,
   type BrokerRunEvent,
+  type BrokerRunEventsQuery,
   type BrokerRunRecord,
   type SkillRunRequest
 } from "../../shared/execution-contracts";
@@ -101,6 +102,7 @@ export class ExecutionBroker {
   get(runId: string): BrokerRunRecord { return this.store.get(runId); }
   list(): BrokerRunRecord[] { return this.store.list(); }
   events(runId: string): BrokerRunEvent[] { return this.store.events(runId); }
+  eventsPage(runId: string, query: BrokerRunEventsQuery = {}) { return this.store.eventsPage(runId, query); }
   listArtifacts(runId?: string): BrokerRunRecord["artifacts"] { return this.store.listArtifacts(runId); }
   deleteHistory(runId: string): boolean {
     if (this.active.has(runId) || this.queue.some((entry) => entry.runId === runId) || this.inspecting.has(runId)) {

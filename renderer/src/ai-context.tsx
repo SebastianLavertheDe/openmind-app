@@ -579,15 +579,33 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
   const loadEvents = useCallback(async (sessionId: string, requestId: number) => {
     let loaded: AiEvent[];
     let page: AiTurnPage | null = null;
+    const cachedTurns = new Set((eventsBySessionRef.current[sessionId] || []).map(event => event.runId));
+    let reachedCachedHistory = false;
+    const isCurrent = () => selectionRequest.current === requestId && activeSessionRef.current === sessionId;
     if (window.openmind.aiListTurns) {
       page = await window.openmind.aiListTurns(sessionId, { limit: 20, sortDirection: "desc" });
       loaded = page.data.slice().reverse().flatMap((turn) => turn.events);
+      reachedCachedHistory = page.data.some(turn => cachedTurns.has(turn.id));
+      // Refresh the head without resetting the oldest loaded boundary. More
+      // than one page may have arrived while this conversation was inactive;
+      // bridge that gap until the refreshed head meets its cached history.
+      const seenCursors = new Set<string>();
+      const maxPages = Math.ceil(page.total / 20);
+      for (let pages = 1; cachedTurns.size && !reachedCachedHistory && page.nextCursor && pages < maxPages; pages++) {
+        if (!isCurrent() || seenCursors.has(page.nextCursor)) return;
+        seenCursors.add(page.nextCursor);
+        page = await window.openmind.aiListTurns(sessionId, { cursor: page.nextCursor, limit: 20, sortDirection: "desc" });
+        loaded = [...page.data.slice().reverse().flatMap(turn => turn.events), ...loaded];
+        reachedCachedHistory = page.data.some(turn => cachedTurns.has(turn.id));
+      }
     } else {
       loaded = await window.openmind.aiGetEvents(sessionId);
     }
-    if (selectionRequest.current !== requestId || activeSessionRef.current !== sessionId) return;
+    if (!isCurrent()) return;
     setEventsBySession((current) => ({ ...current, [sessionId]: mergeEvents(current[sessionId] || [], loaded) }));
-    setTurnCursorBySession((current) => ({ ...current, [sessionId]: page?.nextCursor || null }));
+    const nextCursor = page?.nextCursor || null;
+    setTurnCursorBySession((current) => ({ ...current, [sessionId]: reachedCachedHistory
+      && Object.prototype.hasOwnProperty.call(current, sessionId) ? current[sessionId] : nextCursor }));
   }, []);
 
   const loadOlderTurns = useCallback(async () => {

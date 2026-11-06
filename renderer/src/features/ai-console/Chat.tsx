@@ -14,6 +14,8 @@ import { useExitingList } from "../../design-system/use-exiting-list";
 import { selectRecentTurnEvents } from "../../ai-utils";
 import { ApprovalDecisionEvent } from "./approval";
 import { ApprovalBanner } from "./approval-banner";
+import { TraceCycleList, type TraceCycle } from "./TraceCycleList";
+import { MarkdownImageCatalog, markdownImageSources, type ImageSource } from "./markdown-images";
 import { ChatComposer, type ChatDraftSubmitHandler } from "./composer";
 import { NewTaskHome } from "./NewTaskHome";
 import { ChangeReviewCard, ChangeTraceCard } from "./diff";
@@ -23,7 +25,7 @@ import { AssistantMessage, ChatMarkdown, UserMessage } from "./message";
 import { MARKDOWN_ARTIFACT_START_FENCE, assistantBlocksVisibleText, assistantFileDeliverables, containsAssistantArtifact, parseAssistantContent } from "./artifact-fence";
 import { ReasoningCard } from "./thought";
 import { ActiveTodoFloat, selectRunTodoEvents, WorkStateCard } from "./plan";
-import { CommandGroup, ToolCallCard, hasViewedImageResult, toolIcon } from "./tool";
+import { CommandGroup, ToolCallCard, hasViewedImageResult, toolIcon, viewedImageSources } from "./tool";
 import { assistantPhase, changePaths, compactEvents, groupTimeline, technicalEventText, toolCategory, toolEventFailed, type TraceStep } from "./timeline";
 
 export {
@@ -815,8 +817,6 @@ function runProcessLabel(run: AiRun, processing: boolean, missingFinal: boolean)
   return m.ai.chat.processed;
 }
 
-type TraceCycle = { key: string; steps: TraceStep[] };
-
 const TraceStepList = memo(function TraceStepList({
   steps,
   run,
@@ -829,28 +829,35 @@ const TraceStepList = memo(function TraceStepList({
   liveCurrent: boolean;
 }) {
   useLocale();
-  if (!processing) return <TraceStepBlocks steps={steps} run={run} />;
-
-  const cycles = groupTraceCycles(steps);
-  const activeCycleIndex = liveCurrent
+  const cycles = useMemo(() => groupTraceCycles(steps), [steps]);
+  const [imageCache] = useState(() => new MarkdownImageCatalog(text => markdownImageSources(visibleProcessNarrative(text))));
+  const imageCatalog = useMemo(() => {
+    const keys = new Set<string>();
+    const images: ImageSource[] = [];
+    for (const step of steps) {
+      if (step.type === "commentary") {
+        keys.add(step.key);
+        images.push(...imageCache.read(step.key, commentaryText(step.events)));
+      } else if (step.type === "tool") {
+        images.push(...viewedImageSources(step.events, run.status).map(source => ({ source, title: source.replaceAll("\\", "/").split("/").at(-1) || source })));
+      } else if (step.type === "generated-images") {
+        images.push(...generatedImages(step.events).map(({ source, title }) => ({ source, title })));
+      }
+    }
+    imageCache.retain(keys);
+    return images;
+  }, [steps, run.status, imageCache]);
+  const activeCycleIndex = !processing || liveCurrent
     ? -1
     : findLastIndex(cycles, (cycle) => cycle.steps.some(traceStepActive));
   const fallbackActiveIndex = activeCycleIndex < 0 && run.status === "applying" && !liveCurrent
     ? cycles.length - 1
     : activeCycleIndex;
 
-  return cycles.map((cycle, index) => {
-    const current = index === fallbackActiveIndex;
-    return (
-      <div
-        className={`trace-cycle ${current ? "current" : "completed"}`}
-        data-trace-cycle={current ? "current" : "completed"}
-        key={cycle.key}
-      >
-        <TraceStepBlocks steps={cycle.steps} run={run} />
-      </div>
-    );
-  });
+  return <ChatImageGallery catalog={imageCatalog}>
+    <TraceCycleList cycles={cycles} currentKey={cycles[fallbackActiveIndex]?.key || null}
+      renderCycle={cycle => <TraceStepBlocks steps={cycle.steps} run={run} />} />
+  </ChatImageGallery>;
 });
 
 function TraceStepBlocks({ steps, run }: { steps: TraceStep[]; run: AiRun }) {
@@ -931,21 +938,23 @@ function processDuration(startedAt: string, completedAt?: string | null): string
 
 function ProcessNarrative({ text, streaming = false }: { text: string; streaming?: boolean }) {
   const locale = useLocale();
-  const visibleText = useMemo(() => {
-    if (!text.includes(MARKDOWN_ARTIFACT_START_FENCE) && !text.includes(FILE_DELIVERABLES_START_FENCE)) return text;
-    try {
-      const blocks = parseAssistantContent(text, "process");
-      return assistantBlocksVisibleText(blocks.filter((block) => block.type === "text"));
-    } catch {
-      return text;
-    }
-  }, [streaming, text, locale]);
+  const visibleText = useMemo(() => visibleProcessNarrative(text), [streaming, text, locale]);
   if (!visibleText.trim()) return null;
   return (
     <div className="process-narrative-block" aria-live={streaming ? "polite" : undefined}>
       <ChatMarkdown text={visibleText} streaming={streaming} className="process-narrative" />
     </div>
   );
+}
+
+function visibleProcessNarrative(text: string): string {
+  if (!text.includes(MARKDOWN_ARTIFACT_START_FENCE) && !text.includes(FILE_DELIVERABLES_START_FENCE)) return text;
+  try {
+    const blocks = parseAssistantContent(text, "process");
+    return assistantBlocksVisibleText(blocks.filter((block) => block.type === "text"));
+  } catch {
+    return text;
+  }
 }
 
 function commentaryText(events: AiEvent[]): string {

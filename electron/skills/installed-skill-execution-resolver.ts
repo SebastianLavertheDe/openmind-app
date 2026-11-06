@@ -38,6 +38,10 @@ export class InstalledSkillExecutionError extends Error {
  * `OPENMIND_PROVIDER_*` env), shared with the crontab-driven Python path.
  */
 export class InstalledSkillExecutionResolver {
+  // Policy metadata only. Execution admission must still inspect current bytes.
+  // Keep one entry per installed identity, not one per historical digest.
+  private readonly retirementDependencies = new Map<string, { identity: string; dependencies: string[] }>();
+
   constructor(
     private readonly packages: SkillPackageService,
     private readonly runtimes: RuntimeManager,
@@ -48,6 +52,35 @@ export class InstalledSkillExecutionResolver {
 
   installed(skillId: string): InstalledSkillRecord | undefined {
     return this.packages.getInstalledById(skillId);
+  }
+
+  /** A workflow cannot admit new work when one of its Process steps retired. */
+  isRetiredTarget(skillId: string): boolean {
+    const installed = this.packages.listInstalled();
+    const keys = new Set(installed.map(record => record.key));
+    for (const key of this.retirementDependencies.keys()) {
+      if (!keys.has(key)) this.retirementDependencies.delete(key);
+    }
+    const record = installed.find(candidate => candidate.id === skillId);
+    if (!record) return false;
+    // Recompute ownership/retention from current records: a cached dependency
+    // list must not freeze the user's decision to retain or replace a package.
+    const retired = new Set(installed.filter(candidate => this.packages.isRetired(candidate)).map(candidate => candidate.id));
+    if (retired.has(skillId)) return true;
+    if (!retired.size) return false;
+    const identity = JSON.stringify([record.version, record.digest, record.packagePath, record.installedAt]);
+    const cached = this.retirementDependencies.get(record.key);
+    if (cached?.identity === identity) return cached.dependencies.some(id => retired.has(id));
+    this.retirementDependencies.delete(record.key);
+    try {
+      const manifest = this.packages.inspectInstalledCopy(record).manifest;
+      const dependencies = manifest?.kind === "workflow" ? manifest.workflow.steps.map(step => step.skill) : [];
+      this.retirementDependencies.set(record.key, { identity, dependencies });
+      return dependencies.some(id => retired.has(id));
+    } catch {
+      // Integrity errors remain admission errors, not evidence of retirement.
+      return false;
+    }
   }
 
   /** Resolve the current user-enabled package at a new execution boundary. */

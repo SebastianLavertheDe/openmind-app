@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BookOpen, FileText, Film, Globe, Image, Layers, LayoutGrid, Package, Plus, Search } from "lucide-react";
 import { messages } from "@shared/messages";
 import { filterSkillLibrary, SKILL_SCENES, type AuthoredSkill, type SkillLibraryEntry, type SkillLibraryMode, type SkillLibrarySection, type SkillScene } from "@shared/skill-library";
@@ -18,15 +18,26 @@ const emptyFilters = (): Filters => ({ section: "all", query: "", origin: "all",
 
 function SkillCover({ entry }: { entry: SkillLibraryEntry }) {
   const [src, setSrc] = useState("");
+  const host = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const target = host.current;
+    if (!target || !entry.cover || !entry.authoringId || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(entries => {
+      setVisible(entries.some(item => item.isIntersecting));
+    }, { rootMargin: "240px" });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [entry.cover?.id, entry.authoringId]);
   useEffect(() => {
     let active = true;
-    if (entry.cover && entry.authoringId) void window.openmind.readSkillAssetImage!(entry.authoringId, entry.cover).then(value => { if (active) setSrc(value); }).catch(() => { if (active) setSrc(""); });
-    else setSrc("");
+    setSrc("");
+    if (visible && entry.cover && entry.authoringId && window.openmind.readSkillAssetThumbnail) void window.openmind.readSkillAssetThumbnail(entry.authoringId, entry.cover).then(value => { if (active) setSrc(value); }).catch(() => { if (active) setSrc(""); });
     return () => { active = false; };
-  }, [entry.cover?.id, entry.authoringId]);
+  }, [visible, entry.cover?.id, entry.authoringId, entry.revision]);
   const scene = entry.icon && entry.icon !== "auto" ? entry.icon : entry.category;
   const Icon = scene ? ICONS[scene] : Package;
-  return <div className={`skill-library-cover ${entry.category ? COVER_CLASSES[entry.category] : "skill-library-cover-imported"}${src ? " skill-library-cover-preview" : ""}`}>{src ? <img src={src} alt={entry.title} /> : <><Icon size={32} strokeWidth={1.5} aria-hidden /><span>{entry.category ? m.scenes[entry.category] : m.origin[entry.origin]}</span></>}</div>;
+  return <div ref={host} className={`skill-library-cover ${entry.category ? COVER_CLASSES[entry.category] : "skill-library-cover-imported"}${src ? " skill-library-cover-preview" : ""}`}>{src ? <img src={src} alt={entry.title} decoding="async" /> : <><Icon size={32} strokeWidth={1.5} aria-hidden /><span>{entry.category ? m.scenes[entry.category] : m.origin[entry.origin]}</span></>}</div>;
 }
 
 export function SkillLibraryPage({ providers, initialMode, storageScope, initialSourcePickerOpen, initialManagementSkillId, onUseSkill, onConfigure, onCatalogChange, renderManagement, renderImport }: {
@@ -50,12 +61,14 @@ export function SkillLibraryPage({ providers, initialMode, storageScope, initial
   const [editor, setEditor] = useState<AuthoredSkill | null>(null);
   const [management, setManagement] = useState<string | null>(initialManagementSkillId ?? null);
   const [importOpen, setImportOpen] = useState(Boolean(initialSourcePickerOpen));
+  const loadSequence = useRef(0);
   const load = useCallback(async () => {
-    try { setEntries(await window.openmind.listSkillLibrary!()); setError(""); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-    finally { setLoading(false); }
-  }, []);
-  useEffect(() => { void load(); window.addEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, load); return () => window.removeEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, load); }, [load, locale]);
+    const request = ++loadSequence.current;
+    try { const next = await window.openmind.listSkillLibrary!(); if (request === loadSequence.current) { setEntries(next); setError(""); } }
+    catch (cause) { if (request === loadSequence.current) setError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { if (request === loadSequence.current) setLoading(false); }
+  }, [storageScope]);
+  useEffect(() => { setEntries([]); setLoading(true); void load(); window.addEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, load); return () => { loadSequence.current++; window.removeEventListener(INSTALLED_SKILL_CATALOG_CHANGED_EVENT, load); }; }, [load, locale]);
   useEffect(() => { localStorage.setItem(storageKey, JSON.stringify({ mode, ...filters })); }, [storageKey, mode, filters]);
   const filter = filters[mode];
   const update = (patch: Partial<Filters>) => setFilters(current => ({ ...current, [mode]: { ...current[mode], ...patch } }));
@@ -112,7 +125,7 @@ export function SkillLibraryPage({ providers, initialMode, storageScope, initial
     {!loading && !shown.length ? <div className="skill-library-empty"><Search size={27} aria-hidden /><h3>{m.empty}</h3><p>{m.emptyHint}</p></div> : null}
     <div className="skill-library-grid">{shown.map(entry => {
       const actionable = entry.usable && !entry.reason && !(entry.origin === "authored" && !entry.installed);
-      return <article key={entry.id} className="skill-library-card workspace-card"><button type="button" className="skill-library-card-select" data-motion="selection" aria-haspopup="dialog" aria-pressed={selected?.id === entry.id} aria-label={entry.title || m.draft} onClick={() => setSelected(entry)}><SkillCover entry={entry} /><strong>{entry.title || m.draft}</strong><p>{entry.subtitle || entry.description}</p></button>{entry.contributor ? <SkillContributor contributor={entry.contributor} /> : null}<div className="skill-library-card-footer"><StatusBadge tone={entry.reason || !entry.enabled && entry.installed ? "warning" : "neutral"}>{entry.draft ? m.draft : entry.reason ? m.unavailable : entry.installed ? entry.enabled ? m.ready : m.disabled : m.origin.preset}</StatusBadge>{entry.origin === "authored" && !entry.installed ? <Button size="sm" variant="ghost" onClick={() => void openEditor(entry)}>{m.continueEdit}</Button> : <Button size="sm" variant="ghost" disabled={Boolean(busy) || !actionable} onClick={() => void run(entry)}>{busy === entry.id ? m.busy : !entry.installed ? m.installUse : entry.enabled ? m.use : m.enableUse}</Button>}</div>{entry.reason ? <p className="skill-library-card-reason">{entry.reason}</p> : null}</article>;
+      return <article key={`${storageScope}:${entry.id}`} className="skill-library-card workspace-card"><button type="button" className="skill-library-card-select" data-motion="selection" aria-haspopup="dialog" aria-pressed={selected?.id === entry.id} aria-label={entry.title || m.draft} onClick={() => setSelected(entry)}><SkillCover entry={entry} /><strong>{entry.title || m.draft}</strong><p>{entry.subtitle || entry.description}</p></button>{entry.contributor ? <SkillContributor contributor={entry.contributor} /> : null}<div className="skill-library-card-footer"><StatusBadge tone={entry.reason || !entry.enabled && entry.installed ? "warning" : "neutral"}>{entry.draft ? m.draft : entry.reason ? m.unavailable : entry.installed ? entry.enabled ? m.ready : m.disabled : m.origin.preset}</StatusBadge>{entry.origin === "authored" && !entry.installed ? <Button size="sm" variant="ghost" onClick={() => void openEditor(entry)}>{m.continueEdit}</Button> : <Button size="sm" variant="ghost" disabled={Boolean(busy) || !actionable} onClick={() => void run(entry)}>{busy === entry.id ? m.busy : !entry.installed ? m.installUse : entry.enabled ? m.use : m.enableUse}</Button>}</div>{entry.reason ? <p className="skill-library-card-reason">{entry.reason}</p> : null}</article>;
     })}</div>
     <Dialog open={Boolean(selected)} onClose={() => setSelected(null)} size="lg" aria-label={selected?.title || m.title}><DialogHeader titleId="skill-library-detail-title" title={selected?.title || m.title} onClose={() => setSelected(null)} closeLabel={messages.skillCenter.common.close} /><DialogBody>{selected ? <div className="skill-library-detail">{selected.contributor ? <SkillContributor contributor={selected.contributor} size="md" /> : null}<p>{selected.description || selected.subtitle}</p>{selected.authoringId && selected.images?.length ? <div className="skill-editor-gallery-grid">{selected.images.map(asset => <SkillAssetImage key={asset.id} documentId={selected.authoringId!} asset={asset} onOpen={src => setPreview({ id: asset.id, src })} />)}</div> : null}<dl><dt>{m.category}</dt><dd>{selected.category ? m.scenes[selected.category] : m.origin[selected.origin]}</dd><dt>{m.origin.all}</dt><dd>{selected.source}</dd>{selected.version ? <><dt>{messages.skillCenter.sourcePicker.version}</dt><dd>{selected.version}</dd></> : null}</dl>{selected.reason ? <p role="status">{selected.reason}</p> : null}{selected.reason ? <Button onClick={() => onConfigure?.(selected.category === "image" ? "image" : "runtime")}>{m.unavailable}</Button> : null}</div> : null}</DialogBody><DialogFooter>{selected?.origin === "authored" ? <><Button variant="ghost" onClick={() => void remove(selected)}>{m.remove}</Button><Button onClick={() => void openEditor(selected)}>{m.edit}</Button></> : null}{selected?.installed ? <Button variant="ghost" onClick={() => { setManagement(selected.skillId); setSelected(null); }}>{m.settings}</Button> : null}{selected && (selected.installed || selected.origin === "preset") ? <Button variant="primary" disabled={Boolean(busy) || !selected.usable || Boolean(selected.reason)} onClick={() => void run(selected)}>{selected.installed ? m.use : m.installUse}</Button> : null}</DialogFooter></Dialog>
     <Dialog open={management !== null} onClose={() => { setManagement(null); void changed(); }} size="lg" aria-label={m.settings}><DialogHeader titleId="skill-library-management-title" title={m.settings} onClose={() => { setManagement(null); void changed(); }} closeLabel={messages.skillCenter.common.close} /><DialogBody>{management !== null ? renderManagement(management || undefined) : null}</DialogBody></Dialog>

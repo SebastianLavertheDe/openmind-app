@@ -181,6 +181,9 @@ export const BrokerRunEventSchema = z.object({
   droppedBytes: z.number().int().nonnegative().optional()
 }).strict();
 export type BrokerRunEvent = z.infer<typeof BrokerRunEventSchema>;
+export type BrokerRunEventsPage = { events: BrokerRunEvent[]; nextAfter: number | null };
+export const BrokerRunEventsQuerySchema = z.object({ after: z.number().int().min(-1).default(-1), limit: z.number().int().min(1).max(1000).default(200) });
+export type BrokerRunEventsQuery = z.input<typeof BrokerRunEventsQuerySchema>;
 
 export const WorkflowRunStateSchema = z.enum(["queued", "running", "succeeded", "failed", "cancelled"]);
 

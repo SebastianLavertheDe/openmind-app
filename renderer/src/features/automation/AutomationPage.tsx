@@ -13,12 +13,12 @@ import { ErrorState, LogViewer, Select, ToggleSwitch, Input, InputGroup } from "
 import { INSTALLED_SKILL_CATALOG_CHANGED_EVENT } from "../../installed-skill-events";
 import type { ConfirmAction } from "../../feedback-context";
 import { readWithDeadline } from "../../request-deadline";
+import { useAutomationRunDetails, type WorkflowStepDetails } from "./use-automation-run-details";
 
 const m = messages;
 
 type RuntimeState = { running: boolean; state: string };
 type TriggerType = "daily" | "weekly" | "hourly" | "interval" | "cron";
-type WorkflowStepDetails = { step: WorkflowRunRecord["stepRuns"][number]; child: BrokerRunRecord | null; events: BrokerRunEvent[] };
 
 export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmation }: { initialSkillId?: string; confirmAction?: ConfirmAction }) {
   const locale = useLocale();
@@ -29,11 +29,8 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
   const [selectedId, setSelectedId] = useState(() => initialSkillId || "");
   const [runtime, setRuntime] = useState<Record<string, RuntimeState>>({});
   const [logs, setLogs] = useState<Record<string, string[]>>({});
-  const [childRun, setChildRun] = useState<BrokerRunRecord | null>(null);
-  const [childEvents, setChildEvents] = useState<BrokerRunEvent[]>([]);
-  const [workflowRun, setWorkflowRun] = useState<WorkflowRunRecord | null>(null);
-  const [workflowSteps, setWorkflowSteps] = useState<WorkflowStepDetails[]>([]);
   const [liveEvents, setLiveEvents] = useState<Record<string, BrokerRunEvent[]>>({});
+  const [runActivity, setRunActivity] = useState<BrokerRunEvent | null>(null);
   const { copied, copy } = useClipboard({ successMs: 1600 });
   const [loading, setLoading] = useState(true);
   const [runCommand, setRunCommand] = useState<{ ruleId: string; phase: "starting" | "stopping" } | null>(null);
@@ -96,6 +93,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
     if (typeof window.openmind.onSkillRunEvent !== "function") return;
     return window.openmind.onSkillRunEvent((event) => {
       setLiveEvents((current) => ({ ...current, [event.runId]: appendRunEvent(current[event.runId] || [], event) }));
+      if (isActiveRunState(event.state) && event.stream !== "stdout" && event.stream !== "stderr") setRunActivity(event);
       if (!isActiveRunState(event.state)) void load();
     });
   }, [load]);
@@ -108,50 +106,7 @@ export function AutomationPage({ initialSkillId, confirmAction = rejectConfirmat
   const selectedLogs = selected ? logs[selected.target.id] || [] : [];
   const selectedSchedule = selected ? schedules.find((schedule) => schedule.ruleId === selected.id) : undefined;
 
-  useEffect(() => {
-    let cancelled = false;
-    let pollTimer = 0;
-    setChildRun(null);
-    setChildEvents([]);
-    setWorkflowRun(null);
-    setWorkflowSteps([]);
-    const runId = latestRun?.childRunId;
-    const targetType = latestRun?.target.type;
-    if (!runId) return () => { cancelled = true; };
-    const readSkill = async (id: string): Promise<{ child: BrokerRunRecord | null; events: BrokerRunEvent[] }> => {
-      if (typeof window.openmind.getSkillRun !== "function") return { child: null, events: [] };
-      const [child, events] = await Promise.all([
-        window.openmind.getSkillRun(id).catch(() => null),
-        typeof window.openmind.getSkillRunEvents === "function" ? window.openmind.getSkillRunEvents(id).catch(() => []) : Promise.resolve([])
-      ]);
-      return { child, events };
-    };
-    const refresh = async () => {
-      try {
-        if (targetType === "skill") {
-          const details = await readSkill(runId);
-          if (!cancelled) { setChildRun(details.child); setChildEvents(details.events); }
-          return;
-        }
-        if (typeof window.openmind.getWorkflowRun !== "function") return;
-        const workflow = await window.openmind.getWorkflowRun(runId);
-        const steps = await Promise.all(workflow.stepRuns.map(async (step) => {
-          const details = step.runId ? await readSkill(step.runId) : { child: null, events: [] };
-          return { step, ...details };
-        }));
-        if (!cancelled) { setWorkflowRun(workflow); setWorkflowSteps(steps); }
-        if (!isActiveRunState(workflow.state) && pollTimer) {
-          window.clearInterval(pollTimer);
-          void load();
-        }
-      } catch {
-        if (!cancelled) { setChildRun(null); setChildEvents([]); setWorkflowRun(null); setWorkflowSteps([]); }
-      }
-    };
-    void refresh();
-    if (targetType === "workflow") pollTimer = window.setInterval(() => { void refresh(); }, 1_000);
-    return () => { cancelled = true; if (pollTimer) window.clearInterval(pollTimer); };
-  }, [latestRun?.childRunId, latestRun?.target.type, load]);
+  const { childRun, childEvents, workflowRun, workflowSteps } = useAutomationRunDetails(latestRun?.childRunId, latestRun?.target.type, load, runActivity);
 
   const visibleChildEvents = useMemo(() => mergeRunEvents(childEvents, childRun ? liveEvents[childRun.id] || [] : []), [childEvents, childRun, liveEvents, locale]);
   const visibleWorkflowSteps = useMemo(() => workflowSteps.map((details) => ({ ...details, events: mergeRunEvents(details.events, details.step.runId ? liveEvents[details.step.runId] || [] : []) })), [liveEvents, workflowSteps, locale]);

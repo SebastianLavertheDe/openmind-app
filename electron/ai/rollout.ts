@@ -264,12 +264,12 @@ export function paginateTurns(
   const ordered = params.sortDirection === "desc"
     ? reconstruction.turns.slice().reverse()
     : reconstruction.turns.slice();
-  const offset = decodeCursor(params.cursor);
+  const offset = decodeCursor(params.cursor, ordered, params.sortDirection);
   const data = ordered.slice(offset, offset + params.limit);
   const nextOffset = offset + data.length;
   return {
     data,
-    nextCursor: nextOffset < ordered.length ? encodeCursor(nextOffset) : null,
+    nextCursor: nextOffset < ordered.length ? encodeCursor(ordered[nextOffset].id, data.at(-1)!.id, params.sortDirection) : null,
     total: ordered.length,
     parseErrors: reconstruction.context.parseErrors
   };
@@ -475,14 +475,26 @@ function contextDigest(run: AiRun, context: NonNullable<AiRun["turnContext"]>): 
   })).digest("hex");
 }
 
-function encodeCursor(offset: number): string {
-  return Buffer.from(JSON.stringify({ offset }), "utf8").toString("base64url");
+function encodeCursor(nextTurnId: string, previousTurnId: string, direction: "asc" | "desc"): string {
+  return Buffer.from(JSON.stringify({ nextTurnId, previousTurnId, direction }), "utf8").toString("base64url");
 }
 
-function decodeCursor(cursor: string | null): number {
+function decodeCursor(cursor: string | null, turns: RolloutReconstruction["turns"], direction: "asc" | "desc"): number {
   if (!cursor) return 0;
   try {
-    const value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as { offset?: unknown };
+    const value = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")) as {
+      offset?: unknown; nextTurnId?: unknown; previousTurnId?: unknown; direction?: unknown;
+    };
+    if (typeof value.nextTurnId === "string") {
+      if (value.direction !== direction) return 0;
+      const next = turns.findIndex(turn => turn.id === value.nextTurnId);
+      if (next >= 0) return next;
+      const previous = turns.findIndex(turn => turn.id === value.previousTurnId);
+      // A rollback can remove the next turn. Continue after the surviving
+      // boundary; when both disappeared, refresh from the surviving head.
+      return previous >= 0 ? previous + 1 : 0;
+    }
+    // Accept older in-flight offset cursors during a renderer/worker upgrade.
     const offset = Number(value.offset);
     return Number.isInteger(offset) && offset >= 0 ? offset : 0;
   } catch {

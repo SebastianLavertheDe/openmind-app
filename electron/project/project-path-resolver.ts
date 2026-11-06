@@ -59,6 +59,9 @@ export class ProjectPathResolver {
   private readonly lockTimeoutMs: number;
   private readonly staleLockMs: number;
   private mutationLockDepth = 0;
+  // Shared only by one locked operation. A root-directory identity check also
+  // catches creates/renames performed by recovery or an external writer.
+  private projectNamesSnapshot: { stamp: string; names: ProjectName[]; identities: Map<string, ProjectName> } | null = null;
 
   constructor(openmindRoot: string, options: ProjectPathResolverOptions = {}) {
     const requested = path.resolve(openmindRoot);
@@ -100,7 +103,14 @@ export class ProjectPathResolver {
   }
 
   listProjectNames(): ProjectName[] {
+    return this.readProjectNames().names.slice();
+  }
+
+  private readProjectNames() {
     this.initialize();
+    const stat = fs.lstatSync(this.projectsRoot, { bigint: true });
+    const stamp = `${stat.dev}:${stat.ino}:${stat.nlink}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+    if (this.mutationLockDepth > 0 && this.projectNamesSnapshot?.stamp === stamp) return this.projectNamesSnapshot;
     const projects: ProjectName[] = [];
     const identities = new Map<string, ProjectName>();
     for (const entry of fs.readdirSync(this.projectsRoot, { withFileTypes: true })) {
@@ -134,13 +144,15 @@ export class ProjectPathResolver {
         // Invalid externally-created entries remain untouched but are not Project records.
       }
     }
-    return projects.sort((left, right) => left.localeCompare(right));
+    const snapshot = { stamp, names: projects.sort((left, right) => left.localeCompare(right)), identities };
+    if (this.mutationLockDepth > 0) this.projectNamesSnapshot = snapshot;
+    return snapshot;
   }
 
   findExistingName(rawName: string): ProjectName | null {
     const name = this.parseName(rawName);
     const key = projectNameUniquenessKey(name);
-    return this.listProjectNames().find((candidate) => projectNameUniquenessKey(candidate) === key) ?? null;
+    return this.readProjectNames().identities.get(key) ?? null;
   }
 
   createProjectRoot(rawName: string): ResolvedProject {
@@ -152,6 +164,7 @@ export class ProjectPathResolver {
       const rootPath = path.join(this.projectsRoot, name);
       try {
         fs.mkdirSync(rootPath, { recursive: false });
+        this.projectNamesSnapshot = null;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "EEXIST") {
           throw new ProjectPathError("project-already-exists", `项目“${name}”已存在。`, name);
@@ -208,6 +221,7 @@ export class ProjectPathResolver {
           throw error;
         }
       }
+      this.projectNamesSnapshot = null;
       return this.resolveProject(nextName);
     });
   }
@@ -306,6 +320,7 @@ export class ProjectPathResolver {
       return operation();
     } finally {
       this.mutationLockDepth = 0;
+      this.projectNamesSnapshot = null;
       releaseOwnedLock(lockPath, token);
     }
   }

@@ -1124,8 +1124,6 @@ button:not([data-ui-control]):focus-visible, input:not([data-ui-control]):focus-
 @keyframes app-spin { to { transform: rotate(360deg); } }
 .plain-text-fallback { white-space: pre-wrap; word-break: break-word; }
 
-/* ===== Creative Center ===== */
-
 /* ============================================================
    AI 工作台交互与视觉优化
    按交互功能分组组织样式规则。

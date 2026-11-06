@@ -779,8 +779,10 @@ export interface InstalledSkillView {
   sourcePackageRef?: string;
   sourceRevision?: string;
   packagePath: string;
-  /** Main-side package inspection and digest verification passed. */
+  /** Informational catalog integrity status; execution always verifies current bytes. */
   usable: boolean;
+  /** Cached display diagnostics included with the catalog; never execution admission. */
+  inspection?: SkillPackageInspectionView | null;
   /** User default for future AI conversations; existing sessions keep a snapshot. */
   enabled: boolean;
   signatureStatus: "unsigned" | "valid" | "invalid" | "revoked";
@@ -872,6 +874,8 @@ export const UserPreferencesSchema = z.object({
   uiLanguage: z.enum(["zh-CN", "en"]).default("zh-CN"),
   density: z.enum(["compact", "default", "comfortable"]).default("default"),
   fontSize: z.enum(["small", "default", "large"]).default("default"),
+  // Read/reset compatibility for existing settings only. Current editors own
+  // their save policy; these legacy values never schedule archiving/deletion.
   autoSaveIntervalMs: z.number().int().min(5000).max(600000).default(30000),
   maxVersions: z.number().int().min(3).max(200).default(50),
   archiveAfterDays: z.number().int().min(7).max(365).default(90),
@@ -1127,6 +1131,7 @@ export interface DesktopApi {
   importSkillAssets?(id: string, imageOnly: boolean): Promise<import("./skill-library").SkillAsset[]>;
   importSkillAvatar?(id: string): Promise<import("./skill-library").SkillAsset | null>;
   readSkillAssetImage?(id: string, asset: import("./skill-library").SkillAsset): Promise<string>;
+  readSkillAssetThumbnail?(id: string, asset: import("./skill-library").SkillAsset): Promise<string>;
   suggestSkillField?(input: { field: "name" | "subtitle" | "inputHint" | "description"; document: import("./skill-library").AuthoredSkill; providerId: string }): Promise<string>;
 
   getDefaultSkillsEnabled(): Promise<boolean>;
@@ -1145,6 +1150,7 @@ export interface DesktopApi {
   listSkillRuns(): Promise<BrokerRunRecord[]>;
   getSkillRun(runId: string): Promise<BrokerRunRecord>;
   getSkillRunEvents(runId: string): Promise<BrokerRunEvent[]>;
+  getSkillRunEventsPage?(runId: string, query?: import("./execution-contracts").BrokerRunEventsQuery): Promise<import("./execution-contracts").BrokerRunEventsPage>;
   listRunArtifacts(runId?: string): Promise<RunArtifact[]>;
   retrySkillRun(runId: string): Promise<BrokerRunRecord>;
   retryWorkflowStep(runId: string, stepId: string): Promise<WorkflowRunRecord>;

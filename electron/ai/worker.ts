@@ -59,6 +59,7 @@ async function dispatch(request: WorkerRequest): Promise<unknown> {
     case "brief-run": return scheduler.runDailyBrief(first as never);
     case "skill-run-get": return scheduler.getSkillRun(String(first));
     case "skill-run-events": return scheduler.getSkillRunEvents(String(first));
+    case "skill-run-events-page": return scheduler.getSkillRunEventsPage(String(first), (second || {}) as never);
     case "run-list-artifacts": return scheduler.listRunArtifacts(typeof first === "string" && first ? first : undefined);
     case "run-retry": return scheduler.retrySkillRun(String(first));
     case "run-retry-step": return scheduler.retryWorkflowStep(String(first), String(second));

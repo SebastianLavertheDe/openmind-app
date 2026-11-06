@@ -23,6 +23,7 @@ export const IPC = {
   SKILL_LIBRARY_ASSETS: "skill-library:importSkillAssets",
   SKILL_LIBRARY_AVATAR: "skill-library:importSkillAvatar",
   SKILL_LIBRARY_IMAGE: "skill-library:readSkillAssetImage",
+  SKILL_LIBRARY_THUMBNAIL: "skill-library:readSkillAssetThumbnail",
   SKILL_LIBRARY_SUGGEST: "skill-library:suggestSkillField",
 
   WECHAT_ACCOUNT_GET: "wechat:account-get",
@@ -97,6 +98,7 @@ export const IPC = {
   SKILL_RUN_LIST: "skill:run-list",
   SKILL_RUN_GET: "skill:run-get",
   SKILL_RUN_EVENTS: "skill:run-events",
+  SKILL_RUN_EVENTS_PAGE: "skill:run-events-page",
   RUN_LIST_ARTIFACTS: "run:list-artifacts",
   RUN_RETRY: "run:retry",
   RUN_RETRY_STEP: "run:retry-step",

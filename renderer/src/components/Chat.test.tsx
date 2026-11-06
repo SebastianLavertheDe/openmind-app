@@ -2269,6 +2269,99 @@ describe("chat timeline", () => {
     expect(process.querySelector(".spin")).toBeNull();
   });
 
+  it.each(["running", "completed"] as const)("windows interleaved reasoning and tools for a %s long turn", async status => {
+    const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
+    const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(600);
+    const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(600);
+    try {
+      const run = { ...makeRun(), status, completedAt: status === "completed" ? "2026-01-01T00:01:00.000Z" : null };
+      let seq = 1;
+      const events = [makeEvent("user", "user-message", { text: "inspect many files" }, seq++)];
+      for (let index = 0; index < 300; index++) {
+        events.push(makeEvent(`reason-${index}`, "reasoning-summary", { text: `inspect file ${index}` }, seq++));
+        events.push(makeEvent(`start-${index}`, "tool-start", { itemId: `call-${index}`, tool: "Read", input: { file_path: `file-${index}.ts` } }, seq++));
+        events.push(makeEvent(`end-${index}`, "tool-complete", { itemId: `call-${index}`, output: "done" }, seq++));
+      }
+      if (status === "completed") events.push(makeEvent("final", "assistant-message", { text: "All files inspected", phase: "final" }, seq++));
+      window.openmind.aiGetEvents = async () => events;
+      const { container } = render(<AiProvider initial={snapshotForRun(run, status === "running" ? "running" : "idle")}><Chat /></AiProvider>);
+      const process = disclosureFor(await screen.findByText(status === "running" ? "正在处理" : "已处理"));
+      openDisclosure(process);
+      await waitFor(() => expect(container.querySelector(".trace-cycle-list.is-virtual")).toBeTruthy());
+      expect(container.querySelectorAll(".tool-event").length).toBeGreaterThan(0);
+      expect(container.querySelectorAll(".tool-event").length).toBeLessThan(25);
+      expect(container.querySelector('[data-trace-index][aria-setsize="300"]')).toBeTruthy();
+    } finally { height.mockRestore(); width.mockRestore(); clientWidth.mockRestore(); }
+  });
+
+  it("keeps generated resources before later Markdown images in the gallery without preloading folded images", async () => {
+    const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:01:00.000Z" };
+    const image = generatedImage(0);
+    const read = vi.fn(async () => ({ dataUrl: "data:image/png;base64,AAA=", width: 10, height: 10 }));
+    window.openmind.readChatImage = read;
+    window.openmind.aiGetEvents = async () => [
+      makeEvent("user", "user-message", { text: "compare images" }, 1),
+      makeEvent("generated", "image-artifact", { image }, 2),
+      makeEvent("comment", "assistant-message", { text: "![later](openmind/assets/later.png)", phase: "commentary" }, 3),
+      makeEvent("final", "assistant-message", { text: "Compared", phase: "final" }, 4)
+    ];
+    render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+    openDisclosure(disclosureFor(await screen.findByText("已处理")));
+    const later = await screen.findByRole("button", { name: "查看原图：later" });
+    expect(screen.queryByRole("button", { name: `查看原图：${image.title}` })).toBeNull();
+    expect(read.mock.calls).not.toContainEqual([expect.objectContaining({ source: image.source })]);
+    fireEvent.click(later);
+    const dialog = screen.getByRole("dialog");
+    await waitFor(() => expect(within(dialog).getByAltText("later")).toBeTruthy());
+    expect(dialog.textContent).toContain("2 / 2");
+    fireEvent.keyDown(dialog, { key: "ArrowLeft" });
+    await waitFor(() => expect(within(dialog).getByAltText(image.title)).toBeTruthy());
+    expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ source: image.source, variant: "original" }));
+    expect(read.mock.calls).not.toContainEqual([expect.objectContaining({ source: image.source, variant: "thumbnail" })]);
+  });
+
+  it("navigates all images across 100 windowed Markdown and view_image cycles without prefetching originals", async () => {
+    const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
+    const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(600);
+    const clientWidth = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(600);
+    try {
+      const run = { ...makeRun(), status: "completed" as const, completedAt: "2026-01-01T00:01:00.000Z" };
+      let seq = 1;
+      const events = [makeEvent("user", "user-message", { text: "compare screenshots" }, seq++)];
+      for (let index = 0; index < 100; index++) {
+        if (index % 2 === 0) events.push(makeEvent(`comment-${index}`, "assistant-message", { text: `![Markdown ${index}](openmind/assets/image-${index}.png)`, phase: "commentary" }, seq++));
+        else {
+          events.push(makeEvent(`reason-${index}`, "reasoning-summary", { text: `view image ${index}` }, seq++));
+          events.push(makeEvent(`start-${index}`, "tool-start", { itemId: `call-${index}`, tool: "view_image", input: { path: `openmind/assets/image-${index}.png` } }, seq++));
+          events.push(makeEvent(`end-${index}`, "tool-complete", { itemId: `call-${index}`, output: "done" }, seq++));
+        }
+      }
+      events.push(makeEvent("final", "assistant-message", { text: "Comparison finished", phase: "final" }, seq++));
+      const read = vi.fn(async () => ({ dataUrl: "data:image/png;base64,AAA=", width: 10, height: 10 }));
+      window.openmind.readChatImage = read;
+      window.openmind.aiGetEvents = async () => events;
+      const { container } = render(<AiProvider initial={snapshotForRun(run, "idle")}><Chat /></AiProvider>);
+      openDisclosure(disclosureFor(await screen.findByText("已处理")));
+      const first = await screen.findByRole("button", { name: "查看原图：Markdown 0" });
+      expect(container.querySelectorAll("[data-trace-index]").length).toBeLessThan(25);
+      expect(container.querySelector('[data-trace-index="98"]')).toBeNull();
+      expect(container.querySelector('[data-trace-index="99"]')).toBeNull();
+      expect(read.mock.calls).not.toContainEqual([expect.objectContaining({ variant: "original" })]);
+      expect(read.mock.calls).not.toContainEqual([expect.objectContaining({ source: "openmind/assets/image-99.png" })]);
+      fireEvent.click(first);
+      const dialog = screen.getByRole("dialog");
+      await waitFor(() => expect(within(dialog).getByAltText("Markdown 0")).toBeTruthy());
+      expect(dialog.textContent).toContain("1 / 100");
+      fireEvent.keyDown(dialog, { key: "ArrowLeft" });
+      await waitFor(() => expect(within(dialog).getByAltText("image-99.png")).toBeTruthy());
+      expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ source: "openmind/assets/image-99.png", variant: "original" }));
+      fireEvent.keyDown(dialog, { key: "ArrowLeft" });
+      await waitFor(() => expect(within(dialog).getByAltText("Markdown 98")).toBeTruthy());
+      expect(read).toHaveBeenLastCalledWith(expect.objectContaining({ source: "openmind/assets/image-98.png", variant: "original" }));
+      expect(container.querySelector('[data-trace-index="98"]')).toBeNull();
+    } finally { height.mockRestore(); width.mockRestore(); clientWidth.mockRestore(); }
+  });
+
   it("keeps completed process cycles visible alongside the running cycle", async () => {
     const run = makeRun();
     window.openmind.aiGetEvents = async () => [

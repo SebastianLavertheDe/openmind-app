@@ -639,6 +639,30 @@ describe("SkillPackageService", () => {
     expect(() => service.inspectInstalledCopy(installed)).toThrow(/digest/);
   });
 
+  it("shares catalog diagnostics without rereading package bytes and invalidates changed files", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "echo original\n");
+    fs.writeFileSync(path.join(source, "pyproject.toml"), "[project]\nname='example'\n");
+    fs.writeFileSync(path.join(source, "payload.bin"), Buffer.alloc(1024 * 1024, 7));
+    const installed = service.install(source, { sourceType: "git", sourceLocator: "https://example.test/skills" });
+    const first = service.listInstalledViews()[0];
+    expect(first).toMatchObject({ usable: true, inspection: { valid: true, sourceKind: "git", sourcePath: "https://example.test/skills" } });
+    const reads = vi.spyOn(fs, "readFileSync");
+    try {
+      expect(service.listInstalledViews()[0]).toEqual(first);
+      expect(service.inspectInstalledView(installed)).toEqual(first.inspection);
+      expect(service.inspectInstalledCopyForDisplay(installed).digest).toBe(installed.digest);
+      expect(reads.mock.calls.filter(([file]) => String(file).startsWith(installed.packagePath + path.sep))).toHaveLength(0);
+
+      fs.appendFileSync(path.join(installed.packagePath, "run.sh"), "echo changed\n");
+      expect(service.listInstalledViews()[0]).toMatchObject({ usable: false, inspection: { valid: true } });
+      expect(reads.mock.calls.some(([file]) => String(file) === path.join(installed.packagePath, "payload.bin"))).toBe(true);
+      expect(() => service.inspectInstalledCopyForDisplay(installed)).toThrow(/digest/);
+      expect(() => service.inspectInstalledCopy(installed)).toThrow(/digest/);
+    } finally { reads.mockRestore(); }
+  });
+
   it("defaults installed Skills to enabled and persists an independent disable override", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);

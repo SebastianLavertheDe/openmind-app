@@ -66,6 +66,78 @@ describe("AutomationRepository", () => {
 });
 
 describe("AutomationScheduler", () => {
+  it("calculates weekly and daily schedule rows without scanning each minute", () => {
+    const harness = createHarness(new Date("2026-11-06T00:00:00.000Z"));
+    for (let index = 0; index < 3; index++) harness.scheduler.saveRule(rule({ id: `weekly-${index}`,
+      timezone: "Asia/Shanghai", trigger: { type: "weekly", daysOfWeek: [5], at: "07:00" } }));
+    harness.scheduler.saveRule(rule({ id: "daily", timezone: "Asia/Shanghai", trigger: { type: "daily", at: "18:00" } }));
+    harness.scheduler.saveRule(rule({ id: "disabled", enabled: false, trigger: { type: "daily", at: "18:00" } }));
+    const formats = vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts");
+    try {
+      const schedules = harness.scheduler.listSchedules();
+      expect(schedules.filter(item => item.ruleId.startsWith("weekly-")).map(item => item.nextRunAt))
+        .toEqual(Array(3).fill("2026-11-12T23:00:00.000Z"));
+      expect(schedules.find(item => item.ruleId === "daily")?.nextRunAt).toBe("2026-11-06T10:00:00.000Z");
+      expect(schedules.find(item => item.ruleId === "disabled")?.nextRunAt).toBeNull();
+      expect(formats.mock.calls.length).toBeLessThan(100);
+    } finally { formats.mockRestore(); }
+  });
+
+  it.each([
+    ["America/New_York", "2026-03-08T06:00:00.000Z", { type: "daily", at: "02:30" }, "2026-03-09T06:30:00.000Z"],
+    ["America/New_York", "2026-11-01T05:45:00.000Z", { type: "daily", at: "01:30" }, "2026-11-01T06:30:00.000Z"],
+    ["Australia/Lord_Howe", "2026-04-04T15:00:00.000Z", { type: "daily", at: "01:45" }, "2026-04-04T15:15:00.000Z"],
+    ["Asia/Kathmandu", "2026-11-06T00:00:01.000Z", { type: "hourly" }, "2026-11-06T00:15:00.000Z"],
+    ["America/New_York", "2026-11-01T05:45:00.000Z", { type: "cron", expression: "* 1 * * *" }, "2026-11-01T05:45:00.000Z"],
+    ["America/New_York", "2026-11-01T05:45:01.000Z", { type: "cron", expression: "0,30 1 * * *" }, "2026-11-01T06:00:00.000Z"],
+    ["UTC", "2026-11-06T00:00:00.000Z", { type: "cron", expression: "*/15 8-9 * * 5" }, "2026-11-06T08:00:00.000Z"],
+    ["UTC", "2026-11-06T00:00:00.000Z", { type: "cron", expression: "0 0 31 2 *" }, null]
+  ] as const)("preserves zoned candidate semantics in %s from %s", (timezone, from, trigger, expected) => {
+    const harness = createHarness(new Date(from));
+    harness.scheduler.saveRule(rule({ id: "zoned", timezone, trigger }));
+    expect(harness.scheduler.listSchedules()[0].nextRunAt).toBe(expected);
+  });
+
+  it.each(["succeeded", "failed"] as const)("lets admitted retired work finish as %s without scheduling another attempt", async state => {
+    let retired = false;
+    const harness = createHarness(new Date("2026-11-06T09:00:00.000Z"), { isRetiredTarget: () => retired });
+    const rule = harness.scheduler.saveRule({ ...DEFAULT_AUTOMATION_RULES[0], id: "legacy-writing", enabled: true,
+      target: { type: "skill", id: "daily-writing-orchestrator", versionPolicy: "*" }, retryPolicy: { maxAttempts: 3, backoffMs: 1000 } });
+    const run = await harness.scheduler.runNow(rule.id);
+    retired = true;
+    await harness.scheduler.tick();
+    expect(harness.children.get(run.childRunId!)!.state).toBe("running");
+    expect(harness.scheduler.listRuns(rule.id).find(item => item.id === run.id)!).toMatchObject({ state: "running", childRunId: run.childRunId });
+    expect(harness.scheduler.getRule(rule.id).enabled).toBe(false);
+    harness.children.get(run.childRunId!)!.state = state;
+    await harness.scheduler.tick();
+    const finished = harness.scheduler.listRuns(rule.id).find(item => item.id === run.id)!;
+    expect(finished).toMatchObject({ state, childRunId: run.childRunId, retryAt: null });
+    expect(finished.completedAt).toBeTruthy();
+    await harness.scheduler.tick();
+    expect(harness.submitted).toEqual([rule.target.id]);
+    expect(harness.scheduler.listRuns(rule.id).find(item => item.id === run.id)!).toEqual(finished);
+  });
+
+  it("blocks pending retired retries without losing their history or leaving them queued", async () => {
+    let retired = false;
+    const harness = createHarness(new Date("2026-11-06T09:00:00.000Z"), { isRetiredTarget: () => retired });
+    const rule = harness.scheduler.saveRule({ ...DEFAULT_AUTOMATION_RULES[0], id: "legacy-writing", enabled: true,
+      target: { type: "skill", id: "daily-writing-orchestrator", versionPolicy: "*" }, retryPolicy: { maxAttempts: 3, backoffMs: 1000 } });
+    const run = await harness.scheduler.runNow(rule.id);
+    harness.children.get(run.childRunId!)!.state = "failed";
+    await harness.scheduler.tick();
+    expect(harness.scheduler.listRuns(rule.id).find(item => item.id === run.id)!.state).toBe("queued");
+    retired = true;
+    await harness.scheduler.tick();
+    const blocked = harness.scheduler.listRuns(rule.id).find(item => item.id === run.id)!;
+    expect(blocked).toMatchObject({ state: "blocked", attempt: 1, childRunId: null, retryAt: null, error: expect.stringContaining("退役") });
+    expect(blocked.completedAt).toBeTruthy();
+    await harness.scheduler.tick();
+    expect(harness.scheduler.listRuns(rule.id).find(item => item.id === run.id)!).toEqual(blocked);
+    expect(harness.submitted).toEqual([rule.target.id]);
+  });
+
   it("rejects retired targets at save and manual admission, preserving disabled configuration", async () => {
     const harness = createHarness(new Date("2026-11-05T09:00:00.000Z"), { isRetiredTarget: id => id === "daily-writing-orchestrator" });
     const rule = { ...DEFAULT_AUTOMATION_RULES[0], id: "legacy-writing", target: { type: "skill" as const, id: "daily-writing-orchestrator", versionPolicy: "*" } };

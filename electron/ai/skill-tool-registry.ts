@@ -5,7 +5,7 @@ import type { SkillSelectionInput } from "../../shared/skill-library";
 import type { SelectedSkillSnapshot } from "../../shared/contracts";
 import path from "node:path";
 import type { AiSessionSkillSnapshotEntry, SkillDefinition } from "../../shared/contracts";
-import type { BrokerRunEvent, BrokerRunRecord, SkillRunRequest, WorkflowRunRecord, WorkflowStartRequest } from "../../shared/execution-contracts";
+import type { BrokerRunEvent, BrokerRunEventsQuery, BrokerRunRecord, SkillRunRequest, WorkflowRunRecord, WorkflowStartRequest } from "../../shared/execution-contracts";
 import { messages } from "../../shared/messages";
 import { ExecutionBroker, type ExecutionPlan } from "../execution/execution-broker";
 import type { AppPaths } from "../paths/app-paths-service";
@@ -194,6 +194,11 @@ export class SkillToolRegistry {
   getRunEvents(runId: string): BrokerRunEvent[] {
     if (!this.broker) throw new Error(messages.desktopErrors.skill.brokerNotReady);
     return this.broker.events(runId);
+  }
+
+  getRunEventsPage(runId: string, query: BrokerRunEventsQuery = {}) {
+    if (!this.broker) throw new Error(messages.desktopErrors.skill.brokerNotReady);
+    return this.broker.eventsPage(runId, query);
   }
 
   listRunArtifacts(runId?: string): BrokerRunRecord["artifacts"] {

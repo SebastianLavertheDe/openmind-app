@@ -156,6 +156,18 @@ describe("Codex-aligned rollout reconstruction", () => {
     expect(history.find((item) => item.id === "synthetic-output:call-2")?.content).toBe("aborted");
   });
 
+  it("keeps an older-page cursor stable when new turns arrive", () => {
+    const runs = Array.from({ length: 5 }, (_, index) => makeRun(`turn-${index + 1}`, `2026-07-01T0${index}:00:00.000Z`));
+    const lines = runs.flatMap((run, index) => turnWithMessage(run, `m${index + 1}`));
+    const first = paginateTurns(reconstructRollout("session", lines), { limit: 2 });
+    const appended = [...lines, ...turnWithMessage(makeRun("new-turn", "2026-07-01T05:00:00.000Z"), "new")];
+    const next = paginateTurns(reconstructRollout("session", appended), { cursor: first.nextCursor, limit: 2 });
+    expect(next.data.map(turn => turn.id)).toEqual(["turn-3", "turn-2"]);
+    const legacyCursor = Buffer.from(JSON.stringify({ offset: 2 })).toString("base64url");
+    expect(paginateTurns(reconstructRollout("session", lines), { cursor: legacyCursor, limit: 2 }).data.map(turn => turn.id))
+      .toEqual(["turn-3", "turn-2"]);
+  });
+
   it("paginates complete turns with opaque cursors", () => {
     const runs = Array.from({ length: 5 }, (_, index) =>
       makeRun(`turn-${index + 1}`, `2026-07-01T0${index}:00:00.000Z`)

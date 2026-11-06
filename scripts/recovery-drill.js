@@ -101,9 +101,15 @@ function runInterruptedRunDrill() {
   firstProcess.transition("run-recovery-1", "running");
   firstProcess.bindProcessPid("run-recovery-1", process.pid);
 
-  // A new RunStore instance represents the next Main process after a crash.
-  // The current PID is intentionally used so the recovery record must surface
-  // a human-diagnostic orphan warning instead of silently killing a reused PID.
+  // A second store in this live process must not reclaim its owner's work.
+  assert(new RunStore(runsRoot).recoverInterrupted().length === 0, "live owner's Run was incorrectly recovered");
+  // Simulate the old Main owner having exited, while its child PID still lives.
+  // Keep the current PID as the child so recovery surfaces a diagnostic orphan
+  // warning instead of killing a process whose identity it cannot verify.
+  const recordPath = path.join(runsRoot, "run-recovery-1", "run.json");
+  const persisted = JSON.parse(fs.readFileSync(recordPath, "utf8"));
+  persisted.ownerPid = 2147483647; // Deliberately nonexistent owner, as in run-store.test.ts.
+  fs.writeFileSync(recordPath, JSON.stringify(persisted));
   const afterRestart = new RunStore(runsRoot);
   const recovered = afterRestart.recoverInterrupted("built-recovery-drill");
   assert(recovered.length === 1, "interrupted Run was not recovered");

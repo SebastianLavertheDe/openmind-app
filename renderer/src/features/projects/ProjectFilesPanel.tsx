@@ -6,7 +6,7 @@ import { messages } from "@shared/messages";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, Clapperboard, Download, FileText, Files, FolderInput, Globe2, LoaderCircle, MoreHorizontal, PencilLine, Search, Trash2 } from "lucide-react";
-import { DropdownMenu, EmptyState, ErrorState, SearchInput, Select } from "../../design-system/components";
+import { Button, DropdownMenu, EmptyState, ErrorState, SearchInput, Select } from "../../design-system/components";
 import { useCollectionMotion } from "../../design-system/use-collection-motion";
 import { ProjectDialog, ProjectTextField } from "./ProjectDialog";
 import { ProjectMaterialDetail } from "./ProjectMaterialDetail";
@@ -17,6 +17,7 @@ import { useMaterialProcessingRefresh } from "./use-material-processing-refresh"
 import type { ProjectCreateAction, ProjectDetail, ProjectMaterial, ProjectOutput, ProjectSection, ProjectSummary } from "./types";
 
 type ProjectFileKind = "material" | "output";
+const FILES_PER_PAGE = 50;
 type ProjectFileSelection = { kind: ProjectFileKind; relativePath: string };
 type ProjectFileEntry = ProjectFileSelection & {
   title: string;
@@ -66,6 +67,9 @@ export function ProjectFilesPanel({
   } : null);
   useEffect(() => { onFileChange?.(selection); }, [selection, onFileChange]);
   const [query, setQuery] = useState("");
+  const [pagination, setPagination] = useState({ query: "", page: 1 });
+  const fileListRef = useRef<HTMLDivElement>(null);
+  const pagedSelectionRef = useRef("");
   const [loading, setLoading] = useState(true);
   const [hasLoaded, setHasLoaded] = useState(false);
   const loadSequence = useRef(0);
@@ -142,6 +146,24 @@ export function ProjectFilesPanel({
     return entries.filter((item) => !needle || item.title.toLocaleLowerCase().includes(needle));
   }, [entries, query, locale]);
   const listMotion = useCollectionMotion(filtered.length, 40);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / FILES_PER_PAGE));
+  const page = pagination.query === query ? Math.min(pagination.page, pageCount) : 1;
+  const pageRows = filtered.slice((page - 1) * FILES_PER_PAGE, page * FILES_PER_PAGE);
+  useEffect(() => {
+    if (pagination.query !== query || pagination.page !== page) setPagination({ query, page });
+  }, [page, pagination, query]);
+  useEffect(() => {
+    if (!hasLoaded || !selection) return;
+    const key = `${selection.kind}:${selection.relativePath}`;
+    if (pagedSelectionRef.current === key) return;
+    pagedSelectionRef.current = key;
+    const index = filtered.findIndex(item => sameSelection(item, selection));
+    if (index >= 0) setPagination({ query, page: Math.floor(index / FILES_PER_PAGE) + 1 });
+  }, [hasLoaded, selection, filtered, query]);
+  const changePage = (next: number) => {
+    setPagination({ query, page: next });
+    if (fileListRef.current) { fileListRef.current.scrollTop = 0; fileListRef.current.focus(); }
+  };
 
   const handleNavigationGuard = useCallback((guard: ProjectOutputNavigationGuard | null) => {
     guardRef.current = guard;
@@ -295,10 +317,10 @@ export function ProjectFilesPanel({
     <>
       <SearchInput className="project-pane-filter" leadingIcon={null} trailingIcon={loading && hasLoaded ? <LoaderCircle className="spin" aria-hidden /> : <Search aria-hidden />}
         aria-label={messages.projectUi.searchFiles} value={query} placeholder={messages.projectUi.yourFiles} onChange={(event) => setQuery(event.target.value)} />
-      <div className="project-item-list project-file-list" data-project-list-motion={listMotion.enabled || undefined} aria-live="polite" aria-busy={loading || undefined}>
+      <div ref={fileListRef} tabIndex={-1} className="project-item-list project-file-list" data-project-list-motion={listMotion.enabled || undefined} aria-live="polite" aria-busy={loading || undefined}>
         {loading && !hasLoaded ? Array.from({ length: 6 }, (_, index) => <div className="project-item-skeleton" key={index} />) : null}
         {!loading && !error && !filtered.length ? <EmptyState title={entries.length ? messages.projectUi.noMatchingFiles : messages.projectUi.noFiles} description={entries.length ? messages.projectUi.tryAnotherKeyword : messages.projectUi.addFilesHint} /> : null}
-        {hasLoaded ? filtered.map((item) => {
+        {hasLoaded ? pageRows.map((item) => {
           const processing = item.materialStatus === "importing" || item.materialStatus === "converting";
           const Icon = processing ? LoaderCircle : item.materialStatus === "failed" ? AlertTriangle : fileIcon(item);
           const active = Boolean(selection && sameSelection(selection, item));
@@ -343,6 +365,11 @@ export function ProjectFilesPanel({
         }) : null}
         {!loading && error ? <ErrorState message={error} retry={() => void load()} /> : null}
       </div>
+      {pageCount > 1 ? <div className="project-file-pagination">
+        <Button size="sm" disabled={page === 1} onClick={() => changePage(page - 1)}>{messages.interface.previousPage}</Button>
+        <span aria-label={messages.interface.currentPage} role="status">{page} / {pageCount}</span>
+        <Button size="sm" disabled={page === pageCount} onClick={() => changePage(page + 1)}>{messages.interface.nextPage}</Button>
+      </div> : null}
     </>
   );
 

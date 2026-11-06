@@ -50,10 +50,10 @@ import { resolveChatAttachment } from "./ai/scheduler-images";
 import { ImageConfigurationStore } from "./images/image-configuration";
 import { ChatImageRequestSchema, ImageSelectionSchema } from "../shared/image-generation";
 import { messages, setLocale } from "../shared/messages";
-import { WorkflowResumeRequestSchema } from "../shared/execution-contracts";
+import { BrokerRunEventsQuerySchema, WorkflowResumeRequestSchema } from "../shared/execution-contracts";
 import { AutomationRuleInputSchema } from "../shared/automation-contracts";
 import { RssService } from "./rss/rss-service";
-import { RssSourceReader } from "./rss/rss-source-reader";
+import { RssHistoryService } from "./rss/rss-history-service";
 import { RssEntriesService } from "./rss/rss-entries-service";
 import { RssSourceInputSchema, RssSourcePatchSchema, RssRunInputSchema, RssUrlSchema, RssEntriesQuerySchema, RssRunsQuerySchema, RssRunEventsQuerySchema } from "../shared/rss-contracts";
 import { installBuiltinDefault } from "./skills/builtin-default-packages";
@@ -229,7 +229,11 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     const stateRoot = ctx.resolveAiStateRoot?.();
     return new RssService(root, skillPackages(), sharedPython(), resolveSkillLibraryBundleRoot(), stateRoot ? [path.join(stateRoot, ".openmind")] : []);
   };
-  const rssReader = () => new RssSourceReader(rss().repository, skillPackages().appPaths.runs);
+  const rssHistory = new RssHistoryService();
+  const rssLegacyStateRoots = () => {
+    const stateRoot = ctx.resolveAiStateRoot?.();
+    return stateRoot ? [path.join(stateRoot, ".openmind")] : [];
+  };
   const rssEntries = new RssEntriesService();
 
   return [
@@ -238,8 +242,8 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       const stateRoot = ctx.resolveAiStateRoot?.();
       return rssEntries.entries(rss().repository, RssEntriesQuerySchema.parse(input), stateRoot ? [path.join(stateRoot, ".openmind")] : []);
     } },
-    { channel: C.getRssSourceRuns, handler: input => rssReader().runs(RssRunsQuerySchema.parse(input)) },
-    { channel: C.getRssSourceRunEvents, handler: input => rssReader().events(RssRunEventsQuerySchema.parse(input)) },
+    { channel: C.getRssSourceRuns, handler: input => rssHistory.runs(rss().repository, skillPackages().appPaths.runs, RssRunsQuerySchema.parse(input), rssLegacyStateRoots()) },
+    { channel: C.getRssSourceRunEvents, handler: input => rssHistory.events(rss().repository, skillPackages().appPaths.runs, RssRunEventsQuerySchema.parse(input), rssLegacyStateRoots()) },
     { channel: C.detectRssSource, handler: input => projectAdmission.run(() => { const value = z.object({ inputUrl: RssUrlSchema, selectedFeedUrl: RssUrlSchema.optional() }).parse(input); return rss().detect(value.inputUrl, value.selectedFeedUrl); }) },
     { channel: C.createRssSource, handler: input => projectAdmission.run(() => rss().add(RssSourceInputSchema.parse(input))) },
     { channel: C.editRssSource, handler: input => projectAdmission.run(() => rss().update(RssSourcePatchSchema.parse(input))) },
@@ -254,6 +258,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.getSkillEditor, handler: id => library().editor(id == null ? undefined : z.string().uuid().parse(id)) },
     { channel: C.saveSkillDraft, handler: raw => library().saveDraft(AuthoredSkillSchema.parse(raw)) },
     { channel: C.readSkillAssetImage, handler: (id, asset) => library().readImage(z.string().uuid().parse(id), SkillAssetSchema.parse(asset)) },
+    { channel: C.readSkillAssetThumbnail, handler: (id, asset) => library().readThumbnail(z.string().uuid().parse(id), SkillAssetSchema.parse(asset)) },
     { channel: C.installLibraryPreset, handler: id => projectAdmission.run(async () => {
       const entry = library().installPreset(parseString(id));
       await ai().call("refresh-skills");
@@ -635,12 +640,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
       handler: (key, digest) => {
         const record = skillPackages().getInstalled(parseString(key), parseOptionalString(digest));
         if (!record) return null;
-        const inspection = skillPackages().inspect(record.packagePath);
-        return toSkillPackageInspectionView({
-          ...inspection,
-          sourcePath: record.sourceLocator || inspection.sourcePath,
-          sourceKind: record.sourceType === "git" ? "git" : inspection.sourceKind
-        });
+        return skillPackages().inspectInstalledView(record);
       }
     },
     { channel: C.listInstalledSkills, handler: () => skillPackages().listInstalledViews() },
@@ -717,6 +717,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.listSkillRuns, handler: () => ai().call("skill-run-list") },
     { channel: C.getSkillRun, handler: (runId) => ai().call("skill-run-get", parseString(runId)) },
     { channel: C.getSkillRunEvents, handler: (runId) => ai().call("skill-run-events", parseString(runId)) },
+    { channel: C.getSkillRunEventsPage, handler: (runId, query) => ai().call("skill-run-events-page", IdentifierArgSchema.parse(runId), BrokerRunEventsQuerySchema.parse(query || {})) },
     { channel: C.listRunArtifacts, handler: (runId) => ai().call("run-list-artifacts", parseOptionalString(runId)) },
     { channel: C.retrySkillRun, handler: (runId) => ai().call("run-retry", parseString(runId)) },
     { channel: C.retryWorkflowStep, handler: (runId, stepId) => ai().call("run-retry-step", parseString(runId), parseString(stepId)) },

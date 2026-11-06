@@ -684,3 +684,43 @@ describe("AiProvider provider-change confirmation on send", () => {
     expect(startCalls).toHaveLength(1);
   });
 });
+
+
+describe("cached conversation pagination", () => {
+  it.each([{ cachedCount: 100, additions: 0 }, { cachedCount: 120, additions: 0 }, { cachedCount: 100, additions: 45 }])("preserves the oldest loaded boundary after revisiting $cachedCount turns with $additions newer turns", async ({ cachedCount, additions }) => {
+    vi.useRealTimers();
+    let controller: AiController;
+    function Probe() { controller = useAi(); return null; }
+    const session = { ...activeSnapshot.sessions[0], id: "history", status: "idle" as const, lastRunId: null };
+    const initial: AiSnapshot = { ...snapshot, sessions: [session, { ...session, id: "other" }], runs: [] };
+    const allTurns = Array.from({ length: 120 + additions }, (_, index) => ({
+      id: `turn-${index}`, sessionId: session.id, status: "completed" as const,
+      startedAt: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString(), completedAt: null,
+      context: null, error: null, responseItems: [],
+      events: [{ ...assistantEvent(`event-${index}`, 1, `reply ${index}`, "final"), sessionId: session.id,
+        runId: `turn-${index}`, timestamp: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString() }]
+    })).reverse();
+    let turns = allTurns.slice(additions);
+    const list = vi.fn(async (id: string, params: { cursor?: string | null; limit?: number } = {}) => {
+      const all = id === session.id ? turns : [];
+      const offset = params.cursor ? all.findIndex(turn => turn.id === params.cursor) + 1 : 0;
+      const data = all.slice(offset, offset + (params.limit || 20));
+      return { data, nextCursor: offset + data.length < all.length ? data.at(-1)!.id : null, total: all.length, parseErrors: 0 };
+    });
+    window.openmind.aiListTurns = list;
+    render(<AiProvider initial={initial}><Probe /></AiProvider>);
+    await act(async () => { await Promise.resolve(); });
+    for (let count = 20; count < cachedCount; count += 20) await act(async () => { await controller!.loadOlderTurns(); });
+    expect(controller!.events).toHaveLength(cachedCount);
+    await act(async () => { await controller!.setActiveSession("other"); });
+    turns = allTurns;
+    await act(async () => { await controller!.setActiveSession(session.id); });
+    expect(controller!.events).toHaveLength(cachedCount + additions);
+    const calls = list.mock.calls.length;
+    await act(async () => { await controller!.loadOlderTurns(); });
+    expect(controller!.events).toHaveLength(120 + additions);
+    expect(list.mock.calls.length - calls).toBe(cachedCount === 120 ? 0 : 1);
+    if (cachedCount !== 120) expect(list.mock.calls.at(-1)?.[1]?.cursor).toBe("turn-20");
+    expect(controller!.hasOlderTurns).toBe(false);
+  });
+});

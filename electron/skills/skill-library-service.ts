@@ -13,6 +13,7 @@ import { resolveSkillLibraryTools } from "./skill-library-runtime";
 import { isAppLibraryInstall, isLegacyAppLibraryInstall, readSkillLibraryCatalog } from "./skill-library-catalog";
 import { prepareSkillAvatar, readSkillAvatar, skillAvatarDataUrl } from "./skill-avatar";
 import { installBuiltinDefault } from "./builtin-default-packages";
+import { skillCoverThumbnails } from "./skill-cover-thumbnails";
 
 type Bindings = Record<string, { key: string; digest: string }>;
 const METADATA = "openmind.library.json";
@@ -85,7 +86,7 @@ export class SkillLibraryService {
       if (usable) {
         try {
           const current = this.packages.getInstalled(record.key, record.digest);
-          if (current) inspection = this.packages.inspectInstalledCopy(current);
+          if (current) inspection = this.packages.inspectInstalledCopyForDisplay(current);
           else usable = false;
         }
         catch { usable = false; }
@@ -331,6 +332,12 @@ export class SkillLibraryService {
     const bytes = fs.readFileSync(file);
     if (bytes.length > 10 * 1024 * 1024) throw new Error(m.errors.asset);
     return `data:image/${selected.extension === ".webp" ? "webp" : selected.extension === ".png" ? "png" : "jpeg"};base64,${bytes.toString("base64")}`;
+  }
+
+  readThumbnail(id: string, asset: SkillAsset): Promise<string> {
+    const selected = SkillAssetSchema.parse(asset);
+    if (selected.kind !== "image") throw new Error(m.errors.asset);
+    return skillCoverThumbnails.read(this.assetFile(id, selected), () => this.assetFile(id, selected));
   }
 
   private dependencies(doc: AuthoredSkill): SkillSelectionInput[] {

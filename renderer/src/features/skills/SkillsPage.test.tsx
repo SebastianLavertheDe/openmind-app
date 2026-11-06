@@ -97,6 +97,20 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("SkillsPage", () => {
+  it("uses catalog diagnostics without requesting each installed package again", async () => {
+    const inspectInstalledSkill = vi.fn(async () => inspection);
+    renderPage({ listInstalledSkills: async () => [{ ...installedSkill, inspection }], inspectInstalledSkill });
+    expect(await screen.findByRole("heading", { name: "Demo Skill" })).toBeTruthy();
+    expect(inspectInstalledSkill).not.toHaveBeenCalled();
+  });
+
+  it("does not retry unavailable package diagnostics during catalog rendering", async () => {
+    const inspectInstalledSkill = vi.fn(async () => inspection);
+    renderPage({ listInstalledSkills: async () => [{ ...installedSkill, usable: false, inspection: null }], inspectInstalledSkill });
+    expect(await screen.findByRole("heading", { name: "demo-skill" })).toBeTruthy();
+    expect(inspectInstalledSkill).not.toHaveBeenCalled();
+  });
+
   it("loads the catalog and shows only the selected Skill run history", async () => {
     renderPage();
     expect(await screen.findByRole("heading", { name: "Demo Skill" })).toBeTruthy();
