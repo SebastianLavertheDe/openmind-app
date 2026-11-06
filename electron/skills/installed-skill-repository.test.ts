@@ -68,6 +68,22 @@ describe("InstalledSkillRepository", () => {
     expect(() => repository.list()).toThrow(/拒绝覆盖现有安装状态/);
   });
 
+  it("resolves copied flat packages locally without rewriting the synced registry", () => {
+    const saved = { ...record("1.0.0", "digest-1"), packagePath: String.raw`D:\work\openmind\.agent\skills\example-skill` };
+    writeRegistry(file, 3, [saved]);
+    const original = fs.readFileSync(file, "utf8");
+    const local = { ...saved, packagePath: path.join(path.dirname(file), saved.id) };
+
+    expect(repository.list()).toEqual([local]);
+    expect(repository.get(saved.key, saved.digest)).toEqual(local);
+    expect(repository.get(saved.key, "another-digest")).toBeUndefined();
+    expect(fs.readFileSync(file, "utf8")).toBe(original);
+
+    repository.upsert({ ...record("1.0.0", "digest-other"), key: "openmind/other-skill", id: "other-skill" });
+    expect(readDisk(file).records.find(row => row.id === saved.id)?.packagePath).toBe(saved.packagePath);
+    expect(repository.remove(saved.key, saved.digest)).toEqual(local);
+  });
+
   it("supports removal without reading package source files", () => {
     const installed = record("1.0.0", "digest-1");
     repository.upsert(installed);

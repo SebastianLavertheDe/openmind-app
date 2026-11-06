@@ -593,6 +593,43 @@ describe("SkillPackageService", () => {
     expect(() => service.inspectInstalledCopy(refreshed)).toThrow(/digest/);
   });
 
+  it("uses the local copy of a synced Windows installation and still checks its digest", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "echo original\n");
+    const installed = service.install(source);
+    const registry = JSON.parse(fs.readFileSync(paths.skillRegistryFile!, "utf8"));
+    registry.records[0].packagePath = String.raw`D:\work\openmind\.agent\skills\example-skill`;
+    fs.writeFileSync(paths.skillRegistryFile!, JSON.stringify(registry));
+    const originalRegistry = fs.readFileSync(paths.skillRegistryFile!, "utf8");
+
+    const local = service.getInstalled(installed.key, installed.digest)!;
+    expect(local.packagePath).toBe(installed.packagePath);
+    expect(service.inspectInstalledCopy(local).valid).toBe(true);
+    expect(service.listInstalledViews()[0].usable).toBe(true);
+    expect(fs.readFileSync(paths.skillRegistryFile!, "utf8")).toBe(originalRegistry);
+
+    fs.writeFileSync(path.join(local.packagePath, "run.sh"), "echo tampered\n");
+    expect(() => service.inspectInstalledCopy(local)).toThrow(/digest/);
+    expect(service.listInstalledViews()[0].usable).toBe(false);
+  });
+
+  it("rejects a local symlink escape after rebinding a synced package path", () => {
+    const source = createPackage(tempRoot);
+    fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);
+    fs.writeFileSync(path.join(source, "run.sh"), "echo original\n");
+    const installed = service.install(source);
+    const registry = JSON.parse(fs.readFileSync(paths.skillRegistryFile!, "utf8"));
+    registry.records[0].packagePath = String.raw`D:\work\openmind\.agent\skills\example-skill`;
+    fs.writeFileSync(paths.skillRegistryFile!, JSON.stringify(registry));
+    fs.rmSync(installed.packagePath, { recursive: true });
+    fs.symlinkSync(source, installed.packagePath, process.platform === "win32" ? "junction" : "dir");
+
+    const local = service.getInstalledById(installed.id)!;
+    expect(() => service.inspectInstalledCopy(local)).toThrow(/越出 Skills 根目录/);
+    expect(service.listInstalledViews()[0].usable).toBe(false);
+  });
+
   it("re-hashes execution inspections when tampering preserves size and mtime", () => {
     const source = createPackage(tempRoot);
     fs.writeFileSync(path.join(source, "openmind.skill.yaml"), MANIFEST);

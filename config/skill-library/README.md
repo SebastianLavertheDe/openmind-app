@@ -219,6 +219,8 @@ npx vitest run shared/skill-library-catalog.test.ts electron/skills/skill-librar
 
 `catalog.json` 的 `packageDirectory` 指向 `packages/` 下源码，`executionKind` 保留 agent/process/workflow，`discoverable` 决定是否展示在探索中。`prepare:skill-library` 将 7 个内置包、它们需要的共享 `_shared` 和 RSS 源目录复制到忽略的 `.build/skill-library/`，其余包独立输出到 `skill-registry/`。两种分发都先验证并统一生成 `openmind-library` 身份及内容摘要。安装器继续识别 `cctools.skill.yaml` 和 `openmind.skill.yaml`。
 
+跨 Windows、macOS、Linux 同步内容仓库时，每台机器仍使用自己的 `openmindRoot` 配置，CLI 则使用显式的 `--root`。安装注册表中的标准路径 `…/.agent/skills/<skillId>` 在读取时解析到当前内容根目录下；读取不会将本机绝对路径回写到同步文件。安装包仍须通过内容摘要、Manifest 身份和真实路径边界校验；缺失、被修改或通过符号链接越界的包不会因此获得运行权限。旧的嵌套安装布局保持原有处理方式。
+
 `migration.json` 记录原仓库修订和文件去向。`../rss-sources/catalog.json` 是公开建议清单，不是用户订阅；用户初始化后不会自动追加新版建议。带用户身份的订阅只在用户本地迁移，不能加入公共清单。
 
 Knowledge Wiki 生成器不打包、不列入默认集合。确认归属的官方旧包可卸载；已有 Wiki 文件与用户主动导入的副本保留。

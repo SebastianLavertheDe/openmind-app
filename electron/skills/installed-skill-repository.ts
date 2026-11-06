@@ -1,5 +1,7 @@
 import fs from "node:fs";
+import path from "node:path";
 import { writeJsonAtomic } from "../lib/fs-utils";
+import { resolveInstalledSkillPath } from "./installed-skill-path";
 
 /**
  * v3: one metadata record per installed skill. Runtime availability is
@@ -58,8 +60,9 @@ const LEGACY_READINESS = ["installed-not-ready", "ready", "blocked", "stale"] as
 
 /**
  * Owns only installed-skill metadata, one record per key. Package bytes are
- * managed by SkillPackageService; legacy package paths are preserved during
- * metadata migration and remain valid until a later reinstall replaces them.
+ * managed by SkillPackageService. Flat package paths resolve against this
+ * machine's bound store on read, without rewriting synced registry metadata.
+ * Older nested package layouts are preserved until a reinstall replaces them.
  */
 export class InstalledSkillRepository {
   /**
@@ -69,11 +72,12 @@ export class InstalledSkillRepository {
   constructor(private readonly registryFile: string | null) {}
 
   list(): InstalledSkillRecord[] {
-    return this.read().records.slice().sort((left, right) => left.key.localeCompare(right.key));
+    return this.read().records.map(record => this.forCurrentStore(record)).sort((left, right) => left.key.localeCompare(right.key));
   }
 
   get(key: string, digest?: string): InstalledSkillRecord | undefined {
-    return this.read().records.find((record) => record.key === key && (!digest || record.digest === digest));
+    const record = this.read().records.find((record) => record.key === key && (!digest || record.digest === digest));
+    return record && this.forCurrentStore(record);
   }
 
   /** Idempotent for the same key; a new digest replaces the previous record. */
@@ -108,7 +112,13 @@ export class InstalledSkillRepository {
     if (!target) return undefined;
     registry.records = registry.records.filter((record) => record !== target);
     this.write(registry);
-    return target;
+    return this.forCurrentStore(target);
+  }
+
+  private forCurrentStore(record: InstalledSkillRecord): InstalledSkillRecord {
+    if (!this.registryFile) return record;
+    const packagePath = resolveInstalledSkillPath(record.packagePath, record.id, path.dirname(this.registryFile));
+    return packagePath === record.packagePath ? record : { ...record, packagePath };
   }
 
   private read(): InstalledSkillRegistryFile {

@@ -48,6 +48,20 @@ describe("built-in defaults", () => {
     expect(installBuiltinDefault(h.packages, old.id, bundle)).toEqual(current);
     expect(fs.readdirSync(h.paths.migrations).length).toBeGreaterThan(0);
   });
+  it.each(["rss-article-saver", "reddit-fetcher", "x-following-fetcher"])("admits a synced Windows %s package from the current content root", id => {
+    const h = harness();
+    const installed = installBuiltinDefault(h.packages, id, bundle);
+    const registry = JSON.parse(fs.readFileSync(h.paths.skillRegistryFile!, "utf8"));
+    registry.records[0].packagePath = "D:\\work\\openmind\\.agent\\skills\\" + id;
+    fs.writeFileSync(h.paths.skillRegistryFile!, JSON.stringify(registry));
+    const original = fs.readFileSync(h.paths.skillRegistryFile!, "utf8");
+
+    const current = installBuiltinDefault(h.packages, id, bundle);
+    expect(current.packagePath).toBe(path.join(h.paths.skills!, id));
+    expect(current.digest).toBe(installed.digest);
+    expect(h.packages.inspectInstalledCopy(current).valid).toBe(true);
+    expect(fs.readFileSync(h.paths.skillRegistryFile!, "utf8")).toBe(original);
+  });
   it("preserves third-party, user-retained and modified packages on conflicts", () => {
     const h = harness(); const old = h.legacy("rss-article-saver", "https://github.com/example/custom");
     expect(() => installBuiltinDefault(h.packages, old.id, bundle)).toThrow(/conflict/); expect(h.packages.getInstalled(old.key)).toBeTruthy();
