@@ -3,10 +3,27 @@ import type { ContentRecord } from "@shared/contracts";
 import { messages as m } from "@shared/messages";
 import { MarkdownReader, type MarkdownReaderLayout } from "./MarkdownReader";
 import { ContentSelectionQuote } from "./ContentSelectionQuote";
-import { DocumentReader } from "./document/DocumentReader";
+import { DocumentReader, type ReaderComponents } from "./document/DocumentReader";
+import { useMemo } from "react";
+import { useFilePreview } from "../features/ai-console/file-preview-context";
+import { documentFileReference, resolveDocumentFileLink } from "./document/document-file-links";
 
 export function ContentPreview({ content, layout = "article" }: { content: ContentRecord; layout?: MarkdownReaderLayout }) {
   useLocale();
+  const openFile = useFilePreview();
+  const customComponents = useMemo<ReaderComponents | undefined>(() => openFile ? {
+    a: ({ node, href, ...props }) => {
+      const reference = String(node?.properties.dataDocumentFileReference || href || "");
+      const path = resolveDocumentFileLink(reference, content.path);
+      const projectName = content.path.replaceAll("\\", "/").match(/^openmind\/projects\/([^/]+)\//)?.[1];
+      if (documentFileReference(reference) && (!path || projectName && !path.startsWith(`openmind/projects/${projectName}/`))) return <a {...props} />;
+      return path ? <a {...props} href="#" onClick={event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openFile(path, projectName ? { projectName } : undefined);
+      }} /> : <a {...props} href={href} target="_blank" rel="noreferrer" />;
+    }
+  } : undefined, [openFile, content.path]);
   const raw = content.content || "";
   const extension = (content.ext || content.extension || content.path || "").toLocaleLowerCase();
   const plain = isPlainText(extension);
@@ -19,7 +36,7 @@ export function ContentPreview({ content, layout = "article" }: { content: Conte
     ? <iframe title={m.designSystem.htmlPreview} className={`html-preview${layoutClassName}`} sandbox="" srcDoc={raw} />
     : plain
       ? <DocumentReader content={raw} plain className={`reader-markdown reader-body plain-text-reader${layoutClassName}`}/>
-      : <MarkdownReader content={raw} layout={layout} />;
+      : <MarkdownReader content={raw} layout={layout} customComponents={customComponents} />;
 
   return <ContentSelectionQuote content={content}>{preview}</ContentSelectionQuote>;
 }

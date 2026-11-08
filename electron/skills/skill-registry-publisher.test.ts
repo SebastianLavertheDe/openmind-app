@@ -23,7 +23,7 @@ function fixture() {
 }
 
 describe("remote Skill registry publication", () => {
-  it("ships only the seven built-ins and publishes the other fifteen with credits and presentation", () => {
+  it("ships only the seven built-ins and publishes eleven gallery Skills with credits and covers", () => {
     const f = fixture();
     const config = path.resolve("config/skill-library");
     const sourceCatalog = fs.readFileSync(path.join(config, "catalog.json"), "utf8");
@@ -31,10 +31,10 @@ describe("remote Skill registry publication", () => {
     expect(prepareSkillLibraryBundle(config, bundled, { includeIds: BUILTIN_SKILL_IDS })).toBe(7);
     expect(readSkillLibraryCatalog(bundled).skills.map(entry => entry.id).sort()).toEqual([...BUILTIN_SKILL_IDS].sort());
     const registry = publishSkillRegistry(config, f.output);
-    expect(registry.skills).toHaveLength(15);
+    expect(registry.skills).toHaveLength(11);
     expect(registry.skills.every(entry => !BUILTIN_SKILL_IDS.includes(entry.preset.id as typeof BUILTIN_SKILL_IDS[number]))).toBe(true);
-    expect(registry.skills.filter(entry => entry.preset.recommended)).toHaveLength(5);
-    expect(registry.skills.filter(entry => entry.coverDataUrl?.startsWith("data:image/jpeg;base64,"))).toHaveLength(5);
+    expect(registry.skills.filter(entry => entry.preset.recommended)).toHaveLength(1);
+    expect(registry.skills.filter(entry => entry.coverDataUrl?.startsWith("data:image/jpeg;base64,"))).toHaveLength(11);
     const commonRules = readSkillLibraryCatalog(config).executionRules;
     for (const entry of registry.skills) expect(entry.preset.instructions.slice(-commonRules.length)).toEqual(commonRules);
     const browserPreview = registry.skills.find(entry => entry.preset.id === "agent-browser")!.preset.instructions.join("\n\n");

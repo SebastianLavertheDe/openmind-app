@@ -12,7 +12,7 @@ import { ComposerSkillPicker } from "../ai-console/ComposerSkillPicker";
 const previous = window.openmind;
 const digest = "a".repeat(64);
 function entry(patch: Partial<SkillLibraryEntry> = {}): SkillLibraryEntry {
-  return { id: "preset", title: "Research report", subtitle: "Read the sources", description: "Traceable findings", inputHint: "What would you like to investigate?", category: "research", origin: "preset", installed: false, enabled: false, usable: true, reason: null, key: null, digest: null, version: null, skillId: "om-research-brief", authoringId: null, revision: 0, draft: false, imageCount: 0, source: "App presets", executionModel: null, ...patch };
+  return { id: "preset", title: "Research report", subtitle: "Read the sources", description: "Traceable findings", inputHint: "What would you like to investigate?", category: "research", origin: "preset", installed: false, enabled: false, usable: true, reason: null, key: null, digest: null, version: null, skillId: "om-fixture-research", authoringId: null, revision: 0, draft: false, imageCount: 0, source: "App presets", executionModel: null, ...patch };
 }
 let entries: SkillLibraryEntry[];
 beforeEach(() => {
@@ -26,6 +26,17 @@ function document() { return AuthoredSkillSchema.parse({ id: "1375bbe7-b4b7-4fbe
 function page(use = vi.fn()) { return render(<FeedbackProvider><SkillLibraryPage storageScope="fixture" providers={[]} onUseSkill={use} renderManagement={() => null} renderImport={() => null} /></FeedbackProvider>); }
 
 describe("Skill library product flows", () => {
+  it.each(["om-research-brief", "om-source-compare", "om-article-writer", "om-text-rewriter"])("hides removed presets in cached discovery and installed lists: %s", async id => {
+    entries.push(entry({ id, skillId: id, title: "Removed app preset", installed: true, enabled: true, key: `openmind-library/${id}`, digest }));
+    entries.push(entry({ id: `imported-${id}`, skillId: id, title: "User imported copy", origin: "git", installed: true, enabled: true, key: `user/${id}`, digest }));
+    page();
+    await screen.findByRole("button", { name: "Research report" });
+    expect(screen.queryByRole("button", { name: "Removed app preset" })).toBeNull();
+    await userEvent.setup().click(screen.getByRole("button", { name: "My skills" }));
+    expect(await screen.findByRole("button", { name: "User imported copy" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Removed app preset" })).toBeNull();
+  });
+
   it("refreshes the published catalog and installs an unfamiliar remote card with its supplied cover", async () => {
     const user = userEvent.setup(); const use = vi.fn();
     const remote = entry({ id: "newly-published", skillId: "newly-published", title: "New remote skill", distribution: "remote", coverUrl: "data:image/png;base64,remote-cover" });

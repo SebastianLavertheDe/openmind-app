@@ -11,6 +11,8 @@ The process accepts `--mode sync|collect|pipeline`, `--date YYYYMMDD`, optional 
 
 Persistent subscriptions, local RSS and deduplication indexes live in `.agent/skill-data/rss-article-saver/`. Articles live in `article/YYYYMMDD/`. Updated originals are kept in `article/.updates/`; existing user edits remain intact. Never store runtime files in this package.
 
+New articles use readable `Article title.md` filenames, with numeric suffixes such as `Article title (2).md` for collisions. URL hashes remain private deduplication keys, independent of filenames. Private `article-targets/` reservations recover interrupted writes without overwriting user edits. Existing files and references are not renamed during collection.
+
 Source edits, disabling and deletion invalidate in-flight results. Locks are shared by the app and CLI. Report the stable error code and message from the result; preserve the previous valid feed on conversion failure. An unsupported website needs a supported feed or adapter; do not invent an RSS URL.
 
 Source selection belongs to the user. Do not filter by AI topics, preferred authors, quality scores or personal interests during collection. Daily brief preferences are applied by the summarizer and topic selector.

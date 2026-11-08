@@ -2,103 +2,8 @@
   "schemaVersion": 1,
   "skills": [
     {
-      "id": "om-research-brief",
-      "category": "research",
-      "display": {
-        "zh-CN": {
-          "title": "资料研究报告",
-          "subtitle": "从问题和资料出发，形成可追溯的研究结论",
-          "inputHint": "你想研究什么问题？可附上资料并说明范围。"
-        },
-        "en": {
-          "title": "Research brief",
-          "subtitle": "Turn questions and materials into traceable findings",
-          "inputHint": "What would you like to research? Add materials and define the scope."
-        }
-      },
-      "instructions": [
-        "Research a question using provided materials. Clarify scope and assumptions; inspect the supplied sources, separate evidence from inference, compare conflicting information, and write a useful report with source references. Do not invent citations or imply current web verification without reading sources."
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      },
-      "recommended": true,
-      "cardCover": "_shared/card-covers/om-research-brief.jpg"
-    },
-    {
-      "id": "om-source-compare",
-      "category": "research",
-      "display": {
-        "zh-CN": {
-          "title": "多资料对比",
-          "subtitle": "对齐比较维度，整理差异与依据",
-          "inputHint": "请提供需要比较的资料和关注的维度。"
-        },
-        "en": {
-          "title": "Compare sources",
-          "subtitle": "Compare materials using consistent criteria and evidence",
-          "inputHint": "Provide the sources and the dimensions you want to compare."
-        }
-      },
-      "instructions": [
-        "Read all supplied materials. Agree on comparison dimensions, align definitions and time periods, then present a comparison table with specific evidence, disagreements, missing data and a reasoned recommendation. Distinguish absent information from evidence of absence."
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      },
-      "recommended": true,
-      "cardCover": "_shared/card-covers/om-source-compare.jpg"
-    },
-    {
-      "id": "om-article-writer",
-      "category": "writing",
-      "display": {
-        "zh-CN": {
-          "title": "长文写作",
-          "subtitle": "根据素材、受众和语气撰写完整文章",
-          "inputHint": "文章主题、目标读者和期望风格是什么？"
-        },
-        "en": {
-          "title": "Long-form writing",
-          "subtitle": "Write a complete article for your audience and purpose",
-          "inputHint": "What is the topic, intended audience and preferred style?"
-        }
-      },
-      "instructions": [
-        "Determine topic, audience, purpose and tone from the request. Read supplied materials. Build a clear narrative and deliver the complete article with concrete examples and supported claims. Use the existing openmind-artifact text protocol for a standalone written deliverable."
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      },
-      "recommended": true,
-      "cardCover": "_shared/card-covers/om-article-writer.jpg"
-    },
-    {
-      "id": "om-text-rewriter",
-      "category": "writing",
-      "display": {
-        "zh-CN": {
-          "title": "改写与润色",
-          "subtitle": "保留事实与原意，调整结构和表达",
-          "inputHint": "贴入原文，并说明你希望如何改写。"
-        },
-        "en": {
-          "title": "Rewrite and polish",
-          "subtitle": "Improve structure and language while preserving meaning",
-          "inputHint": "Paste your text and explain the changes you want."
-        }
-      },
-      "instructions": [
-        "Preserve facts, intent and required terminology. Improve structure, clarity, voice and grammar according to the requested audience. Deliver the complete revised text, and briefly explain material changes when helpful. Never invent quotations or add unsupported facts."
-      ],
-      "contributor": {
-        "nick": "OpenMind"
-      },
-      "recommended": true,
-      "cardCover": "_shared/card-covers/om-text-rewriter.jpg"
-    },
-    {
       "id": "om-article-cover",
+      "cardCover": "_shared/card-covers/om-article-cover.jpg",
       "version": "1.0.0",
       "category": "image",
       "requirement": "image",
@@ -153,6 +58,7 @@
     },
     {
       "id": "om-article-illustrator",
+      "cardCover": "_shared/card-covers/om-article-illustrator.jpg",
       "version": "1.0.0",
       "category": "image",
       "requirement": "image",
@@ -208,6 +114,7 @@
     },
     {
       "id": "om-social-cards",
+      "cardCover": "_shared/card-covers/om-social-cards.jpg",
       "version": "1.0.0",
       "category": "image",
       "requirement": "image",
@@ -262,6 +169,7 @@
     },
     {
       "id": "om-knowledge-infographic",
+      "cardCover": "_shared/card-covers/om-knowledge-infographic.jpg",
       "version": "1.0.0",
       "category": "image",
       "requirement": "image",
@@ -372,6 +280,7 @@
     },
     {
       "id": "om-four-panel-comic",
+      "cardCover": "_shared/card-covers/om-four-panel-comic.jpg",
       "version": "1.0.0",
       "category": "image",
       "requirement": "image",
@@ -426,6 +335,7 @@
     },
     {
       "id": "om-photo-diptych",
+      "cardCover": "_shared/card-covers/om-photo-diptych.jpg",
       "version": "1.0.0",
       "category": "image",
       "requirement": "image",
@@ -480,6 +390,7 @@
     },
     {
       "id": "om-product-highlights",
+      "cardCover": "_shared/card-covers/om-product-highlights.jpg",
       "version": "1.0.0",
       "category": "image",
       "requirement": "image",
@@ -534,6 +445,7 @@
     },
     {
       "id": "om-brand-character",
+      "cardCover": "_shared/card-covers/om-brand-character.jpg",
       "version": "1.0.0",
       "category": "image",
       "requirement": "image",
@@ -588,6 +500,7 @@
     },
     {
       "id": "om-style-fusion",
+      "cardCover": "_shared/card-covers/om-style-fusion.jpg",
       "version": "1.0.0",
       "category": "image",
       "requirement": "image",
@@ -660,6 +573,7 @@
     },
     {
       "id": "agent-browser",
+      "cardCover": "_shared/card-covers/agent-browser.jpg",
       "version": "1.0.0",
       "category": "research",
       "packageDirectory": "agent-browser",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { RETIRED_BUILTIN_SKILL_IDS } from "./retired-skills";
 import { messages } from "./messages";
 import { SkillContributorNickSchema, SkillContributorProfileUrlSchema, SkillContributorSchema, type SkillContributorView } from "./skill-contributor";
 
@@ -94,6 +95,7 @@ export interface SkillLibrarySnapshot {
 export function filterSkillLibrary(entries: SkillLibraryEntry[], mode: SkillLibraryMode, section: SkillLibrarySection, query = "", origin = "all"): SkillLibraryEntry[] {
   const q = query.trim().toLocaleLowerCase();
   return entries.filter(entry => (mode === "explore" ? entry.origin === "preset" && entry.discoverable !== false : entry.installed || entry.origin === "authored")
+    && (entry.origin !== "preset" || !RETIRED_BUILTIN_SKILL_IDS.has(entry.skillId))
     && (section === "all" || section === "github-installed" ? section !== "github-installed" || entry.origin === "git"
       : section === "local-imported" ? entry.origin === "local" : entry.category === section)
     && (mode === "explore" || origin === "all" || entry.origin === origin || origin === "imported" && ["git", "local"].includes(entry.origin))

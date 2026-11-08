@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -143,6 +144,115 @@ class PipelineTests(unittest.TestCase):
         article = next((self.root / 'article').rglob('*.md'))
         self.assertIn('Complete article ending.', article.read_text(encoding='utf-8'))
         self.assertIsNone(self.pipeline.registry()['sources'][0].get('lastError'))
+
+    def test_readable_titles_keep_url_dedup_independent_and_resolve_name_collisions(self):
+        self.source['feedRevision'] = 1
+        self.write(self.doc)
+        entries = [
+            {'title': '中文文章', 'url': self.url + '/one', 'content': '<p>First source: a controlled study compares concrete observations, research methods and independently verified experimental results.</p>'},
+            {'title': '中文文章', 'url': self.url + '/two', 'content': '<p>Second source: a controlled study compares concrete observations, research methods and independently verified experimental results.</p>'},
+            {'title': 'Study', 'url': self.url + '/three', 'content': '<p>Third source: a controlled study compares concrete observations, research methods and independently verified experimental results.</p>'},
+            {'title': 'study', 'url': self.url + '/four', 'content': '<p>Fourth source: a controlled study compares concrete observations, research methods and independently verified experimental results.</p>'}
+        ]
+        raw, _ = rss.normalize_feed('Research', self.url, entries)
+        rss.write_atomic(self.data / 'feeds/test-source.xml', raw)
+        result = self.pipeline.run('collect', '20261027')
+        self.assertEqual(result['status'], 'succeeded', result)
+        folder = self.root / 'article/20261027'
+        self.assertEqual({file.name for file in folder.glob('*.md')}, {'中文文章.md', '中文文章 (2).md', 'Study.md', 'study (2).md'})
+        indexes = [json.loads(file.read_text(encoding='utf-8')) for file in (self.data / 'articles').glob('*.json')]
+        self.assertEqual({row['url'] for row in indexes}, {row['url'] for row in entries})
+        self.assertEqual(len({row['path'] for row in indexes}), 4)
+        for row in indexes:
+            self.assertIn('- 原文: ' + row['url'], (self.root / row['path']).read_text(encoding='utf-8'))
+        before = {file.name: file.stat().st_mtime_ns for file in folder.glob('*.md')}
+        self.assertEqual(self.pipeline.run('collect', '20261027')['results'][0]['collected'], 0)
+        self.assertEqual({file.name: file.stat().st_mtime_ns for file in folder.glob('*.md')}, before)
+        self.assertEqual(list((self.data / 'article-targets').glob('*.json')), [])
+
+    def test_article_titles_are_safe_and_bounded_on_supported_filesystems(self):
+        for title in ['../目录/中文标题:研究?*<>|"', 'CON', 'con.notes', 'LPT1', 'A\x00B\nC', '中文😀' * 100, '...']:
+            with self.subTest(title=title):
+                stem = rss.article_filename_stem(title)
+                self.assertTrue(stem)
+                self.assertNotRegex(stem, r'[<>:"/\\|?*\x00-\x1f\x7f]')
+                self.assertNotRegex(stem, r'^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)')
+                self.assertFalse(stem.endswith((' ', '.')))
+                self.assertLessEqual(len(stem.encode('utf-8')), 181)
+        self.assertIn('中文标题', rss.article_filename_stem('中文标题：研究'))
+
+    def test_legacy_hash_filenames_remain_indexed_without_renaming_or_refetching(self):
+        folder = self.root / 'article/20261001'
+        folder.mkdir(parents=True)
+        old = folder / ('rss-' + rss.hashlib.sha256((self.url + '/article').encode()).hexdigest()[:24] + '.md')
+        old.write_text(f'# Existing title\n\n- 原文: {self.url}/article\n\nUser edited body', encoding='utf-8')
+        before = old.read_bytes(), old.stat().st_mtime_ns
+        result = self.pipeline.run('pipeline', '20261027')
+        self.assertEqual(result['results'][0]['collected'], 0)
+        self.assertEqual((old.read_bytes(), old.stat().st_mtime_ns), before)
+        self.assertEqual(list((self.root / 'article').rglob('*.md')), [old])
+        index = json.loads(next((self.data / 'articles').glob('*.json')).read_text(encoding='utf-8'))
+        self.assertEqual(index['path'], old.relative_to(self.root).as_posix())
+
+    def test_updated_source_uses_readable_name_and_preserves_the_original(self):
+        self.pipeline.run('pipeline', '20261027')
+        original = self.root / 'article/20261027/Design study.md'
+        original.write_text('My edited original', encoding='utf-8')
+        raw, _ = rss.normalize_feed('Research', self.url, [{'title': 'Updated title', 'url': self.url + '/article', 'content': '<p>New published facts.</p>'}])
+        rss.write_atomic(self.data / 'feeds/test-source.xml', raw)
+        result = self.pipeline.run('collect', '20261027')
+        self.assertEqual(result['results'][0]['collected'], 1, result)
+        update = self.root / 'article/.updates/20261027/Updated title.md'
+        self.assertTrue(update.is_file())
+        self.assertEqual(original.read_text(encoding='utf-8'), 'My edited original')
+        index = json.loads(next((self.data / 'articles').glob('*.json')).read_text(encoding='utf-8'))
+        self.assertEqual(index['path'], update.relative_to(self.root).as_posix())
+        self.assertEqual(index['previousPath'], original.relative_to(self.root).as_posix())
+
+    def test_multiple_sources_and_collection_dates_still_deduplicate_by_url(self):
+        self.pipeline.run('pipeline', '20261027')
+        original = self.root / 'article/20261027/Design study.md'
+        doc = self.pipeline.registry()
+        doc['sources'].append({**self.source, 'id': 'mirror', 'name': 'Another publisher', 'feedRevision': 1})
+        self.write(doc)
+        raw, _ = rss.normalize_feed('Another publisher', self.url, [{'title': 'Design study', 'url': self.url + '/article', 'guid': 'stable-id',
+            'date': rss.date_value('Tue, 27 Oct 2026 08:00:00 GMT'), 'description': 'Research'}])
+        rss.write_atomic(self.data / 'feeds/mirror.xml', raw)
+        result = self.pipeline.run('collect', '20261028')
+        self.assertEqual([row['collected'] for row in result['results']], [0, 0], result)
+        self.assertEqual(list((self.root / 'article').rglob('*.md')), [original])
+
+    def test_concurrent_sources_with_the_same_title_keep_both_articles(self):
+        doc = self.pipeline.registry()
+        doc['sources'][0]['feedRevision'] = 1
+        doc['sources'].append({**doc['sources'][0], 'id': 'mirror'})
+        self.write(doc)
+        for source_id, url in [('test-source', self.url + '/one'), ('mirror', self.url + '/two')]:
+            raw, _ = rss.normalize_feed('Research', self.url, [{'title': 'Shared title', 'url': url}])
+            rss.write_atomic(self.data / 'feeds' / (source_id + '.xml'), raw)
+        barrier = threading.Barrier(2)
+        def extract(entry):
+            barrier.wait(timeout=5)
+            return 'Complete source facts for ' + entry['url']
+        with patch.object(rss, 'article_text', extract), ThreadPoolExecutor(max_workers=2) as executor:
+            jobs = [executor.submit(rss.Pipeline(self.root, self.data, self.catalog).run, 'collect', '20261027', source_id)
+                    for source_id in ['test-source', 'mirror']]
+            results = [job.result(timeout=10) for job in jobs]
+        self.assertTrue(all(result['status'] == 'succeeded' for result in results), results)
+        self.assertEqual({file.name for file in (self.root / 'article/20261027').glob('*.md')}, {'Shared title.md', 'Shared title (2).md'})
+        indexes = [json.loads(file.read_text(encoding='utf-8')) for file in (self.data / 'articles').glob('*.json')]
+        self.assertEqual(len({row['path'] for row in indexes}), 2)
+
+    def test_reserved_article_path_cannot_write_outside_article_directory(self):
+        self.pipeline.run('sync', '20261027')
+        _, entries = rss.parse_feed((self.data / 'feeds/test-source.xml').read_bytes(), self.url)
+        entry = entries[0]
+        key = rss.hashlib.sha256(rss.http_url(entry['url']).encode()).hexdigest()
+        fingerprint = rss.hashlib.sha256(json.dumps({k: str(v) for k, v in entry.items()}, sort_keys=True).encode()).hexdigest()
+        rss.json_write(self.data / 'article-targets' / (key + '.json'), {'url': entry['url'], 'fingerprint': fingerprint, 'path': 'article/../config/keep.md'})
+        result = self.pipeline.run('collect', '20261027')
+        self.assertEqual(result['results'][0]['error']['code'], 'unsafe-path')
+        self.assertFalse((self.root / 'config/keep.md').exists())
     def test_article_limit_is_bounded_and_reports_the_article_without_saving_partial_text(self):
         self.pipeline.run('sync', '20261027')
         with patch.object(rss, 'MAX_ARTICLE_BYTES', 64):

@@ -9,6 +9,7 @@ import rehypeHighlight from "rehype-highlight";
 import type { Element, Root, RootContent } from "hast";
 import type { DocumentBlock, DocumentMatch, ReadingDocument } from "@shared/document-view";
 import { normalizeMarkdownTables, remarkCjkSpacing } from "../markdown-normalize";
+import { documentFileReference } from "./document-file-links";
 
 // Budgets apply to a single block as well as to the viewport. Otherwise a
 // one-megabyte paragraph or one huge table defeats top-level virtualization.
@@ -87,7 +88,10 @@ function safeTree(node: RootContent): void {
     const value = node.properties[key];
     if (typeof value !== "string") continue;
     const compact = value.replace(/[\u0000-\u0020]/g, "");
-    if (/^[a-z][a-z\d+.-]*:/i.test(compact) && !/^(https?:|mailto:|data:image\/(png|gif|jpe?g|webp|avif);base64,)/i.test(compact)) delete node.properties[key];
+    if (/^[a-z][a-z\d+.-]*:/i.test(compact) && !/^(https?:|mailto:|data:image\/(png|gif|jpe?g|webp|avif);base64,)/i.test(compact)) {
+      if (key === "href" && node.tagName === "a" && documentFileReference(value)) node.properties.dataDocumentFileReference = value;
+      delete node.properties[key];
+    }
   }
   if (node.tagName === "img" && !/^data:image\/(png|gif|jpe?g|webp|avif);base64,/i.test(String(node.properties.src || ""))) {
     const src = node.properties.src;

@@ -88,7 +88,7 @@ app.whenReady().then(async () => {
     }
     if (scenario.id.startsWith("skill-library-")) {
       await waitForSelector(".skill-library-card");
-      if (scenario.id === "skill-library-explore") assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('.skill-library-card').length"), 15, `${name}: public remote card count`);
+      if (scenario.id === "skill-library-explore") assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('.skill-library-card').length"), 11, `${name}: public remote card count`);
     }
     if (scenario.id.startsWith("rss-source-")) await waitForSelector(".rss-source-card");
     if (scenario.id.startsWith("rss-preferences-")) {
@@ -180,7 +180,7 @@ app.whenReady().then(async () => {
           compactInput: document.querySelector('textarea').dataset.size === 'sm',
           allWrapped: cards.every(card => card.scrollWidth <= card.clientWidth + 1) };
       })()`);
-      assert.equal(home.cards, 5, `${name}: curated recommendation count`);
+      assert.equal(home.cards, 1, `${name}: curated recommendation count after removing the four text presets`);
       assert.equal(home.columns, width <= 720 ? 2 : 4, `${name}: responsive recommendation columns`);
       if (width >= 1280) assert.equal(home.composerWidth, 650, `${name}: welcome composer width`);
       for (const key of ['fillsFrame', 'centered', 'contained', 'compactInput', 'allWrapped']) assert.equal(home[key], true, `${name}: ${key}`);

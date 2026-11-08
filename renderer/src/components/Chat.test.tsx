@@ -183,9 +183,9 @@ describe("Chat composer", () => {
       usable: true, reason: null, key: null, digest: null, version: "1.0.0", authoringId: null, revision: 0, draft: false, imageCount: 0, source: "应用预设", executionModel: null
     };
     const categoryEntry = { ...entry, id: "another-remote-image", skillId: "another-remote-image", title: "同类新技能", recommended: false, coverUrl: undefined };
-    // A known legacy ID must not override the remote publisher's recommendation choice.
-    const excluded = { ...entry, id: "om-article-writer", skillId: "om-article-writer", title: "未推荐的技能", category: "writing" as const, recommended: false };
-    const all = [entry, categoryEntry, excluded];
+    const excluded = { ...entry, id: "om-poster-maker", skillId: "om-poster-maker", title: "未推荐的技能", category: "writing" as const, recommended: false };
+    const retired = { ...entry, id: "om-article-writer", skillId: "om-article-writer", title: "已移除的预设", recommended: true };
+    const all = [entry, categoryEntry, excluded, retired];
     window.openmind.listSkillLibrary = vi.fn(async () => all);
     window.openmind.getSkillLibrarySnapshot = vi.fn<NonNullable<DesktopApi["getSkillLibrarySnapshot"]>>(async () => ({ entries: all, remote: { state: "cached", updatedAt: "2026-11-05T00:00:00Z", error: "offline" } }));
     window.openmind.installLibraryPreset = vi.fn(async () => ({ ...entry, installed: true, enabled: true, key: `openmind-library/${entry.id}`, digest: "a".repeat(64) }));
@@ -193,6 +193,7 @@ describe("Chat composer", () => {
     await screen.findByRole("button", { name: entry.title });
     await screen.findByText(m.skillLibrary.offlineCached);
     expect(screen.queryByRole("button", { name: excluded.title })).toBeNull();
+    expect(screen.queryByRole("button", { name: retired.title })).toBeNull();
     expect(screen.queryByRole("button", { name: categoryEntry.title })).toBeNull();
     const card = screen.getByRole("button", { name: entry.title }).closest("article")!;
     expect(card.querySelector("img")?.getAttribute("src")).toBe(entry.coverUrl);
@@ -210,15 +211,15 @@ describe("Chat composer", () => {
   it("filters welcome skills, previews their Prompt and installs only when explicitly chosen, preserving the draft", async () => {
     const user = userEvent.setup();
     const entry: SkillLibraryEntry = {
-      id: "om-article-writer", skillId: "om-article-writer", title: "长文写作", subtitle: "写一篇文章", description: "创作完整文章",
-      inputHint: "文章的主题和读者是谁？", category: "writing", origin: "preset", installed: false, enabled: false,
+      id: "om-fixture-writer", skillId: "om-fixture-writer", title: "长文写作", subtitle: "写一篇文章", description: "创作完整文章",
+      inputHint: "文章的主题和读者是谁？", category: "writing", origin: "preset", installed: false, enabled: false, recommended: true,
       usable: true, reason: null, key: null, digest: null, version: null, authoringId: null, revision: 0, draft: false, imageCount: 0, source: "应用预设", executionModel: null
     };
     const imported = { ...entry, id: "imported", title: "Imported private helper", origin: "git" as const, installed: true };
-    const research = { ...entry, id: "om-research-brief", skillId: "om-research-brief", title: "研究资料", category: "research" as const };
+    const research = { ...entry, id: "om-fixture-research", skillId: "om-fixture-research", title: "研究资料", category: "research" as const };
     window.openmind.listSkillLibrary = vi.fn(async () => [entry, imported, research]);
     window.openmind.readSkillLibraryPrompt = vi.fn(async () => "Read the material and write a complete article.");
-    window.openmind.installLibraryPreset = vi.fn(async () => ({ ...entry, installed: true, enabled: true, key: "openmind-library/om-article-writer", digest: "a".repeat(64) }));
+    window.openmind.installLibraryPreset = vi.fn(async () => ({ ...entry, installed: true, enabled: true, key: "openmind-library/om-fixture-writer", digest: "a".repeat(64) }));
     render(<AiProvider initial={snapshot}><Chat /></AiProvider>);
     const input = screen.getByLabelText("AI 消息") as HTMLTextAreaElement;
     await user.type(input, "请保留我写的任务");
@@ -240,12 +241,12 @@ describe("Chat composer", () => {
   it("applies a recommended skill straight from the card action without opening the detail view", async () => {
     const user = userEvent.setup();
     const entry: SkillLibraryEntry = {
-      id: "om-article-writer", skillId: "om-article-writer", title: "长文写作", subtitle: "写一篇文章", description: "创作完整文章",
-      inputHint: "文章的主题和读者是谁？", category: "writing", origin: "preset", installed: false, enabled: false,
+      id: "om-fixture-writer", skillId: "om-fixture-writer", title: "长文写作", subtitle: "写一篇文章", description: "创作完整文章",
+      inputHint: "文章的主题和读者是谁？", category: "writing", origin: "preset", installed: false, enabled: false, recommended: true,
       usable: true, reason: null, key: null, digest: null, version: null, authoringId: null, revision: 0, draft: false, imageCount: 0, source: "应用预设", executionModel: null
     };
     window.openmind.listSkillLibrary = vi.fn(async () => [entry]);
-    window.openmind.installLibraryPreset = vi.fn(async () => ({ ...entry, installed: true, enabled: true, key: "openmind-library/om-article-writer", digest: "a".repeat(64) }));
+    window.openmind.installLibraryPreset = vi.fn(async () => ({ ...entry, installed: true, enabled: true, key: "openmind-library/om-fixture-writer", digest: "a".repeat(64) }));
     render(<AiProvider initial={snapshot}><Chat /></AiProvider>);
     const input = screen.getByLabelText("AI 消息") as HTMLTextAreaElement;
     await screen.findByRole("button", { name: "长文写作" });
@@ -310,9 +311,9 @@ describe("Chat composer", () => {
 
   it("sends the chosen Skill identity with ordinary text and preserves selection after failure", async () => {
     const entry: SkillLibraryEntry = {
-      id: "om-article-writer", skillId: "om-article-writer", title: "长文写作", subtitle: "", description: "",
+      id: "om-fixture-writer", skillId: "om-fixture-writer", title: "长文写作", subtitle: "", description: "",
       inputHint: "文章的主题和读者是谁？", category: "writing", origin: "preset", installed: true, enabled: true,
-      usable: true, reason: null, key: "cctools/om-article-writer", digest: "a".repeat(64), version: "1.0.0",
+      usable: true, reason: null, key: "cctools/om-fixture-writer", digest: "a".repeat(64), version: "1.0.0",
       authoringId: null, revision: 0, draft: false, imageCount: 0, source: "cctools-skills", executionModel: null
     };
     window.openmind.listSkillLibrary = vi.fn(async () => [entry]);

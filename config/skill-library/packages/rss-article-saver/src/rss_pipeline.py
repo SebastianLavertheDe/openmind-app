@@ -51,6 +51,15 @@ def utc_now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def article_filename_stem(title):
+    # Keep titles readable while producing portable Windows/macOS/Linux names.
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', '-', title)
+    stem = ' '.join(stem.split()).strip(' .')
+    stem = stem.encode('utf-8')[:180].decode('utf-8', errors='ignore').rstrip(' .') or '未命名文章'
+    if re.match(r'^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)', stem, re.I): stem = '_' + stem
+    return stem
+
+
 def http_url(value):
     parts = urlsplit(value)
     if parts.scheme not in ("http", "https") or not parts.netloc:
@@ -286,6 +295,17 @@ class Pipeline:
             raise FeedError("unsafe-path", "A data path escapes the selected content root.")
         return file
 
+    def available_article_path(self, directory, stem):
+        self.safe(directory)
+        # Avoid case-only collisions even on a case-sensitive filesystem, so
+        # content can later sync to Windows without losing either article.
+        names = {file.name.casefold() for file in directory.iterdir()} if directory.exists() else set()
+        number = 1
+        while True:
+            name = f'{stem}{f" ({number})" if number > 1 else ""}.md'
+            if name.casefold() not in names: return self.safe(directory / name)
+            number += 1
+
     def registry(self):
         self.safe(self.file)
         try: doc = json.loads(self.file.read_text(encoding="utf-8"))
@@ -337,27 +357,43 @@ class Pipeline:
                 if previous and (previous.get("legacy") or previous.get("fingerprint") == fingerprint): continue
                 text = article_text(entry)
                 body = f'# {entry["title"]}\n\n- 来源: {source["name"]}\n- 原文: {entry["url"]}\n\n{text}\n'
-                target = self.safe(self.root / "article" / date / ("rss-" + key[:24] + ".md"))
-                if previous:
-                    target = self.safe(self.root / "article" / ".updates" / date / ("rss-" + key[:24] + "-" + fingerprint[:12] + ".md"))
+                stem = article_filename_stem(entry['title'])
+                directory = self.root / 'article' / ('.updates' if previous else '') / date
+                reservation = self.safe(self.data / 'article-targets' / (key + '.json'))
+                saved_path = None
                 def save(_current):
-                    nonlocal target
+                    nonlocal saved_path
+                    # commit() holds the shared registry lock while allocating
+                    # a filename, publishing the article and updating its index.
+                    # Reserve the readable path privately before writing, so a
+                    # retry can find an edited/unindexed article after a crash.
+                    claim = json.loads(reservation.read_text(encoding='utf-8')) if reservation.exists() else None
+                    if claim and claim.get('fingerprint') == fingerprint and claim.get('url') == entry['url']:
+                        target = self.safe(self.root / claim['path'])
+                        if not target.resolve().is_relative_to((self.root / 'article').resolve()) or target.suffix != '.md':
+                            raise FeedError('unsafe-path', 'The reserved article path is outside the article directory.')
+                    else:
+                        target = self.available_article_path(directory, stem)
+                    def reserve(file):
+                        json_write(reservation, {'url': entry['url'], 'fingerprint': fingerprint, 'path': file.relative_to(self.root).as_posix()})
+                    reserve(target)
                     encoded = body.encode("utf-8")
                     previous_path = previous.get("path") if previous else None
                     if target.exists() and target.read_bytes() != encoded:
-                        # An unindexed file can be a legacy partial write or a
-                        # user's edit after a successful write. Preserve it and
-                        # index a separate, complete version instead.
+                        # This URL owns the reservation: preserve user edits,
+                        # and save the fetched version separately.
                         previous_path = target.relative_to(self.root).as_posix()
-                        target = self.safe(self.root / "article" / ".updates" / date / ("rss-" + key[:24] + "-" + hashlib.sha256(encoded).hexdigest()[:12] + ".md"))
-                        if target.exists() and target.read_bytes() != encoded:
-                            target = self.safe(target.with_name(target.stem + "-" + uuid.uuid4().hex + ".md"))
+                        target = self.available_article_path(self.root / 'article' / '.updates' / date, stem)
+                        reserve(target)
                     # Only an atomically published complete file may advance
                     # the index. A retry can reuse an identical published file.
                     if not target.exists(): write_atomic(target, encoded)
                     json_write(index, {"url": entry["url"], "guid": entry["guid"], "path": target.relative_to(self.root).as_posix(), "savedAt": utc_now(), "fingerprint": fingerprint, "previousPath": previous_path})
+                    try: reservation.unlink(missing_ok=True)
+                    except OSError: pass  # A stale reservation cannot bypass the committed URL index.
+                    saved_path = target.relative_to(self.root).as_posix()
                 self.commit(source, save); saved += 1
-                self.saved_paths.append(target.relative_to(self.root).as_posix())
+                self.saved_paths.append(saved_path)
         def completed(current):
             stamp = utc_now()
             current.update(lastAttemptAt=stamp, lastSuccessAt=stamp, lastCollectAt=stamp, lastAttemptStage="collect")

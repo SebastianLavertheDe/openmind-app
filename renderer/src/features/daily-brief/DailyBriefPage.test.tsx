@@ -4,6 +4,8 @@ import type { DesktopApi } from "@shared/contracts";
 import { AiProvider } from "../../ai-context";
 import { ChatComposer } from "../ai-console/composer";
 import { DailyBriefPage } from "./DailyBriefPage";
+import { useState } from "react";
+import { FilePreviewProvider } from "../ai-console/file-preview-context";
 
 const snapshot = { projectRoot: "/repo", providers: [], sessions: [], runs: [], pendingApprovals: [] };
 const path = "openmind/daily-summary/20260630_daily_summary.md";
@@ -24,6 +26,34 @@ beforeEach(() => { window.localStorage.clear(); window.openmind = makeApi(); });
 afterEach(() => cleanup());
 
 describe("DailyBriefPage", () => {
+  it("follows source-file links in the current detail area and returns to the selected brief", async () => {
+    const source = "openmind/article/20260630/source.md";
+    const next = "openmind/article/20260630/next.md";
+    const api = makeApi();
+    const openPath = vi.fn(api.openPath);
+    const readContent = vi.fn(async (file: string) => ({
+      path: file, name: file.split("/").at(-1)!, truncated: false,
+      content: file === path ? "# 每日简报\n\n[源文件](<..\\article\\20260630\\source.md>)"
+        : file === source ? "# 来源文章\n\n[下一篇](next.md)" : "# 第二篇文章"
+    }));
+    window.openmind = { ...api, readContent, openPath };
+    function Workspace() {
+      const [file, setFile] = useState<string | null>(null);
+      return <FilePreviewProvider open={setFile}><DailyBriefPage embeddedFilePreviewPath={file} onCloseEmbeddedFilePreview={() => setFile(null)} /></FilePreviewProvider>;
+    }
+    const { container } = render(<AiProvider initial={snapshot}><Workspace /></AiProvider>);
+    fireEvent.click(await screen.findByRole("link", { name: "源文件" }));
+    await screen.findByRole("heading", { name: "来源文章" });
+    expect(container.querySelector(".document-library-detail .workspace-file-preview.is-embedded")).toBeTruthy();
+    expect(readContent).toHaveBeenCalledWith(source);
+    fireEvent.click(screen.getByRole("link", { name: "下一篇" }));
+    await screen.findByRole("heading", { name: "第二篇文章" });
+    expect(readContent).toHaveBeenCalledWith(next);
+    fireEvent.click(screen.getByRole("button", { name: /2026-06-30 每日简报/ }));
+    expect(await screen.findByRole("heading", { name: "每日简报" })).toBeTruthy();
+    expect(openPath).not.toHaveBeenCalled();
+  });
+
   it("uses the creative list's saved width while keeping its own list visible", async () => {
     window.localStorage.setItem("openmind.list-detail.creative.v1", JSON.stringify({
       schemaVersion: 1,

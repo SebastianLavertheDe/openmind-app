@@ -16,6 +16,7 @@ import { assertSkillInactive, installBuiltinDefault, isManagedLegacyDefault } fr
 import { skillCoverThumbnails } from "./skill-cover-thumbnails";
 import { RemoteSkillPackageUnavailableError, RemoteSkillRegistry } from "./remote-skill-registry";
 import { resolveSkillRegistrySource } from "./skill-registry-source";
+import { RETIRED_BUILTIN_SKILL_IDS, RETIRED_SKILL_REASON } from "../../shared/retired-skills";
 
 type Bindings = Record<string, { key: string; digest: string }>;
 const METADATA = "openmind.library.json";
@@ -83,10 +84,10 @@ export class SkillLibraryService {
     const dependencyUnavailable = (packagePath: string) => (readSkillLibraryMetadata(packagePath)?.dependencies || []).some(reference =>
       !installed.some(record => record.key === reference.key && record.digest === reference.digest && record.enabled && record.usable));
     const presetKeys = new Set<string>();
-    const remoteEntries = this.registry.readCached()?.skills || [];
+    const remoteEntries = (this.registry.readCached()?.skills || []).filter(entry => !RETIRED_BUILTIN_SKILL_IDS.has(entry.preset.id));
     const registryStatus = this.registry.status();
     const remoteById = new Map(remoteEntries.map(entry => [entry.preset.id, entry]));
-    const presets = [...readSkillLibraryCatalog(this.bundleRoot).skills.filter(entry => !remoteById.has(entry.id)), ...remoteEntries.map(entry => entry.preset)];
+    const presets = [...readSkillLibraryCatalog(this.bundleRoot).skills.filter(entry => !remoteById.has(entry.id) && !RETIRED_BUILTIN_SKILL_IDS.has(entry.id)), ...remoteEntries.map(entry => entry.preset)];
     const result: SkillLibraryEntry[] = presets.map(preset => {
       const remote = remoteById.get(preset.id);
       const record = installed.find(item => item.id === preset.id && (isAppLibraryInstall(item)
@@ -157,6 +158,7 @@ export class SkillLibraryService {
   }
 
   installPreset(id: string): SkillLibraryEntry {
+    if (RETIRED_BUILTIN_SKILL_IDS.has(id)) throw new Error(RETIRED_SKILL_REASON);
     const preset = readSkillLibraryCatalog(this.bundleRoot).skills.find(item => item.id === id);
     if (!preset) throw new Error(m.errors.missing);
     if (preset.packageDirectory) {
@@ -183,6 +185,7 @@ export class SkillLibraryService {
 
   /** Download only on an explicit install/use; the installed copy remains the execution source. */
   async installFromCatalog(id: string, beforeInstall: () => void = () => {}): Promise<SkillLibraryEntry> {
+    if (RETIRED_BUILTIN_SKILL_IDS.has(id)) throw new Error(RETIRED_SKILL_REASON);
     await this.registry.refresh();
     const remote = this.registry.readCached()?.skills.find(entry => entry.preset.id === id);
     if (!remote) { beforeInstall(); return this.installPreset(id); }

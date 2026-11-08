@@ -18,6 +18,7 @@ import type { SkillSourceService } from "./skill-source-service";
 import { OPENMIND_SKILLS_REPO_URL } from "../../shared/skill-package-sources";
 import { SkillToolRegistry } from "../ai/skill-tool-registry";
 import * as libraryRuntime from "./skill-library-runtime";
+import type { RemoteSkillRegistry } from "./remote-skill-registry";
 
 const roots: string[] = [];
 const initialLocale = getLocale();
@@ -32,7 +33,7 @@ function fixture() {
   const packages = new SkillPackageService(paths);
   const bundle = path.join(directory, "skill-library");
   const configRoot = path.join(directory, "config"); fs.mkdirSync(configRoot);
-  const catalog = SkillLibraryCatalogSchema.parse({ schemaVersion: 1, skills: [{ id: "om-research-brief", category: "research", instructions: ["Read the supplied evidence."], display: { en: { title: "Research brief", subtitle: "Research the supplied materials", inputHint: "What should I research?" } } }] });
+  const catalog = SkillLibraryCatalogSchema.parse({ schemaVersion: 1, skills: [{ id: "om-fixture-research", category: "research", instructions: ["Read the supplied evidence."], display: { en: { title: "Research brief", subtitle: "Research the supplied materials", inputHint: "What should I research?" } } }] });
   const writeCatalog = () => {
     fs.writeFileSync(path.join(configRoot, "catalog.json"), JSON.stringify(catalog));
     if (fs.existsSync(bundle)) fs.writeFileSync(path.join(bundle, "catalog.json"), JSON.stringify(catalog));
@@ -54,13 +55,34 @@ function legacySkill(f: ReturnType<typeof fixture>, patch: Partial<AuthoredSkill
 }
 
 describe("Skill library and authoring", () => {
+  it.each(["om-research-brief", "om-source-compare", "om-article-writer", "om-text-rewriter"])("does not resurrect removed app presets from cached catalogs: %s", async id => {
+    const f = fixture();
+    const removed = { ...f.catalog.skills[0], id };
+    const refresh = vi.fn();
+    const registry = {
+      readCached: () => ({ skills: [{ preset: removed, package: { digest: "a".repeat(64) } }] }),
+      status: () => ({ state: "cached", updatedAt: null, error: null }),
+      refresh,
+      source: "https://example.invalid/app-skills"
+    } as unknown as RemoteSkillRegistry;
+    const service = new SkillLibraryService(f.content, f.paths, f.packages, f.bundle, registry);
+    expect(service.list().some(entry => entry.skillId === id)).toBe(false);
+    expect(() => service.installPreset(id)).toThrow(/退役/);
+    await expect(service.installFromCatalog(id)).rejects.toThrow(/退役/);
+    expect(refresh).not.toHaveBeenCalled();
+    // An old bundled catalog must not expose the removed card either.
+    f.catalog.skills.push(removed);
+    f.writeCatalog();
+    expect(f.service.list().some(entry => entry.skillId === id)).toBe(false);
+  });
+
   it("previews catalog and installed prompts without installing or writing drafts", () => {
     const f = fixture();
-    expect(f.service.prompt("om-research-brief")).toContain("Read the supplied evidence.");
+    expect(f.service.prompt("om-fixture-research")).toContain("Read the supplied evidence.");
     expect(f.packages.listInstalledViews()).toHaveLength(0);
     expect(fs.existsSync(path.join(f.content, ".agent", "authored-skills"))).toBe(false);
     expect(() => f.service.prompt("../SKILL.md")).toThrow();
-    const entry = f.service.installPreset("om-research-brief");
+    const entry = f.service.installPreset("om-fixture-research");
     const prompt = f.service.prompt(entry.id);
     expect(prompt).toContain("Read the supplied evidence.");
     expect(prompt).not.toMatch(/^---/);
@@ -69,16 +91,16 @@ describe("Skill library and authoring", () => {
 
   it("keeps the installed rules until explicit use applies a changed bundle", () => {
     const f = fixture();
-    const original = f.service.installPreset("om-research-brief");
+    const original = f.service.installPreset("om-fixture-research");
     expect(original.updateAvailable).toBe(false);
     f.catalog.skills[0].version = "1.1.0";
     f.catalog.skills[0].instructions = ["Updated bundled rules."];
     f.writeCatalog(); prepareSkillLibraryBundle(f.configRoot, f.bundle);
-    const pending = f.service.list().find(entry => entry.id === "om-research-brief")!;
+    const pending = f.service.list().find(entry => entry.id === "om-fixture-research")!;
     expect(pending).toMatchObject({ digest: original.digest, version: "1.0.0", updateAvailable: true });
     const before = f.packages.getInstalled(original.key!, original.digest!)!;
     expect(fs.readFileSync(path.join(before.packagePath, "SKILL.md"), "utf8")).toContain("Read the supplied evidence.");
-    const updated = f.service.installPreset("om-research-brief");
+    const updated = f.service.installPreset("om-fixture-research");
     expect(updated).toMatchObject({ version: "1.1.0", updateAvailable: false });
     expect(updated.digest).not.toBe(original.digest);
     const after = f.packages.getInstalled(updated.key!, updated.digest!)!;
@@ -115,13 +137,13 @@ describe("Skill library and authoring", () => {
     const f = fixture();
     const profileUrl = "https://github.com/member";
     f.catalog.skills[0].contributor = { nick: "Library member", avatar: "avatar.png", profileUrl };
-    const source = path.join(f.configRoot, "assets/om-research-brief/avatar.png");
+    const source = path.join(f.configRoot, "assets/om-fixture-research/avatar.png");
     fs.mkdirSync(path.dirname(source), { recursive: true });
     fs.writeFileSync(source, PNG.sync.write(new PNG({ width: 128, height: 128 })));
     f.writeCatalog(); prepareSkillLibraryBundle(f.configRoot, f.bundle);
     const original = f.service.list()[0].contributor;
     expect(original).toMatchObject({ nick: "Library member", avatarUrl: expect.stringContaining("data:image/png;base64,"), profileUrl });
-    const installed = f.service.installPreset("om-research-brief");
+    const installed = f.service.installPreset("om-fixture-research");
     expect(installed.contributor).toEqual(original);
     expect(f.service.editor().contributor).toBeUndefined();
     f.catalog.skills = []; f.writeCatalog();
@@ -165,8 +187,8 @@ describe("Skill library and authoring", () => {
 
   it("keeps App library installs separate from GitHub imports and default removal", async () => {
     const f = fixture();
-    const preset = f.service.installPreset("om-research-brief");
-    expect(preset.key).toBe("openmind-library/om-research-brief");
+    const preset = f.service.installPreset("om-fixture-research");
+    expect(preset.key).toBe("openmind-library/om-fixture-research");
     expect(f.packages.getInstalled(preset.key!, preset.digest!)).toMatchObject({ sourceType: "builtin", sourceLocator: "openmind:skill-library" });
     const external = path.join(f.directory, "github"); fs.mkdirSync(external);
     fs.writeFileSync(path.join(external, "SKILL.md"), "---\nname: rss-article-saver\ndescription: External RSS skill\n---\nRead feeds.\n");
@@ -181,7 +203,7 @@ describe("Skill library and authoring", () => {
 
   it("migrates only a bound legacy App install to the independent publisher", () => {
     const f = fixture();
-    const source = path.join(f.bundle, "om-research-brief");
+    const source = path.join(f.bundle, "om-fixture-research");
     const manifestPath = path.join(source, "openmind.skill.yaml");
     const original = fs.readFileSync(manifestPath, "utf8");
     const legacyManifest = JSON.parse(original); legacyManifest.publisher.id = "cctools";
@@ -193,7 +215,7 @@ describe("Skill library and authoring", () => {
     expect(f.service.list()[0].installed).toBe(true);
     fs.writeFileSync(manifestPath, original);
     const current = f.service.installPreset(legacy.id);
-    expect(current.key).toBe("openmind-library/om-research-brief");
+    expect(current.key).toBe("openmind-library/om-fixture-research");
     expect(f.packages.getInstalled(legacy.key)).toBeUndefined();
     expect(f.packages.listInstalled()).toHaveLength(1);
   });
@@ -201,7 +223,7 @@ describe("Skill library and authoring", () => {
   it.each(["cctools", "openmind-library"])("never treats a GitHub package from %s as an App preset or replaces it", publisher => {
     const f = fixture();
     const source = path.join(f.directory, "github");
-    fs.cpSync(path.join(f.bundle, "om-research-brief"), source, { recursive: true });
+    fs.cpSync(path.join(f.bundle, "om-fixture-research"), source, { recursive: true });
     const manifestPath = path.join(source, "openmind.skill.yaml");
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     manifest.publisher.id = publisher; manifest.display.name = "External package title";
@@ -211,8 +233,8 @@ describe("Skill library and authoring", () => {
     vi.stubEnv("OPENMIND_SKILL_LIBRARY_BUNDLE", f.bundle);
     const resolver = new InstalledSkillExecutionResolver(f.packages, {} as never, f.content, 1);
     expect(resolver.captureSessionSnapshot()[0].definition.title).toBe("External package title");
-    expect(f.service.list().find(entry => entry.id === "om-research-brief")?.installed).toBe(false);
-    expect(() => f.service.installPreset("om-research-brief")).toThrow();
+    expect(f.service.list().find(entry => entry.id === "om-fixture-research")?.installed).toBe(false);
+    expect(() => f.service.installPreset("om-fixture-research")).toThrow();
     expect(f.packages.getInstalled(imported.key, imported.digest)).toBeTruthy();
     expect(f.packages.isInstalledCopyUsable(imported)).toBe(true);
   });
@@ -220,20 +242,20 @@ describe("Skill library and authoring", () => {
   it.each(["modified", "missing"])("keeps the library available when an imported package is %s", damage => {
     const f = fixture();
     const source = path.join(f.directory, "imported");
-    fs.cpSync(path.join(f.bundle, "om-research-brief"), source, { recursive: true });
+    fs.cpSync(path.join(f.bundle, "om-fixture-research"), source, { recursive: true });
     const manifestPath = path.join(source, "openmind.skill.yaml");
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     manifest.id = "imported-skill";
     manifest.publisher.id = "outside";
     fs.writeFileSync(manifestPath, JSON.stringify(manifest));
     const sourceSkill = path.join(source, "SKILL.md");
-    fs.writeFileSync(sourceSkill, fs.readFileSync(sourceSkill, "utf8").replaceAll("om-research-brief", "imported-skill"));
+    fs.writeFileSync(sourceSkill, fs.readFileSync(sourceSkill, "utf8").replaceAll("om-fixture-research", "imported-skill"));
     const record = f.packages.install(source, { sourceType: "directory", sourceLocator: source });
     const skillFile = path.join(record.packagePath, "SKILL.md");
     if (damage === "missing") fs.unlinkSync(skillFile);
     else fs.appendFileSync(skillFile, "\nChanged after installation.");
     const entries = f.service.list();
-    expect(entries.find(entry => entry.id === "om-research-brief")).toMatchObject({ installed: false, usable: true });
+    expect(entries.find(entry => entry.id === "om-fixture-research")).toMatchObject({ installed: false, usable: true });
     expect(entries.find(entry => entry.key === record.key)).toMatchObject({ installed: true, usable: false, reason: expect.any(String), title: record.id });
     expect(f.packages.getInstalled(record.key, record.digest)).toBeTruthy();
     expect(() => f.packages.inspectInstalledCopy(record)).toThrow();
@@ -243,7 +265,7 @@ describe("Skill library and authoring", () => {
   it("isolates an integrity failure that occurs after installed views were collected", () => {
     const f = fixture();
     const source = path.join(f.directory, "imported");
-    fs.cpSync(path.join(f.bundle, "om-research-brief"), source, { recursive: true });
+    fs.cpSync(path.join(f.bundle, "om-fixture-research"), source, { recursive: true });
     const record = f.packages.install(source, { sourceType: "directory", sourceLocator: source });
     const views = f.packages.listInstalledViews();
     expect(views[0].usable).toBe(true);
@@ -255,7 +277,7 @@ describe("Skill library and authoring", () => {
   it("reuses display inspections when repeatedly listing imported packages", () => {
     const f = fixture();
     const source = path.join(f.directory, "imported");
-    fs.cpSync(path.join(f.bundle, "om-research-brief"), source, { recursive: true });
+    fs.cpSync(path.join(f.bundle, "om-fixture-research"), source, { recursive: true });
     const record = f.packages.install(source, { sourceType: "directory", sourceLocator: source });
     const first = f.service.list().find(entry => entry.key === record.key);
     expect(first).toMatchObject({ usable: true });
@@ -271,7 +293,7 @@ describe("Skill library and authoring", () => {
     const f = fixture();
     expect(filterSkillLibrary(f.service.list(), "explore", "all")).toHaveLength(1);
     expect(filterSkillLibrary(f.service.list(), "mine", "all")).toHaveLength(0);
-    const installed = f.service.installPreset("om-research-brief");
+    const installed = f.service.installPreset("om-fixture-research");
     expect(installed.installed && installed.enabled).toBe(true);
     expect(filterSkillLibrary(f.service.list(), "mine", "all")).toHaveLength(1);
     f.service.editor();
@@ -293,7 +315,7 @@ describe("Skill library and authoring", () => {
     vi.stubEnv("OPENMIND_SKILL_LIBRARY_BUNDLE", f.bundle);
 
     setLocale("en");
-    expect(f.service.list().map(entry => entry.id)).toEqual([id, "om-research-brief"]);
+    expect(f.service.list().map(entry => entry.id)).toEqual([id, "om-fixture-research"]);
     expect(filterSkillLibrary(f.service.list(), "explore", "writing", "Detailed")[0]).toMatchObject({ id, ...en, installed: false });
     const installed = f.service.installPreset(id);
     expect(installed).toMatchObject({ id, installed: true, enabled: true, ...en });
@@ -311,7 +333,7 @@ describe("Skill library and authoring", () => {
     expect(resolver.captureSessionSnapshot()[0].definition.title).toBe(zh.title);
 
     f.catalog.skills.shift(); f.writeCatalog();
-    expect(filterSkillLibrary(f.service.list(), "explore", "all").map(entry => entry.id)).toEqual(["om-research-brief"]);
+    expect(filterSkillLibrary(f.service.list(), "explore", "all").map(entry => entry.id)).toEqual(["om-fixture-research"]);
     expect(filterSkillLibrary(f.service.list(), "mine", "all")).toHaveLength(1);
     expect(() => f.service.installPreset(id)).toThrow();
   });
@@ -320,7 +342,7 @@ describe("Skill library and authoring", () => {
     const f = fixture();
     f.catalog.skills.push(f.catalog.skills[0]); f.writeCatalog();
     expect(() => f.service.list()).toThrow("Duplicate Skill id");
-    expect(() => f.service.installPreset("om-research-brief")).toThrow("catalog.json");
+    expect(() => f.service.installPreset("om-fixture-research")).toThrow("catalog.json");
     fs.rmSync(path.join(f.bundle, "catalog.json"));
     expect(() => f.service.list()).toThrow("catalog.json");
     expect(f.packages.listInstalled()).toHaveLength(0);
@@ -336,8 +358,8 @@ describe("Skill library and authoring", () => {
 
   it("validates bundle bytes and does not admit a changed preset", () => {
     const f = fixture();
-    fs.appendFileSync(path.join(f.bundle, "om-research-brief", "SKILL.md"), "Changed after build");
-    expect(() => f.service.installPreset("om-research-brief")).toThrow();
+    fs.appendFileSync(path.join(f.bundle, "om-fixture-research", "SKILL.md"), "Changed after build");
+    expect(() => f.service.installPreset("om-fixture-research")).toThrow();
     expect(f.packages.listInstalled()).toHaveLength(0);
   });
 
@@ -412,7 +434,7 @@ describe("Skill library and authoring", () => {
     vi.stubEnv("OPENMIND_USER_DATA_DIR", f.paths.userData);
     const tools = { python: null, ffmpeg: null, electron: "/fixture/OpenMind" };
     vi.spyOn(libraryRuntime, "resolveSkillLibraryTools").mockReturnValue(tools);
-    const original = f.service.installPreset("om-research-brief");
+    const original = f.service.installPreset("om-fixture-research");
     expect(original.usable).toBe(false);
     const { doc: legacy } = legacySkill(f, { requirement, copiedFrom: { key: original.key!, digest: original.digest! } });
     f.packages.uninstall(original.key!, original.digest!);
@@ -488,7 +510,7 @@ describe("Skill library and authoring", () => {
   });
 
   it("preserves legacy attribution and support files without changing the original package or author defaults", () => {
-    const f = fixture(); const original = f.service.installPreset("om-research-brief");
+    const f = fixture(); const original = f.service.installPreset("om-fixture-research");
     const owner = f.document(); owner.contributor = { nick: "Owner" }; f.service.publish(owner, crypto.randomUUID());
     const contributor = { nick: "Original author", profileUrl: "https://github.com/author" };
     const { doc: legacy, root } = legacySkill(f, { contributor, copiedFrom: { key: original.key!, digest: original.digest! } });
@@ -556,7 +578,7 @@ describe("Skill library and authoring", () => {
   });
 
   it("keeps model preferences and deletes only the authored skill", () => {
-    const f = fixture(); const preset = f.service.installPreset("om-research-brief"); const doc = f.document(); doc.executionModel = { provider: "claude", model: "fixture-model" };
+    const f = fixture(); const preset = f.service.installPreset("om-fixture-research"); const doc = f.document(); doc.executionModel = { provider: "claude", model: "fixture-model" };
     const entry = f.service.publish(doc, crypto.randomUUID());
     expect(entry.executionModel).toEqual(doc.executionModel);
     f.service.remove(doc.id);
