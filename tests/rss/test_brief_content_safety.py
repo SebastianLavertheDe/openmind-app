@@ -110,15 +110,24 @@ class BriefContentSafetyTests(unittest.TestCase):
                   AIProviderError('Network failure'), AIProviderError('Unknown response', status_code=400, response_text='not JSON')]
         for error in errors:
             with self.subTest(error=error.response_text), patch.object(brief, 'call_provider_text', side_effect=error):
-                with self.assertRaises(AIProviderError):
-                    brief.generate(self.root, '20261102', 'summary', PREFERENCES, provider=PROVIDER)
+                if error.status_code == 401:
+                    with self.assertRaises(AIProviderError):
+                        brief.generate(self.root, '20261102', 'summary', PREFERENCES, provider=PROVIDER)
+                else:
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        result = brief.generate(self.root, '20261102', 'summary', PREFERENCES, provider=PROVIDER)
+                    self.assertEqual(result['status'], 'failed')
+                    self.assertEqual(result['failedSources'][0]['reason'], 'provider-error')
+                    self.assertEqual(result['skippedSources'], [])
                 self.assertEqual(self.output.read_text(), 'Previous summary')
 
     def test_invalid_json_is_not_misclassified_as_a_safety_skip(self):
         self.sources(['Evidence'])
-        with patch.object(brief, 'call_provider_text', return_value='{invalid JSON'):
-            with self.assertRaises(json.JSONDecodeError):
-                brief.generate(self.root, '20261102', 'summary', PREFERENCES, provider=PROVIDER)
+        with patch.object(brief, 'call_provider_text', return_value='{invalid JSON'), contextlib.redirect_stderr(io.StringIO()):
+            result = brief.generate(self.root, '20261102', 'summary', PREFERENCES, provider=PROVIDER)
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['skippedSources'], [])
+        self.assertEqual(result['failedSources'][0]['reason'], 'invalid-response')
         self.assertFalse(self.output.exists())
 
     def test_topic_generation_receives_only_accepted_sources(self):

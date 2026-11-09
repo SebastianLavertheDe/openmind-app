@@ -133,6 +133,54 @@ describe("ExecutionBroker", () => {
     expect(retryBroker.events(run.id).some((event) => event.reason === "retry-after-failed")).toBe(true);
   });
 
+  const partialRssResult = { status: "partial", results: [
+    { sourceId: "healthy", status: "succeeded", collected: 3 },
+    { sourceId: "unavailable", status: "failed", error: { code: "access-denied", retryable: false } }
+  ] };
+
+  it.each([
+    { name: "a durable partial RSS result with truncated stdout", skillId: "rss-article-saver", report: "file", result: partialRssResult, attempts: 1 },
+    { name: "a legacy partial RSS stdout result", skillId: "rss-article-saver", report: "stdout", result: partialRssResult, attempts: 1 },
+    { name: "a completely failed RSS collection", skillId: "rss-article-saver", report: "file", result: { status: "failed", results: [{ status: "failed" }] }, attempts: 2 },
+    { name: "an RSS partial result without successful sources", skillId: "rss-article-saver", report: "file", result: { status: "partial", results: [{ status: "failed" }] }, attempts: 2 },
+    { name: "a corrupt RSS result report", skillId: "rss-article-saver", report: "corrupt", result: partialRssResult, attempts: 2 },
+    { name: "another Skill reporting partial success", skillId: "example-skill", report: "file", result: partialRssResult, attempts: 2 }
+  ])("preserves failure visibility and uses $attempts attempt(s) for $name", async ({ skillId, report, result, attempts }) => {
+    const script = `const fs=require('fs');const result=${JSON.stringify(result)};
+      if(${JSON.stringify(report)}!=='stdout')fs.writeFileSync(process.env.OPENMIND_RUN_DIR+'/result.json',${JSON.stringify(report)}==='corrupt'?'{broken':JSON.stringify(result));
+      console.log(${JSON.stringify(report)}==='file'?'truncated output':JSON.stringify(result));
+      console.error('source failed');process.exitCode=1;`;
+    const retryBroker = new ExecutionBroker(paths, (_request, runId) => Promise.resolve({
+      ...plan(packageRoot, openmindRoot, digest, runId, { script, retry: { maxAttempts: 1 } }), skillId
+    }));
+
+    const run = retryBroker.submit({ ...request(), skillId });
+    await waitFor(() => retryBroker.get(run.id).state === "failed");
+
+    expect(retryBroker.get(run.id)).toMatchObject({ attempt: attempts, terminalState: "failed", error: "source failed\n" });
+    expect(retryBroker.events(run.id).some(event => event.reason === "retry-after-failed")).toBe(attempts > 1);
+    if (report === "file") {
+      expect(JSON.parse(fs.readFileSync(path.join(paths.runs, run.id, "work", "result.json"), "utf8"))).toEqual(result);
+    }
+  });
+
+  it("does not use a stale partial RSS report to suppress retries of a new attempt", async () => {
+    const retryBroker = new ExecutionBroker(paths, (_request, runId) => {
+      const work = path.join(paths.runs, runId, "work");
+      fs.mkdirSync(work, { recursive: true });
+      fs.writeFileSync(path.join(work, "result.json"), JSON.stringify(partialRssResult));
+      return Promise.resolve({
+        ...plan(packageRoot, openmindRoot, digest, runId, { script: "process.exitCode=1", retry: { maxAttempts: 1 } }),
+        skillId: "rss-article-saver"
+      });
+    });
+    const run = retryBroker.submit({ ...request(), skillId: "rss-article-saver" });
+    await waitFor(() => retryBroker.get(run.id).state === "failed");
+
+    expect(retryBroker.get(run.id).attempt).toBe(2);
+    expect(fs.existsSync(path.join(paths.runs, run.id, "work", "result.json"))).toBe(false);
+  });
+
   it("lets the admission boundary pin a public retry before the replacement Run is stored", async () => {
     const failingBroker = new ExecutionBroker(
       paths,

@@ -20,7 +20,7 @@ import socket
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime, parsedate_to_datetime
 from html.parser import HTMLParser
 from pathlib import Path
@@ -28,6 +28,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 from xml.etree import ElementTree as ET
+
+import yaml
 
 _package_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_package_root if (_package_root / '_shared').is_dir() else _package_root.parent))
@@ -116,6 +118,19 @@ def date_value(value):
     return parsed
 
 
+def collection_max_age_days():
+    try:
+        config = yaml.safe_load((_package_root / 'config.yaml').read_text(encoding='utf-8')) or {}
+    except FileNotFoundError:
+        config = {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise FeedError('invalid-config', 'The RSS collection age configuration could not be loaded.') from exc
+    value = config.get('max_article_age_days', 7) if isinstance(config, dict) else None
+    if type(value) is not int or value <= 0:
+        raise FeedError('invalid-config', 'max_article_age_days must be a positive integer.')
+    return value
+
+
 def parse_feed(data, url):
     if re.search(br"<!DOCTYPE|<!ENTITY", data, re.I):
         raise FeedError("invalid-feed", "Feed XML must not contain external entities.")
@@ -142,9 +157,11 @@ def parse_feed(data, url):
             link = http_url(urljoin(url, link))
         except FeedError:
             continue
+        # Publication dates take precedence over modification dates regardless
+        # of element order, so updating an old Atom post cannot make it recent.
         entries.append({"title": title, "url": link, "guid": child_text(item, "guid", "id") or link,
                         "description": child_text(item, "description", "summary"), "content": child_text(item, "encoded", "content"),
-                        "date": date_value(child_text(item, "pubDate", "published", "updated", "date"))})
+                        "date": date_value(child_text(item, "pubDate") or child_text(item, "published") or child_text(item, "date") or child_text(item, "updated"))})
     return child_text(parent, "title") or "RSS", entries
 
 
@@ -288,6 +305,7 @@ class Pipeline:
         self.root, self.data, self.catalog = Path(root).resolve(), Path(data).resolve(), catalog
         self.file = self.data / "sources.json"
         self.saved_paths = []
+        self.max_article_age_days = collection_max_age_days()
         if not self.root.is_dir() or not self.data.is_relative_to(self.root): raise FeedError("invalid-root", "RSS data must be inside the selected content root.")
 
     def safe(self, file):
@@ -346,7 +364,12 @@ class Pipeline:
         if not feed.exists(): raise FeedError("feed-not-ready", "The local RSS file is missing; update the source first.")
         _, entries = parse_feed(feed.read_bytes(), source["inputUrl"])
         saved = 0
+        now = date_value(utc_now())
+        cutoff = now - timedelta(days=self.max_article_age_days)
         for entry in entries:
+            published = entry.get('date')
+            if published is None or not cutoff <= published <= now:
+                continue
             self.commit(source, lambda row: None)
             # A stable URL index shared across sources prevents duplicate files.
             key = hashlib.sha256(http_url(entry["url"]).encode()).hexdigest()

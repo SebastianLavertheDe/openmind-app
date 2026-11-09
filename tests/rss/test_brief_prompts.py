@@ -111,8 +111,9 @@ class BriefPromptTests(unittest.TestCase):
                 output = root / 'daily-summary/20261027_daily_summary.md'; previous = output.read_bytes()
                 invalid = True
                 edited['summaryPrompt']['instructions'] = 'Attempt to rename the output fields'
-                with self.assertRaisesRegex(ValueError, 'summary response'):
-                    brief.generate(root, '20261027', 'summary', edited, provider=PROVIDER)
+                result = brief.generate(root, '20261027', 'summary', edited, provider=PROVIDER)
+                self.assertEqual(result['status'], 'failed')
+                self.assertEqual(result['failedSources'][0]['reason'], 'invalid-response')
                 self.assertEqual(output.read_bytes(), previous)
                 invalid = False
                 brief.generate(root, '20261027', 'summary', edited, provider=PROVIDER)

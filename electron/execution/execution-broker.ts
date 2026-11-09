@@ -14,6 +14,7 @@ import { matchesSemverRange } from "../../shared/skill-manifest-schema";
 import { ArtifactCollector, type ArtifactDeclaration, type ExternalBinding } from "./artifact-collector";
 import { ProcessHost, type ProcessResult, type ProcessSpec, validateProcessSpec } from "./process-host";
 import { RunStore } from "./run-store";
+import { isPartialRssResult, readSkillResult } from "./skill-result";
 import type { RssRunContext } from "../../shared/rss-contracts";
 
 export type ExecutionPlan = {
@@ -285,8 +286,9 @@ export class ExecutionBroker {
       }
       let process: ProcessResult | null = null;
       while (!process) {
-        // A retry must never inherit a partial/stale report from its previous attempt.
+        // A retry must never inherit partial/stale reports from a previous attempt.
         fs.rmSync(artifactReportPath, { force: true });
+        fs.rmSync(path.join(runDir, "result.json"), { force: true });
         this.store.transition(entry.runId, "running", { reason: "process-started" });
         this.store.beginAttempt(entry.runId);
         this.emitLatest(entry.runId);
@@ -308,7 +310,7 @@ export class ExecutionBroker {
           }
         });
         this.store.clearProcessPid(entry.runId);
-        if (shouldRetry(result, entry.plan.retry, this.store.get(entry.runId).attempt, active.controller.signal)) {
+        if (shouldRetry(result, entry.plan, this.store.get(entry.runId).attempt, active.controller.signal, runDir)) {
           const attempt = this.store.get(entry.runId).attempt;
           this.store.transition(entry.runId, "preparing_runtime", { reason: `retry-after-${result.outcome}` });
           const event = this.store.appendOutput(entry.runId, "system", `第 ${attempt} 次执行${result.outcome === "timed_out" ? "超时" : "失败"}，按策略重试。`);
@@ -390,13 +392,21 @@ export class ExecutionBroker {
 
 function shouldRetry(
   result: ProcessResult,
-  retry: ExecutionPlan["retry"],
+  plan: ExecutionPlan,
   attempt: number,
-  signal: AbortSignal
+  signal: AbortSignal,
+  runDirectory: string
 ): boolean {
   if (signal.aborted || result.outcome === "cancelled" || result.outcome === "succeeded") return false;
-  return (result.outcome === "failed" || result.outcome === "timed_out")
-    && Boolean(retry && attempt <= retry.maxAttempts);
+  if (!plan.retry || attempt > plan.retry.maxAttempts) return false;
+  if (plan.skillId === "rss-article-saver" && result.outcome === "failed") {
+    try {
+      // Keep source failures visible, but hand usable content to the next stage
+      // instead of collecting every successful source again.
+      if (isPartialRssResult(readSkillResult(runDirectory, [{ stream: "stdout", text: result.stdout }]))) return false;
+    } catch { /* An invalid result must not suppress the normal retry policy. */ }
+  }
+  return result.outcome === "failed" || result.outcome === "timed_out";
 }
 
 function validateExecutionPlan(request: SkillRunRequest, plan: ExecutionPlan): void {

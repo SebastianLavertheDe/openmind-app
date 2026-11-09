@@ -1,8 +1,8 @@
 """Editable legacy summary and topic rules with a fixed summary JSON contract.
 
 Model responses choose only local candidate IDs. Source URLs and paths are
-always supplied by the application. Outputs are committed after every stage
-succeeds, with previous documents retained as versions.
+always supplied by the application. Daily summaries isolate individual source
+failures; outputs are committed after ranking succeeds, retaining old versions.
 """
 from __future__ import annotations
 import argparse
@@ -183,24 +183,39 @@ def generate(root, date, mode, snapshot, *, reddit_only=False, provider=None):
         cache = data / 'cache'
         summaries = []
         skipped_sources = []
+        failed_sources = []
         for index, source in enumerate(sources, 1):
             # Full content participates in cache identity even when a single
             # request must use a bounded source excerpt.
             excerpt = {**source, 'content': source['content'][:60000]}
             try:
                 result = model_json(provider, summarize_prompt(excerpt, snapshot, for_topics=mode == 'topics'), cache, snapshot, source, 'summary')
-            except AIProviderError as exc:
-                if not is_content_safety_rejection(exc):
+                validate_response(result, 'summary')
+            except (AIProviderError, ValueError) as exc:
+                if isinstance(exc, AIProviderError) and is_content_safety_rejection(exc):
+                    skipped = {'index': index, 'path': source['path'], 'reason': 'content-safety'}
+                    skipped_sources.append(skipped)
+                    event = {'event': 'source-skipped', **skipped}
+                elif mode == 'summary' and not (isinstance(exc, AIProviderError) and exc.status_code in (401, 403)):
+                    # Isolate source failures without changing topic generation's
+                    # error policy. Invalid credentials are a provider-wide fault.
+                    failed = {'index': index, 'path': source['path'],
+                              'reason': 'provider-error' if isinstance(exc, AIProviderError) else 'invalid-response'}
+                    if isinstance(exc, AIProviderError) and exc.status_code is not None:
+                        failed['statusCode'] = exc.status_code
+                    failed_sources.append(failed)
+                    event = {'event': 'source-failed', **failed}
+                else:
                     raise
-                skipped = {'index': index, 'path': source['path'], 'reason': 'content-safety'}
-                skipped_sources.append(skipped)
-                # Broker stderr is durable even if a later, unrelated error stops the run.
+                # Broker stderr is durable even if a later stage stops the run.
                 # Never log the provider response, source body or credentials.
-                print(json.dumps({'event': 'source-skipped', **skipped}, ensure_ascii=False), file=sys.stderr, flush=True)
+                print(json.dumps(event, ensure_ascii=False), file=sys.stderr, flush=True)
                 continue
-            validate_response(result, 'summary')
             summaries.append({'source': source, 'result': result})
         if not summaries:
+            if failed_sources:
+                return {'status': 'failed', 'error': 'No source summaries could be generated; the previous document was preserved.',
+                        'date': date, 'failedSources': failed_sources, 'skippedSources': skipped_sources}
             return {'status': 'skipped', 'reason': 'content-safety', 'date': date, 'skippedSources': skipped_sources}
         if mode == 'topics':
             from .topic_generation import topic_report
@@ -225,14 +240,15 @@ def generate(root, date, mode, snapshot, *, reddit_only=False, provider=None):
         ranking = model_json(provider, prompt, cache, snapshot, candidates, 'final-rank')
         validate_response(ranking, 'final-rank', len(candidates))
         selected = [{**summaries[row['index'] - 1], 'reason': str(row.get('reason', ''))} for row in ranking['items']]
-        return save_output(root, date, mode, snapshot, provider, None, selected, labels=ranking['document'], skipped_sources=skipped_sources)
+        return save_output(root, date, mode, snapshot, provider, None, selected, labels=ranking['document'], skipped_sources=skipped_sources, failed_sources=failed_sources)
 
 
-def save_output(root, date, mode, snapshot, provider, output, selected, *, labels=None, skipped_sources=()):
+def save_output(root, date, mode, snapshot, provider, output, selected, *, labels=None, skipped_sources=(), failed_sources=()):
     data = inside(root, '.agent', 'skill-data', 'brief-generation')
     stamp = datetime.now(timezone.utc).isoformat()
     metadata = {'preferencesRevision': snapshot['revision'], 'preferencesDigest': preference_digest(snapshot), 'promptVersion': PROMPT_VERSION, 'model': provider.model, 'generatedAt': stamp}
     if skipped_sources: metadata['skippedSourceCount'] = len(skipped_sources)
+    if failed_sources: metadata['failedSourceCount'] = len(failed_sources)
     folder = 'daily-summary' if mode == 'summary' else 'daily-topic'
     suffix = 'daily_summary' if mode == 'summary' else 'daily_topic'
     target = inside(root, folder, f'{date}_{suffix}.md')
@@ -243,12 +259,14 @@ def save_output(root, date, mode, snapshot, provider, output, selected, *, label
         version = inside(root, folder, '.versions', date, hashlib.sha256(previous).hexdigest() + '.md')
         if not version.exists(): atomic_write(version, previous)
     atomic_write(target, output)
-    write_json(data / 'snapshots' / f'{date}-{mode}-{digest(metadata)}.json', {'preferences': snapshot, 'metadata': metadata, 'sources': [row['source']['path'] for row in selected], 'skippedSources': list(skipped_sources)})
+    write_json(data / 'snapshots' / f'{date}-{mode}-{digest(metadata)}.json', {'preferences': snapshot, 'metadata': metadata, 'sources': [row['source']['path'] for row in selected], 'skippedSources': list(skipped_sources), 'failedSources': list(failed_sources)})
     run = os.environ.get('OPENMIND_RUN_DIR')
     if run:
         write_json(Path(run) / 'daily-brief-preferences.json', snapshot)
         write_json(Path(run) / 'artifacts.json', {'schemaVersion': 1, 'artifacts': [{'declarationId': folder, 'logicalPath': target.relative_to(root).as_posix()}]})
-    return {'status': 'succeeded', 'path': target.relative_to(root).as_posix(), 'selected': len(selected), 'preferencesRevision': snapshot['revision'], 'skippedSources': list(skipped_sources)}
+    result = {'status': 'partial' if failed_sources else 'succeeded', 'path': target.relative_to(root).as_posix(), 'selected': len(selected), 'preferencesRevision': snapshot['revision'], 'skippedSources': list(skipped_sources)}
+    if failed_sources: result['failedSources'] = list(failed_sources)
+    return result
 
 def main(mode):
     parser = argparse.ArgumentParser()
@@ -268,7 +286,7 @@ def main(mode):
         result = generate(root, args.date, mode, snapshot, reddit_only=args.reddit_only)
         if args.run_dir:
             write_json(Path(args.run_dir) / 'result.json', result)
-        print(json.dumps(result, ensure_ascii=False)); return 0
+        print(json.dumps(result, ensure_ascii=False)); return 1 if result['status'] == 'failed' else 0
     except BusyError as exc:
         print(json.dumps({'status': 'skipped', 'reason': str(exc)})); return 0
     except Exception as exc:

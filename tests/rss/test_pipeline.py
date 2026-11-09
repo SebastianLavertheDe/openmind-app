@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
@@ -55,6 +56,8 @@ class PipelineTests(unittest.TestCase):
     def tearDownClass(cls): cls.server.shutdown(); cls.server.server_close()
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        clock = patch.object(rss, 'utc_now', return_value='2026-10-27T12:00:00+00:00')
+        self.clock = clock.start(); self.addCleanup(clock.stop)
         self.root = Path(self.temp.name); self.data = self.root / '.agent/skill-data/rss-article-saver'; self.data.mkdir(parents=True)
         self.catalog = {'adapters': [], 'sources': []}
         self.source = {'id': 'test-source', 'name': 'Research', 'inputUrl': self.url + '/rss', 'resolvedFeedUrl': None, 'adapterId': 'feed', 'kind': 'feed', 'revision': 1, 'enabled': True, 'feedRevision': 0}
@@ -136,7 +139,7 @@ class PipelineTests(unittest.TestCase):
         self.assertIn('feed size limit', str(caught.exception))
         self.source['feedRevision'] = 1
         self.write(self.doc)
-        raw, _ = rss.normalize_feed('Research', self.url, [{'title': 'Large article', 'url': url}])
+        raw, _ = rss.normalize_feed('Research', self.url, [{'title': 'Large article', 'url': url, 'date': rss.date_value(rss.utc_now())}])
         rss.write_atomic(self.data / 'feeds/test-source.xml', raw)
         result = self.pipeline.run('collect', '20261027')
         self.assertEqual(result['status'], 'succeeded', result)
@@ -144,6 +147,64 @@ class PipelineTests(unittest.TestCase):
         article = next((self.root / 'article').rglob('*.md'))
         self.assertIn('Complete article ending.', article.read_text(encoding='utf-8'))
         self.assertIsNone(self.pipeline.registry()['sources'][0].get('lastError'))
+
+    def test_collection_filters_dates_before_extracting_or_indexing_articles(self):
+        self.source['feedRevision'] = 1
+        self.write(self.doc)
+        now = datetime.fromisoformat(self.clock.return_value)
+        dates = {
+            'recent': now - timedelta(hours=1),
+            'boundary': (now - timedelta(days=7)).astimezone(timezone(timedelta(hours=8))),
+            'expired': now - timedelta(days=7, seconds=1),
+            'future': now + timedelta(seconds=1),
+            'undated': None,
+            'invalid-date': None
+        }
+        entries = [{'title': name, 'guid': name, 'url': self.url + '/' + name, 'date': stamp} for name, stamp in dates.items()]
+        raw, _ = rss.normalize_feed('Research', self.url, entries)
+        raw = raw.replace(b'<guid>invalid-date</guid>', b'<guid>invalid-date</guid><pubDate>not-a-date</pubDate>')
+        rss.write_atomic(self.data / 'feeds/test-source.xml', raw)
+        with patch.object(rss, 'article_text', return_value='Complete factual content for a recent article.') as extract:
+            result = self.pipeline.run('collect', '20261027')
+        self.assertEqual(result['status'], 'succeeded', result)
+        self.assertEqual(result['results'][0]['collected'], 2)
+        self.assertEqual({call.args[0]['title'] for call in extract.call_args_list}, {'recent', 'boundary'})
+        self.assertEqual({p.stem for p in (self.root / 'article/20261027').glob('*.md')}, {'recent', 'boundary'})
+        self.assertEqual(len(list((self.data / 'articles').glob('*.json'))), 2)
+
+    def test_collection_loads_a_positive_age_limit_from_package_configuration(self):
+        package = self.root / 'package'; package.mkdir()
+        with patch.object(rss, '_package_root', package):
+            self.assertEqual(rss.Pipeline(self.root, self.data, self.catalog).max_article_age_days, 7)
+            (package / 'config.yaml').write_text('max_article_age_days: 2\n')
+            configured = rss.Pipeline(self.root, self.data, self.catalog)
+            self.assertEqual(configured.max_article_age_days, 2)
+            self.source['feedRevision'] = 1; self.write(self.doc)
+            raw, _ = rss.normalize_feed('Research', self.url, [{
+                'title': 'Three days old', 'url': self.url + '/article',
+                'date': datetime.fromisoformat(self.clock.return_value) - timedelta(days=3)
+            }])
+            rss.write_atomic(self.data / 'feeds/test-source.xml', raw)
+            with patch.object(rss, 'article_text') as extract:
+                self.assertEqual(configured.run('collect', '20261027')['results'][0]['collected'], 0)
+            extract.assert_not_called()
+            for value in ['0', '-1', 'true', '1.5', '"7"']:
+                with self.subTest(value=value):
+                    (package / 'config.yaml').write_text('max_article_age_days: ' + value + '\n')
+                    with self.assertRaises(rss.FeedError) as caught:
+                        rss.Pipeline(self.root, self.data, self.catalog)
+                    self.assertEqual(caught.exception.code, 'invalid-config')
+
+    def test_recent_atom_updates_do_not_override_an_old_publication_date(self):
+        atom = b'<feed xmlns="http://www.w3.org/2005/Atom"><title>Research</title><entry><title>Old article</title><link href="/article"/><updated>2026-10-27T10:00:00Z</updated><published>2018-11-30T00:00:00Z</published></entry></feed>'
+        with patch.object(rss, 'fetch', return_value=(atom, self.url + '/atom')), patch.object(rss, 'article_text') as extract:
+            # --date controls the output folder; it must not bypass the age limit.
+            result = self.pipeline.run('pipeline', '20181130')
+        self.assertEqual(result['status'], 'succeeded', result)
+        self.assertEqual(result['results'][0]['collected'], 0)
+        extract.assert_not_called()
+        _, entries = rss.parse_feed((self.data / 'feeds/test-source.xml').read_bytes(), self.url)
+        self.assertEqual(entries[0]['date'].year, 2018)
 
     def test_readable_titles_keep_url_dedup_independent_and_resolve_name_collisions(self):
         self.source['feedRevision'] = 1
@@ -154,6 +215,7 @@ class PipelineTests(unittest.TestCase):
             {'title': 'Study', 'url': self.url + '/three', 'content': '<p>Third source: a controlled study compares concrete observations, research methods and independently verified experimental results.</p>'},
             {'title': 'study', 'url': self.url + '/four', 'content': '<p>Fourth source: a controlled study compares concrete observations, research methods and independently verified experimental results.</p>'}
         ]
+        entries = [{**entry, 'date': rss.date_value(rss.utc_now())} for entry in entries]
         raw, _ = rss.normalize_feed('Research', self.url, entries)
         rss.write_atomic(self.data / 'feeds/test-source.xml', raw)
         result = self.pipeline.run('collect', '20261027')
@@ -198,7 +260,7 @@ class PipelineTests(unittest.TestCase):
         self.pipeline.run('pipeline', '20261027')
         original = self.root / 'article/20261027/Design study.md'
         original.write_text('My edited original', encoding='utf-8')
-        raw, _ = rss.normalize_feed('Research', self.url, [{'title': 'Updated title', 'url': self.url + '/article', 'content': '<p>New published facts.</p>'}])
+        raw, _ = rss.normalize_feed('Research', self.url, [{'title': 'Updated title', 'url': self.url + '/article', 'content': '<p>New published facts.</p>', 'date': rss.date_value(rss.utc_now())}])
         rss.write_atomic(self.data / 'feeds/test-source.xml', raw)
         result = self.pipeline.run('collect', '20261027')
         self.assertEqual(result['results'][0]['collected'], 1, result)
@@ -228,7 +290,7 @@ class PipelineTests(unittest.TestCase):
         doc['sources'].append({**doc['sources'][0], 'id': 'mirror'})
         self.write(doc)
         for source_id, url in [('test-source', self.url + '/one'), ('mirror', self.url + '/two')]:
-            raw, _ = rss.normalize_feed('Research', self.url, [{'title': 'Shared title', 'url': url}])
+            raw, _ = rss.normalize_feed('Research', self.url, [{'title': 'Shared title', 'url': url, 'date': rss.date_value(rss.utc_now())}])
             rss.write_atomic(self.data / 'feeds' / (source_id + '.xml'), raw)
         barrier = threading.Barrier(2)
         def extract(entry):
@@ -356,13 +418,15 @@ class PipelineTests(unittest.TestCase):
         self.write(self.doc)
         raw, _ = rss.normalize_feed('Research', self.url, [{
             'title': '中文研究 😀', 'guid': '中文标识 😀', 'url': self.url + '/article',
+            'date': rss.date_value(rss.utc_now()),
             'content': '<p>Original research with enough readable content for article extraction.</p>'
         }])
         rss.write_atomic(self.data / 'feeds/test-source.xml', raw)
         rss.json_write(self.data / 'article-migration.json', {'schemaVersion': 1})
         report = self.root / 'artifacts.json'
         code = (
-            'import json,sys; from src.rss_pipeline import Pipeline; '
+            'import json,sys; import src.rss_pipeline as rss; from src.rss_pipeline import Pipeline; '
+            'rss.utc_now=lambda: "2026-10-27T12:00:00+00:00"; '
             'print(json.dumps(Pipeline(sys.argv[1],sys.argv[2],{}).run("collect","20261027")))'
         )
         env = {**os.environ, 'PYTHONDONTWRITEBYTECODE': '1',
