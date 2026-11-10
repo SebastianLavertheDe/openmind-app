@@ -75,7 +75,7 @@
         "content:daily-summary"
       ]
     },
-    "timeoutSeconds": 3600,
+    "timeoutSeconds": 43200,
     "gracefulStopSeconds": 10,
     "retry": {
       "maxAttempts": 0

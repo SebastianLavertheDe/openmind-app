@@ -209,17 +209,19 @@ class BriefSourceFailureTests(unittest.TestCase):
         posts.parent.mkdir(parents=True)
         posts.write_text(json.dumps([{'text': 'Accepted X post', 'id': '123'}]), encoding='utf-8')
         def model(provider, prompt, **kwargs):
+            if 'SOCIAL_SOURCES:\n' in prompt:
+                sources = json.loads(prompt.split('SOCIAL_SOURCES:\n')[1])
+                if sources[0]['kind'] == 'reddit': return '{invalid'
+                return json.dumps({'items': [{'index': 1, 'keep': True, 'summary': 'Accepted X post', 'category': 'x_models', 'score': 80}]})
             if 'SOURCE:\n' in prompt:
-                source = json.loads(prompt.split('SOURCE:\n')[1])
-                return json.dumps(ANSWER) if source['kind'] == 'post' else '{invalid'
-            candidates = json.loads(prompt.split('CANDIDATES:\n')[1])
-            self.assertEqual([row['kind'] for row in candidates], ['post'])
-            return json.dumps({'items': [{'index': 1}], 'document': LABELS})
+                return '{invalid'
+            self.assertNotIn('CANDIDATES:\n', prompt)
+            return json.dumps({'items': [], 'document': LABELS})
         with patch.object(brief, 'call_provider_text', model), contextlib.redirect_stderr(io.StringIO()):
             result = brief.generate(self.root, '20261109', 'summary', PREFERENCES, provider=PROVIDER)
         self.assertEqual(result['status'], 'partial')
         self.assertEqual(result['selected'], 1)
-        self.assertEqual([r['path'] for r in result['failedSources']], ['article/20261109/1.md', 'reddit/20261109/items.md'])
+        self.assertEqual({r['path'] for r in result['failedSources']}, {'article/20261109/1.md', 'reddit/20261109/items.md'})
 
     def test_topics_keep_existing_invalid_response_policy(self):
         self.sources(self.root)

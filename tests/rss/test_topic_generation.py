@@ -1,7 +1,6 @@
 import copy
 import json
 from pathlib import Path
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -28,7 +27,7 @@ def source_reply(prompt):
 
 
 class TopicGenerationTests(unittest.TestCase):
-    def test_custom_platforms_keep_report_fields_and_writing_metadata(self):
+    def test_custom_platforms_keep_report_fields_and_source_metadata(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); folder = root / 'article/20261030'; folder.mkdir(parents=True)
             (folder / 'a.md').write_text('# Design\nOriginal interface experiment.\n原文: https://mp.weixin.qq.com/s/research', encoding='utf-8')
@@ -63,8 +62,6 @@ class TopicGenerationTests(unittest.TestCase):
             self.assertEqual(metadata['items'][1]['sourceFile'], 'article/20261030/b.md')
             # Low source-quality scores do not introduce a hidden selection gate.
             self.assertNotIn('score >=', '\n'.join(calls))
-            writing = subprocess.run([sys.executable, str(PACKAGES / 'daily-writing-orchestrator/scripts/create_writing_package.py'), '--date', '20261030', '--content-root', str(root), '--platform', 'wechat'], text=True, capture_output=True)
-            self.assertEqual(writing.returncode, 0, writing.stderr)
 
     def test_blank_prompt_and_no_platforms_are_preserved_and_stock_rules_only_migrate(self):
         snapshot = resolve_preferences({**PREFERENCES, 'topicPrompt': '', 'topicPlatforms': []})

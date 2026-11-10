@@ -19,6 +19,13 @@ from .runtime_io import inside, atomic_write, write_json, task_lock, BusyError
 
 DOCUMENT_LABELS = {
     'summary_title': 'Daily summary', 'topics_title': 'Daily topics',
+    'posts_section': '当天 Post 总结', 'reddit_section': 'Reddit 热帖',
+    'source_count': 'Source posts', 'included_count': 'Summarized posts', 'community_count': 'Communities',
+    'overview': 'Overview', 'themes': 'Today\'s themes', 'original_post': 'Original post',
+    'posts_overview': 'Today\'s posts focus on',
+    'x_models': 'Models / product releases', 'x_tools': 'Agents / programming / developer tools',
+    'x_media': 'Video / images / multimodal', 'x_industry': 'Companies / funding / industry',
+    'x_research': 'Research / papers / methods', 'x_practice': 'Tips / experience / opinions', 'x_other': 'Other',
     'generated_at': 'Generated at', 'preferences_revision': 'Preferences revision',
     'item_count': 'Selected items', 'score': 'Score', 'summary': 'Summary',
     'key_points': 'Key points', 'reason': 'Recommendation', 'author': 'Author',
@@ -38,7 +45,7 @@ def source_url(text):
     return ''
 
 
-def read_candidates(root, date, reddit_only=False):
+def read_candidates(root, date, reddit_only=False, *, counts=None):
     candidates = []
     seen = set()
     for kind in (['reddit'] if reddit_only else ['article', 'reddit']):
@@ -48,26 +55,36 @@ def read_candidates(root, date, reddit_only=False):
             if not file.resolve().is_relative_to(root): raise ValueError('Source file escapes the content root.')
             text = file.read_text(encoding='utf-8')
             blocks = re.split(r'^##\s+\d+\.\s+', text, flags=re.M)[1:] if kind == 'reddit' else []
+            if counts is not None: counts[kind] = counts.get(kind, 0) + len(blocks or [text])
             for block in blocks or [text]:
+                # Appending another Reddit post adds separators after the old
+                # last block; whitespace must not invalidate that post's cache.
+                if kind == 'reddit': block = block.strip()
+                if not block: continue
                 title = block.splitlines()[0].strip() if blocks else next((line.lstrip('# ').strip() for line in block.splitlines() if line.startswith('#')), file.stem)
                 url = source_url(block)
                 identity = url or str(file.relative_to(root)) + ':' + digest(block)
-                if identity in seen: continue
-                seen.add(identity)
-                candidates.append({'title': title, 'content': block, 'url': url, 'path': file.relative_to(root).as_posix(), 'kind': kind})
+                if (kind, identity) in seen: continue
+                seen.add((kind, identity))
+                source = {'title': title, 'content': block, 'url': url, 'path': file.relative_to(root).as_posix(), 'kind': kind}
+                if kind == 'reddit':
+                    community = re.search(r'/r/([A-Za-z0-9_]+)(?:/|\b)', url) or re.search(r'(?:^#\s+|\[)r/([A-Za-z0-9_]+)', text, re.M)
+                    source['subreddit'] = community.group(1) if community else file.stem
+                candidates.append(source)
     if not reddit_only:
         file = inside(root, 'post', date, 'posts.json')
         if file.exists():
             raw = json.loads(file.read_text(encoding='utf-8'))
             posts = raw if isinstance(raw, list) else raw.get('posts', raw.get('tweets', raw.get('items', [])))
+            if counts is not None: counts['post'] = len(posts)
             for post in posts:
                 content = str(post.get('content') or post.get('text') or post.get('full_text') or '').strip()
                 if not content: continue
                 tweet = str(post.get('tweet_id') or post.get('id') or '')
                 url = str(post.get('url') or post.get('link') or (f'https://x.com/i/status/{tweet}' if tweet.isdigit() else ''))
                 identity = url or digest(content)
-                if identity in seen: continue
-                seen.add(identity)
+                if ('post', identity) in seen: continue
+                seen.add(('post', identity))
                 candidates.append({'title': content[:120], 'content': content, 'url': url, 'path': file.relative_to(root).as_posix(), 'kind': 'post', 'author': post.get('author_name', ''), 'author_screen_name': post.get('author_screen_name', '')})
     return candidates
 
@@ -76,6 +93,12 @@ def legacy_summary_candidates(root, date):
     file = inside(root, 'daily-summary', f'{date}_daily_summary.md')
     if not file.exists(): return []
     text = file.read_text(encoding='utf-8')
+    saved = re.search(r'<!-- openmind-brief-sources (.+?) -->', text)
+    if saved:
+        # Compact social bullets have no per-post heading. Preserve individual
+        # candidates for topic generation even when original files are absent.
+        items = json.loads(saved.group(1))['items']
+        return [{**item, 'path': file.relative_to(root).as_posix(), 'kind': 'summary'} for item in items]
     return [{'title': block.splitlines()[0].strip(), 'content': block, 'url': source_url(block), 'path': file.relative_to(root).as_posix(), 'kind': 'summary'}
             for block in re.split(r'^###\s+', text, flags=re.M)[1:]]
 
@@ -96,7 +119,7 @@ def ranking_prompt(items, snapshot, mode, *, final=True, source_titles=()):
         summary_instructions(snapshot) if mode == 'summary' else '',
         topic_prompt_context(snapshot) if mode == 'topics' else 'This is a daily reading summary. Summarize all substantive readable sources unless additional user preferences exclude them. Do not apply topic-selection thresholds, AI restrictions, priority authors or WeChat source exclusions to the reading summary.',
         preference_prompt(snapshot),
-        'This is the FINAL selection across all sources. Apply the requested total item count here; the limit is shared across articles, Reddit and posts. If no limit was requested, keep useful relevant candidates.' if final else 'This is a preliminary batch. Keep every potentially relevant item; do not apply the total item limit yet.',
+        'This is the FINAL article selection. Apply the requested article item count here. X and Reddit have independent summaries and do not compete for article slots. If no limit was requested, keep useful relevant articles.' if final else 'This is a preliminary article batch. Keep every potentially relevant item; do not apply the article item limit yet.',
         'For topics, explain why each selection is worth exploring. For summaries, organize useful reading. Return JSON {"items":[{"index":1,"reason":"..."}]}. Indexes are one-based and must be unique. Order is ranking order.',
     ]
     if final:
@@ -109,9 +132,13 @@ def ranking_prompt(items, snapshot, mode, *, final=True, source_titles=()):
     return '\n'.join([*instructions, f'Mode: {mode}\nCANDIDATES:\n' + json.dumps(items, ensure_ascii=False)])
 
 
-def model_json(provider, prompt, cache, snapshot, payload, stage, *, validator=None):
+def model_cache_file(provider, prompt, cache, snapshot, payload, stage):
     key = digest({'input': payload, 'provider': [provider.name, provider.base_url, provider.model], 'promptVersion': PROMPT_VERSION, 'prompt': prompt, 'preferences': snapshot, 'stage': stage})
-    file = cache / (key + '.json')
+    return cache / (key + '.json')
+
+
+def model_json(provider, prompt, cache, snapshot, payload, stage, *, validator=None):
+    file = model_cache_file(provider, prompt, cache, snapshot, payload, stage)
     if file.exists():
         value = json.loads(file.read_text(encoding='utf-8'))
         if validator: validator(value)
@@ -145,7 +172,14 @@ def validate_response(value, stage, count=0):
                 raise ValueError('Invalid localized document labels.')
 
 
-def render(date, mode, selected, metadata, labels):
+def article_sections(selected):
+    categories = {}
+    for item in selected:
+        categories.setdefault(item['result'].get('category', ''), []).append(item)
+    return [(f'📚 {category}' if category else '', items) for category, items in categories.items()]
+
+
+def render(date, mode, selected, metadata, labels, *, source_counts=None):
     title = labels['summary_title' if mode == 'summary' else 'topics_title']
     lines = [f'# {date} {title}', '', '<!-- openmind-brief ' + json.dumps(metadata, ensure_ascii=False) + ' -->', '', f'**{labels["generated_at"]}**: {metadata["generatedAt"]}', f'**{labels["preferences_revision"]}**: {metadata["preferencesRevision"]}', f'**{labels["item_count"]}**: {len(selected)}', '']
     if mode == 'topics':
@@ -153,16 +187,29 @@ def render(date, mode, selected, metadata, labels):
             {'title': item['result']['translated_title'], 'summary': item['result']['summary'], 'reason': item.get('reason', ''), 'sourceFile': item['source']['path'],
              'links': [{'label': item['source']['title'], 'url': item['source']['url']}] if item['source']['url'] else []} for item in selected]}
         lines += ['<!-- openmind-topics ' + json.dumps(topics, ensure_ascii=False).replace('-->', '--\\u003e') + ' -->', '']
-    for item in selected:
-        value = item['result']; source = item['source']
-        if value.get('category'): lines += [f'## 📚 {value["category"]}', '']
-        lines += [f'### {value["translated_title"]}', '', f'**{labels["score"]}**: {int(value["score"])}/100', '', f'**{labels["summary"]}**:', value['summary'], '', f'**{labels["key_points"]}**:']
-        lines += ['- ' + point for point in value['key_points']]
-        lines += ['', f'**{labels["reason"]}**: ' + item.get('reason', value.get('reason', '')), '']
-        if source.get('author'): lines += [f'**{labels["author"]}**: ' + str(source['author']), '']
-        if source['url']: lines += [f'**{labels["link"]}**: [{source["url"]}]({source["url"]})', '']
-        rel = '../' + source['path']
-        lines += [f'**{labels["source_file"]}**: [{rel}](<{rel}>)', '', '---', '']
+    if mode == 'summary':
+        from .social_brief import render_social_sections
+        evidence = {'items': [{'title': row['result'].get('translated_title') or row['source']['title'],
+                               'content': '\n'.join([row['result']['summary'], *row['result'].get('key_points', [])]),
+                               'url': row['source']['url'], 'author': row['source'].get('author', ''),
+                               'author_screen_name': row['source'].get('author_screen_name', '')} for row in selected]}
+        lines += ['<!-- openmind-brief-sources ' + json.dumps(evidence, ensure_ascii=False).replace('-->', '--\\u003e') + ' -->', '']
+        lines += render_social_sections(selected, labels, source_counts or {})
+    articles = [row for row in selected if row['source']['kind'] not in ('post', 'reddit')]
+    sections = article_sections(articles) if mode == 'summary' else [
+        (f'📚 {item["result"]["category"]}' if item['result'].get('category') else '', [item]) for item in selected]
+    for heading, items in sections:
+        if not items: continue
+        if heading: lines += [f'## {heading}', '']
+        for item in items:
+            value = item['result']; source = item['source']
+            lines += [f'### {value["translated_title"]}', '', f'**{labels["score"]}**: {int(value["score"])}/100', '', f'**{labels["summary"]}**:', value['summary'], '', f'**{labels["key_points"]}**:']
+            lines += ['- ' + point for point in value['key_points']]
+            lines += ['', f'**{labels["reason"]}**: ' + item.get('reason', value.get('reason', '')), '']
+            if source.get('author'): lines += [f'**{labels["author"]}**: ' + str(source['author']), '']
+            if source['url']: lines += [f'**{labels["link"]}**: [{source["url"]}]({source["url"]})', '']
+            rel = '../' + source['path']
+            lines += [f'**{labels["source_file"]}**: [{rel}](<{rel}>)', '', '---', '']
     return '\n'.join(lines)
 
 
@@ -176,7 +223,8 @@ def generate(root, date, mode, snapshot, *, reddit_only=False, provider=None):
     snapshot = resolve_preferences(snapshot)
     data = inside(root, '.agent', 'skill-data', 'brief-generation')
     with task_lock(data / 'locks', date):
-        sources = read_candidates(root, date, reddit_only)
+        source_counts = {}
+        sources = read_candidates(root, date, reddit_only, counts=source_counts)
         if not sources and mode == 'topics': sources = legacy_summary_candidates(root, date)
         if not sources: return {'status': 'skipped', 'reason': 'no-content', 'date': date}
         provider = provider or resolve_provider()
@@ -184,7 +232,30 @@ def generate(root, date, mode, snapshot, *, reddit_only=False, provider=None):
         summaries = []
         skipped_sources = []
         failed_sources = []
+        def source_failure(index, source, exc):
+            if isinstance(exc, AIProviderError) and is_content_safety_rejection(exc):
+                skipped = {'index': index, 'path': source['path'], 'reason': 'content-safety'}
+                skipped_sources.append(skipped)
+                event = {'event': 'source-skipped', **skipped}
+            elif mode == 'summary' and not (isinstance(exc, AIProviderError) and exc.status_code in (401, 403)):
+                failed = {'index': index, 'path': source['path'],
+                          'reason': 'provider-error' if isinstance(exc, AIProviderError) else 'invalid-response'}
+                if isinstance(exc, AIProviderError) and exc.status_code is not None:
+                    failed['statusCode'] = exc.status_code
+                failed_sources.append(failed)
+                event = {'event': 'source-failed', **failed}
+            else:
+                raise exc
+            # Never log the provider response, source body or credentials.
+            print(json.dumps(event, ensure_ascii=False), file=sys.stderr, flush=True)
+
+        social = []
+        social_processed = 0
+        if mode == 'summary':
+            from .social_brief import summarize_social_sources
+            social, social_processed = summarize_social_sources(sources, provider, cache, snapshot, source_failure)
         for index, source in enumerate(sources, 1):
+            if mode == 'summary' and source['kind'] in ('post', 'reddit'): continue
             # Full content participates in cache identity even when a single
             # request must use a bounded source excerpt.
             excerpt = {**source, 'content': source['content'][:60000]}
@@ -192,27 +263,10 @@ def generate(root, date, mode, snapshot, *, reddit_only=False, provider=None):
                 result = model_json(provider, summarize_prompt(excerpt, snapshot, for_topics=mode == 'topics'), cache, snapshot, source, 'summary')
                 validate_response(result, 'summary')
             except (AIProviderError, ValueError) as exc:
-                if isinstance(exc, AIProviderError) and is_content_safety_rejection(exc):
-                    skipped = {'index': index, 'path': source['path'], 'reason': 'content-safety'}
-                    skipped_sources.append(skipped)
-                    event = {'event': 'source-skipped', **skipped}
-                elif mode == 'summary' and not (isinstance(exc, AIProviderError) and exc.status_code in (401, 403)):
-                    # Isolate source failures without changing topic generation's
-                    # error policy. Invalid credentials are a provider-wide fault.
-                    failed = {'index': index, 'path': source['path'],
-                              'reason': 'provider-error' if isinstance(exc, AIProviderError) else 'invalid-response'}
-                    if isinstance(exc, AIProviderError) and exc.status_code is not None:
-                        failed['statusCode'] = exc.status_code
-                    failed_sources.append(failed)
-                    event = {'event': 'source-failed', **failed}
-                else:
-                    raise
-                # Broker stderr is durable even if a later stage stops the run.
-                # Never log the provider response, source body or credentials.
-                print(json.dumps(event, ensure_ascii=False), file=sys.stderr, flush=True)
+                source_failure(index, source, exc)
                 continue
             summaries.append({'source': source, 'result': result})
-        if not summaries:
+        if not summaries and not social_processed:
             if failed_sources:
                 return {'status': 'failed', 'error': 'No source summaries could be generated; the previous document was preserved.',
                         'date': date, 'failedSources': failed_sources, 'skippedSources': skipped_sources}
@@ -236,14 +290,19 @@ def generate(root, date, mode, snapshot, *, reddit_only=False, provider=None):
                     shortlisted += [summaries[offset + entry['index'] - 1] for entry in ranking['items']]
                 summaries = shortlisted
                 candidates = [ranking_candidate(i, row) for i, row in enumerate(summaries, 1)]
-        prompt = ranking_prompt(candidates, snapshot, mode, source_titles=[row['source']['title'] for row in summaries[:20]])
-        ranking = model_json(provider, prompt, cache, snapshot, candidates, 'final-rank')
+        if summaries:
+            prompt = ranking_prompt(candidates, snapshot, mode, source_titles=[row['source']['title'] for row in summaries[:20]])
+            ranking = model_json(provider, prompt, cache, snapshot, candidates, 'final-rank')
+        else:
+            from .social_brief import document_prompt
+            prompt = document_prompt(snapshot, DOCUMENT_LABELS)
+            ranking = model_json(provider, prompt, cache, snapshot, [], 'final-rank')
         validate_response(ranking, 'final-rank', len(candidates))
         selected = [{**summaries[row['index'] - 1], 'reason': str(row.get('reason', ''))} for row in ranking['items']]
-        return save_output(root, date, mode, snapshot, provider, None, selected, labels=ranking['document'], skipped_sources=skipped_sources, failed_sources=failed_sources)
+        return save_output(root, date, mode, snapshot, provider, None, social + selected, labels=ranking['document'], skipped_sources=skipped_sources, failed_sources=failed_sources, source_counts=source_counts)
 
 
-def save_output(root, date, mode, snapshot, provider, output, selected, *, labels=None, skipped_sources=(), failed_sources=()):
+def save_output(root, date, mode, snapshot, provider, output, selected, *, labels=None, skipped_sources=(), failed_sources=(), source_counts=None):
     data = inside(root, '.agent', 'skill-data', 'brief-generation')
     stamp = datetime.now(timezone.utc).isoformat()
     metadata = {'preferencesRevision': snapshot['revision'], 'preferencesDigest': preference_digest(snapshot), 'promptVersion': PROMPT_VERSION, 'model': provider.model, 'generatedAt': stamp}
@@ -252,7 +311,7 @@ def save_output(root, date, mode, snapshot, provider, output, selected, *, label
     folder = 'daily-summary' if mode == 'summary' else 'daily-topic'
     suffix = 'daily_summary' if mode == 'summary' else 'daily_topic'
     target = inside(root, folder, f'{date}_{suffix}.md')
-    if output is None: output = render(date, mode, selected, metadata, labels)
+    if output is None: output = render(date, mode, selected, metadata, labels, source_counts=source_counts)
     else: output = output.replace('<!-- openmind-brief-metadata -->', '<!-- openmind-brief ' + json.dumps(metadata, ensure_ascii=False) + ' -->')
     if target.exists():
         previous = target.read_bytes()

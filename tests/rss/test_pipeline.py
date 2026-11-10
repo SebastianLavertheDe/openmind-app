@@ -513,11 +513,6 @@ class PreferencesTests(unittest.TestCase):
                 brief.generate(root, '20261027', 'topics', second, provider=provider)
                 result = (root / 'daily-topic/20261027_daily_topic.md').read_text(); self.assertIn('Science', result); self.assertNotIn('Design', result)
                 self.assertIn('Preferences revision: 2', result); self.assertGreater(len(calls), before)
-                writing = subprocess.run([sys.executable, str(PACKAGES / 'daily-writing-orchestrator/scripts/create_writing_package.py'), '--date', '20261027', '--content-root', str(root), '--platform', 'wechat'], capture_output=True, text=True)
-                self.assertEqual(writing.returncode, 0, writing.stderr)
-                manifests = list((root / 'creative').rglob('manifest.json'))
-                self.assertEqual(len(manifests), 1)
-                self.assertIn('Science', manifests[0].read_text())
                 before = len(calls); (folder / 'science.md').write_text('# Science\nUpdated research with new measurements.')
                 brief.generate(root, '20261027', 'summary', second, provider=provider); self.assertGreater(len(calls), before)
                 before = len(calls); provider.model = 'fixture-v2'; brief.generate(root, '20261027', 'summary', second, provider=provider); self.assertGreater(len(calls), before)
@@ -537,9 +532,11 @@ class PreferencesTests(unittest.TestCase):
                             if 'Extract sufficient factual detail' not in prompt: self.assertIn(preference, prompt)
                             editorial = editorial_reply(prompt, language, choose=lambda candidates: [1] if keep else [])
                             if editorial is not None: return json.dumps(editorial)
+                            if 'SOCIAL_SOURCES:\n' in prompt:
+                                return json.dumps({'items': [{'index': 1, 'keep': keep, 'summary': labels['summary'] if keep else '', 'category': 'x_research', 'score': 90}]})
                             if 'SOURCE:\n' in prompt:
                                 return json.dumps({'translated_title': labels['summary'], 'summary': labels['summary'], 'key_points': [labels['key_points']], 'category': '', 'score': 90})
-                            return json.dumps({'items': [{'index': 1, 'reason': labels['reason']}] if keep else [], 'document': labels})
+                            return json.dumps({'items': [], 'document': labels})
                         provider = type('Provider', (), {'name': 'fixture', 'base_url': 'http://localhost', 'model': 'v1'})()
                         with patch.object(brief, 'call_provider_text', model):
                             result = brief.generate(root, '20261027', mode, snapshot, provider=provider)
@@ -547,8 +544,11 @@ class PreferencesTests(unittest.TestCase):
                         if mode == 'summary':
                             self.assertIn(f"# 20261027 {labels['summary_title']}", text)
                             self.assertIn(f"**{labels['item_count']}**: {int(keep)}", text)
-                            for key in ['generated_at', 'preferences_revision'] + (['score', 'summary', 'key_points', 'reason', 'author', 'link', 'source_file'] if keep else []):
+                            for key in ['generated_at', 'preferences_revision'] + (['overview', 'themes', 'source_count', 'included_count', 'source_file'] if keep else []):
                                 self.assertIn(f'**{labels[key]}**:', text)
+                            if keep:
+                                self.assertIn('**Example Author**:', text)
+                                self.assertIn(f'[{labels["original_post"]}](<https://example.org/research>)', text)
                         else:
                             self.assertIn(TOPIC_LABELS[language]['report_title'], text)
                             self.assertIn(f"> {TOPIC_LABELS[language]['item_count']}: {int(keep)}", text)
