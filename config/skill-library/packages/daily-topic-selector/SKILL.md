@@ -7,7 +7,7 @@ description: Select and rank daily topics from saved content using the user focu
 
 Run this installed Process Skill for a date, or use `openmind brief generate --topics --date YYYYMMDD --root ... --user-data ...`. The output is `daily-topic/YYYYMMDD_daily_topic.md`.
 
-Use the shared summary and ranking engine in `_shared/brief_generation.py`. Read saved articles, Reddit entries and X posts directly so preference changes do not require recollection. A legacy daily summary can be read when raw inputs are unavailable.
+Use the shared source-summary entry point in `_shared/brief_generation.py` and the independent editorial workflow in `_shared/topic_generation.py`. Read saved articles, Reddit entries and X posts directly so preference changes do not require recollection. A legacy daily summary can be read when raw inputs are unavailable.
 
 Honor the frozen `OPENMIND_DAILY_BRIEF_PREFERENCES` snapshot. `topicPrompt` supplies the common selection prompt; `topicPlatforms` contains user-defined `{id,name,prompt}` platform rules. Compose all of them, applying each platform prompt only to its own selections. No hidden subject, author, source, virality or numeric-score filters are added. Blank prompts add no restrictions; an empty platform list generates one general section. Additional `text` preferences override conflicting content rules. Missing settings use the short visible examples in `_shared/brief_defaults.json`; legacy custom `topicRules` migrates to the common prompt.
 

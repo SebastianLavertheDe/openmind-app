@@ -47,7 +47,7 @@ class BriefSourceFailureTests(unittest.TestCase):
             with self.subTest(failure=index):
                 root = self.root / str(index)
                 self.sources(root)
-                seen, ranking = [], []
+                seen = []
                 def model(provider, prompt, **kwargs):
                     if 'SOURCE:\n' in prompt:
                         source = json.loads(prompt.split('SOURCE:\n')[1])
@@ -56,16 +56,11 @@ class BriefSourceFailureTests(unittest.TestCase):
                             if isinstance(failure, Exception): raise failure
                             return failure
                         return json.dumps({**ANSWER, 'translated_title': source['title']})
-                    ranking.append(prompt)
-                    self.assertNotIn('Broken marker', prompt)
-                    candidates = json.loads(prompt.split('CANDIDATES:\n')[1])
-                    self.assertEqual([row['title'] for row in candidates], ['Before', 'After'])
-                    return json.dumps({'items': [{'index': 1}, {'index': 2}], 'document': LABELS})
+                    self.fail('Daily summaries must not make a selection request.')
                 diagnostics = io.StringIO()
                 with patch.object(brief, 'call_provider_text', model), contextlib.redirect_stderr(diagnostics):
                     result = brief.generate(root, '20261109', 'summary', PREFERENCES, provider=PROVIDER)
                 self.assertEqual(seen, ['Before', 'Broken marker', 'After'])
-                self.assertEqual(len(ranking), 1)
                 self.assertEqual(result['status'], 'partial')
                 self.assertEqual(result['selected'], 2)
                 failed = result['failedSources']
@@ -85,7 +80,7 @@ class BriefSourceFailureTests(unittest.TestCase):
                 snapshots = list((data / 'snapshots').glob('*.json'))
                 self.assertEqual(len(snapshots), 1)
                 self.assertEqual(json.loads(snapshots[0].read_text())['failedSources'], failed)
-                self.assertEqual(len(list((data / 'cache').glob('*.json'))), 3)
+                self.assertEqual(len(list((data / 'cache').glob('*.json'))), 2)
                 self.assertIn('source-failed', diagnostics.getvalue())
                 for recorded in [diagnostics.getvalue(), json.dumps(result), snapshots[0].read_text(), document]:
                     self.assertNotIn('fixture-secret', recorded)
@@ -100,8 +95,7 @@ class BriefSourceFailureTests(unittest.TestCase):
                 seen.append(source['title'])
                 if broken and source['title'] == 'Broken marker': return '{invalid'
                 return json.dumps({**ANSWER, 'translated_title': source['title']})
-            candidates = json.loads(prompt.split('CANDIDATES:\n')[1])
-            return json.dumps({'items': [{'index': row['index']} for row in candidates], 'document': LABELS})
+            self.fail('Unexpected non-source model request.')
         with patch.object(brief, 'call_provider_text', model), contextlib.redirect_stderr(io.StringIO()):
             first = brief.generate(self.root, '20261109', 'summary', PREFERENCES, provider=PROVIDER)
             previous = self.output(self.root).read_bytes()
@@ -125,7 +119,7 @@ class BriefSourceFailureTests(unittest.TestCase):
                 source = json.loads(prompt.split('SOURCE:\n')[1])
                 if source['title'] == 'Broken marker': return '{invalid'
                 return json.dumps(ANSWER)
-            return json.dumps({'items': [{'index': 1}, {'index': 2}], 'document': LABELS})
+            self.fail('Unexpected non-source model request.')
         with patch.object(sys, 'argv', args), patch.object(brief, 'resolve_provider', return_value=PROVIDER), \
                 patch.object(brief, 'call_provider_text', model), contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(brief.main('summary'), 0)
@@ -179,25 +173,6 @@ class BriefSourceFailureTests(unittest.TestCase):
                 with patch.object(brief, 'call_provider_text', model), self.assertRaises(AIProviderError):
                     brief.generate(root, '20261109', 'summary', PREFERENCES, provider=PROVIDER)
                 self.assertEqual(seen, ['Before', 'Broken marker'])
-                self.assertEqual(output.read_text(), 'Previous summary')
-
-    def test_ranking_failures_still_preserve_existing_summary(self):
-        for index, failure in enumerate(['{invalid', json.dumps({'items': [{'index': 99}], 'document': LABELS}), AIProviderError('fixture-secret')]):
-            with self.subTest(failure=index):
-                root = self.root / str(index)
-                self.sources(root)
-                output = self.output(root)
-                output.parent.mkdir(parents=True)
-                output.write_text('Previous summary', encoding='utf-8')
-                def model(provider, prompt, **kwargs):
-                    if 'SOURCE:\n' in prompt:
-                        source = json.loads(prompt.split('SOURCE:\n')[1])
-                        return '{invalid' if source['title'] == 'Broken marker' else json.dumps(ANSWER)
-                    if isinstance(failure, Exception): raise failure
-                    return failure
-                with patch.object(brief, 'call_provider_text', model), contextlib.redirect_stderr(io.StringIO()), \
-                        self.assertRaises((AIProviderError, ValueError)):
-                    brief.generate(root, '20261109', 'summary', PREFERENCES, provider=PROVIDER)
                 self.assertEqual(output.read_text(), 'Previous summary')
 
     def test_failures_in_article_and_reddit_do_not_block_x_content(self):

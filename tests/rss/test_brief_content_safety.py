@@ -46,18 +46,14 @@ class BriefContentSafetyTests(unittest.TestCase):
         for error in [refusal(), refusal(1301), refusal(None, '输入或生成内容可能包含敏感内容'),
                       refusal(None, '系统检测到输入或生成内容可能包含不安全或敏感内容')]:
             with self.subTest(response=error.response_text):
-                seen, ranking = [], []
+                seen = []
                 def model(provider, prompt, **kwargs):
                     if 'SOURCE:\n' in prompt:
                         source = json.loads(prompt.split('SOURCE:\n')[1])
                         seen.append(source['title'])
                         if source['title'] == 'Rejected marker': raise error
                         return json.dumps({**ANSWER, 'translated_title': source['title']})
-                    ranking.append(prompt)
-                    self.assertNotIn('Rejected marker', prompt)
-                    candidates = json.loads(prompt.split('CANDIDATES:\n')[1])
-                    self.assertEqual([item['title'] for item in candidates], ['Before', 'After'])
-                    return json.dumps({'items': [{'index': 1}, {'index': 2}], 'document': LABELS})
+                    self.fail('Daily summaries must not make a selection request.')
                 diagnostics = io.StringIO()
                 with patch.object(brief, 'call_provider_text', model), contextlib.redirect_stderr(diagnostics):
                     result = brief.generate(self.root, '20261102', 'summary', PREFERENCES, provider=PROVIDER)
@@ -74,7 +70,7 @@ class BriefContentSafetyTests(unittest.TestCase):
                 self.assertNotIn(error.response_text, diagnostics.getvalue())
                 snapshots = list((self.root / '.agent/skill-data/brief-generation/snapshots').glob('*.json'))
                 self.assertTrue(any(json.loads(file.read_text())['skippedSources'] == result['skippedSources'] for file in snapshots))
-                # Only successful source/ranking results are cached; a refusal remains a skip on rerun.
+                # Only successful source results are cached; a refusal remains a skip on rerun.
                 self.assertIn('Rejected marker', seen)
 
     def test_all_rejected_sources_skip_without_overwriting_existing_summary(self):

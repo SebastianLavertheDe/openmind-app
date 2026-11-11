@@ -501,9 +501,8 @@ class PreferencesTests(unittest.TestCase):
                 if 'SOURCE:\n' in prompt:
                     source = json.loads(prompt.split('SOURCE:\n')[1])
                     return json.dumps({'translated_title': source['title'], 'summary': 'English research summary', 'key_points': ['Evidence'], 'category': source['title'], 'score': 90})
-                candidates = json.loads(prompt.split('CANDIDATES:\n')[1])
-                chosen = next(i for i, item in enumerate(candidates, 1) if ('design' in item['translated_title'].lower()) == ('Design only' in prompt))
-                return json.dumps({'items': [{'index': chosen, 'reason': 'Relevant evidence'}], 'document': BRIEF_LABELS['en']})
+                self.assertIn('Localize daily summary document labels only', prompt)
+                return json.dumps({'document': BRIEF_LABELS['en']})
             provider = brief.resolve_provider if False else type('Provider', (), {'name': 'fixture', 'base_url': 'http://localhost', 'model': 'fixture-v1'})()
             first = {'schemaVersion': 1, 'revision': 1, 'text': 'Design only, exclude science, English, at most 1 item', 'updatedAt': None}
             second = {**first, 'revision': 2, 'text': 'Science only, exclude design, English, at most 1 item'}
@@ -578,7 +577,7 @@ class PreferencesTests(unittest.TestCase):
                 before = len(calls)
                 answer['document'] = BRIEF_LABELS['en']
                 brief.generate(root, '20261027', 'summary', snapshot, provider=provider)
-                self.assertEqual(len(calls), before + 1)
+                self.assertEqual(len(calls), before + 2)
             self.assertIn('Daily summary', output.read_text())
             self.assertEqual(next((root / 'daily-summary/.versions').rglob('*.md')).read_text(), 'My edited summary')
 

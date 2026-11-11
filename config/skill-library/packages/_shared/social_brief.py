@@ -117,15 +117,6 @@ def summarize_social_sources(sources, provider, cache, snapshot, on_failure):
     return selected, processed
 
 
-def document_prompt(snapshot, labels):
-    return '\n'.join([
-        VERSION, 'Localize daily summary document labels only; no content selection is needed.',
-        content_rules(snapshot),
-        'Return JSON {"items":[],"document":{...}}. Include every label key below, translated into the requested output language. Use short plain text without Markdown or newlines. Do not add counts, timestamps or URLs.',
-        json.dumps(labels, ensure_ascii=False),
-    ])
-
-
 def plain(value):
     return re.sub(r'([\\`*_\[\]<>#])', r'\\\1', ' '.join(str(value).split()))
 

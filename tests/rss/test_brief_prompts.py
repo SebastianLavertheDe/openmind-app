@@ -12,6 +12,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'config/skill-library/packages'))
 from _shared import brief_generation as brief
 from _shared.brief_preferences import DEFAULTS, SUMMARY_FIELDS, read_preferences, resolve_preferences
+from _shared.topic_generation import selection_prompt
 from brief_fixtures import editorial_reply
 
 LABELS = json.loads((Path(__file__).parent / 'fixtures/brief-labels.json').read_text(encoding='utf-8'))['zh']
@@ -42,15 +43,14 @@ class BriefPromptTests(unittest.TestCase):
         self.assertIn('0–5', summary)
         self.assertIn('System Design', summary)
         self.assertNotIn('fit_score', summary)
-        ranking = brief.ranking_prompt([], LEGACY, 'topics')
+        ranking = selection_prompt([], resolve_preferences(LEGACY))
         self.assertIn(DEFAULTS['topicPrompt'], ranking)
         self.assertNotIn('fit_score', ranking)
-        self.assertNotIn('fit_score', brief.ranking_prompt([], LEGACY, 'summary'))
         edited = resolve_preferences(LEGACY)
         edited['summaryPrompt']['instructions'] = 'Summarize in French.'
         edited['summaryPrompt']['fields']['summary'] = 'Use exactly two sentences.'
         edited['topicPrompt'] = 'Select gardening research, including WeChat sources.'
-        custom = brief.ranking_prompt([], edited, 'topics')
+        custom = selection_prompt([], edited)
         self.assertIn(edited['topicPrompt'], custom)
         self.assertIn('Use exactly two sentences.', brief.summarize_prompt(source, edited))
         self.assertNotIn('fit_score', custom)
@@ -91,7 +91,7 @@ class BriefPromptTests(unittest.TestCase):
                 if editorial is not None: return json.dumps(editorial)
                 if 'SOURCE:\n' in prompt:
                     return json.dumps({**ANSWER, 'keep': True} if invalid else ANSWER)
-                return json.dumps({'items': [{'index': 1, 'reason': '来源可核对'}], 'document': LABELS})
+                return json.dumps({'document': LABELS})
             with patch.object(brief, 'call_provider_text', model):
                 baseline = resolve_preferences(LEGACY)
                 brief.generate(root, '20261027', 'summary', baseline, provider=PROVIDER)

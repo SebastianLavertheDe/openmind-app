@@ -69,13 +69,8 @@ class SocialBriefTests(unittest.TestCase):
             source = json.loads(prompt.split('SOURCE:\n')[1])
             self.assertEqual(source['kind'], 'article')
             return json.dumps({**ANSWER, 'translated_title': source['title']})
-        if 'CANDIDATES:\n' in prompt:
-            candidates = json.loads(prompt.split('CANDIDATES:\n')[1])
-            self.assertTrue(candidates)
-            self.assertEqual({row['kind'] for row in candidates}, {'article'})
-            return json.dumps({'items': [{'index': 1, 'reason': 'Article selection'}], 'document': LABELS})
         self.assertIn('Localize daily summary document labels only', prompt)
-        return json.dumps({'items': [], 'document': LABELS})
+        return json.dumps({'document': LABELS})
 
     def generate(self, **kwargs):
         return brief.generate(self.root, DATE, 'summary', kwargs.pop('snapshot', PREFERENCES),
@@ -87,19 +82,19 @@ class SocialBriefTests(unittest.TestCase):
     def social_calls(self):
         return [json.loads(prompt.split('SOCIAL_SOURCES:\n')[1]) for prompt in self.calls if 'SOCIAL_SOURCES:\n' in prompt]
 
-    def test_large_social_digests_are_independent_of_article_limit_and_keep_community_links(self):
+    def test_large_social_digests_and_all_articles_keep_community_links_without_selection(self):
         self.article('Article A'); self.article('Article B')
         self.posts([f'Product update {i}' for i in range(205)])
         self.reddit('Tools', [f'Tool post {i}' for i in range(21)])
         self.reddit('Science', [f'Science post {i}' for i in range(13)])
-        snapshot = {**PREFERENCES, 'text': 'Keep at most 1 article; summarize every substantive X and Reddit post.'}
+        snapshot = {**PREFERENCES, 'text': 'Summarize every substantive article, X and Reddit post.'}
         with patch.object(brief, 'call_provider_text', self.model): result = self.generate(snapshot=snapshot)
-        self.assertEqual(result['selected'], 240)
+        self.assertEqual(result['selected'], 241)
         self.assertEqual(result['status'], 'succeeded')
         batches = self.social_calls()
         self.assertEqual(len(batches), 13)
         self.assertEqual(sum(len(batch) for batch in batches), 239)
-        self.assertEqual(sum('CANDIDATES:\n' in prompt for prompt in self.calls), 1)
+        self.assertEqual(sum('CANDIDATES:\n' in prompt for prompt in self.calls), 0)
         text = self.output()
         headings = re.findall(r'^## (.+)$', text, re.M)
         self.assertEqual(headings, ['🧵 当天 Post 总结', '💬 Reddit 热帖', '📚 Science'])
@@ -110,10 +105,10 @@ class SocialBriefTests(unittest.TestCase):
         self.assertIn('### r/Science', text); self.assertIn('### r/Tools', text)
         self.assertIn('https://x.com/fixture/status/205', text)
         self.assertIn('https://www.reddit.com/r/Tools/comments/id21/post/', text)
-        self.assertEqual(text.count('**评分**:'), 1)
+        self.assertEqual(text.count('**评分**:'), 2)
         self.assertEqual(text.count('[原帖]'), 239)
         snapshots = list((self.root / '.agent/skill-data/brief-generation/snapshots').glob('*.json'))
-        self.assertEqual(len(json.loads(snapshots[0].read_text())['sources']), 240)
+        self.assertEqual(len(json.loads(snapshots[0].read_text())['sources']), 241)
 
     def test_incremental_cache_reuses_existing_and_excluded_posts_and_invalidates_edits(self):
         self.posts(['Update A', 'Empty greeting']); self.reddit('Tools', ['Tool A'])
@@ -216,18 +211,20 @@ class SocialBriefTests(unittest.TestCase):
         self.assertEqual(result['status'], 'succeeded'); self.assertEqual(result['selected'], 0)
         self.assertNotIn('## 🧵', self.output()); self.assertNotIn('## 💬', self.output())
 
-    def test_labels_failure_preserves_previous_document_and_reuses_item_cache_on_retry(self):
+    def test_custom_labels_fail_before_social_processing_and_preserve_previous_document(self):
         self.posts(['X update'])
         output = self.root / f'daily-summary/{DATE}_daily_summary.md'
         output.parent.mkdir(); output.write_text('Previous summary')
         def model(provider, prompt, **kwargs):
             if 'SOCIAL_SOURCES:\n' not in prompt: return '{invalid'
             return self.model(provider, prompt, **kwargs)
-        with patch.object(brief, 'call_provider_text', model), self.assertRaises(ValueError): self.generate()
+        snapshot = {**PREFERENCES, 'text': 'Chinese only'}
+        with patch.object(brief, 'call_provider_text', model), self.assertRaises(ValueError): self.generate(snapshot=snapshot)
         self.assertEqual(output.read_text(), 'Previous summary')
-        self.calls.clear()
-        with patch.object(brief, 'call_provider_text', self.model): self.generate()
         self.assertEqual(self.social_calls(), [])
+        self.calls.clear()
+        with patch.object(brief, 'call_provider_text', self.model): self.generate(snapshot=snapshot)
+        self.assertEqual(len(self.social_calls()), 1)
 
     def test_duplicate_url_does_not_remove_another_platforms_content(self):
         file = self.posts(['An X update'])
@@ -256,6 +253,9 @@ class SocialBriefTests(unittest.TestCase):
         reddit = self.reddit('Tools', ['Reddit update'])
         self.article('Article')
         with patch.object(brief, 'call_provider_text', self.model): self.generate()
+        self.assertNotIn('openmind-brief-sources', self.output())
+        private_sources = brief.summary_sources_file(self.root, DATE, self.output())
+        self.assertEqual(len(json.loads(private_sources.read_text())['items']), 4)
         posts.unlink(); reddit.unlink(); (self.root / f'article/{DATE}/Article.md').unlink()
         self.assertEqual(brief.read_candidates(self.root, DATE), [])
         candidates = brief.legacy_summary_candidates(self.root, DATE)
