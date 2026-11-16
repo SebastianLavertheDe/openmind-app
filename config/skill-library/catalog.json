@@ -2,556 +2,782 @@
   "schemaVersion": 1,
   "skills": [
     {
-      "id": "om-article-cover",
-      "cardCover": "_shared/card-covers/om-article-cover.jpg",
+      "id": "article-cover-designer",
       "version": "1.0.0",
       "category": "image",
-      "requirement": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/article-cover-designer/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
       "contributor": {
         "nick": "yang0",
-        "avatar": "avatars/yang0.jpg",
+        "avatar": "openmind-assets/yang0.jpg",
         "profileUrl": "https://github.com/yang0"
       },
+      "cardCover": "_shared/card-covers/om-article-cover.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
       "display": {
         "zh-CN": {
           "title": "文章封面设计",
-          "subtitle": "从文章提炼主题，生成有辨识度的封面",
-          "description": "从文章提炼主题，生成有辨识度的封面。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
-          "inputHint": "提供文章、主题或字幕，也可以指定画风和画幅。"
+          "subtitle": "从文章或视频字幕生成封面设计提示词",
+          "description": "上游原版 Skill：article-cover-designer。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
         },
         "en": {
-          "title": "Article cover designer",
-          "subtitle": "Turn an article into a distinctive visual cover",
-          "description": "Turn an article into a distinctive visual cover. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
-          "inputHint": "Provide an article, topic or transcript, with an optional style and aspect ratio."
+          "title": "article-cover-designer",
+          "subtitle": "极简高效的文章与视频封面设计技能。根据输入文章或视频字幕文件自动提炼200字核心摘要、推算受众群体、默认输出微信公众号标准 2.35:1 超宽画幅封面（兼顾X 5:2与安全留白），或按需匹配小红书(3:4)、B站/YouTube/短视频(16:9/9:16)场景；深度协同全库 365 种视觉风格与36种经典配色；视频封面模式自动注入“视频封面设计，网感强，吸引人眼球”，并结合“先设计隐喻再出图，主标题明显，小字少或者没有小字”核心指令，一键输出高质量结构化封面生图提示词。",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
         }
       },
-      "instructions": [
-        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
-        "Read the attached or current article, topic or transcript. Identify its main claim, audience and one concrete visual metaphor. Keep the original article and its title unchanged; use a shorter cover headline only when necessary and explain that choice. Never fabricate a stronger claim for clickbait.",
-        "Default to one finished cover. For an article use 2350 × 1000; for a video/transcript use 1600 × 900; for a portrait social cover use 1200 × 1600. A user-specified destination or dimension takes precedence. These are design presets, not a guarantee about any platform’s current rules.",
-        "Compose a prominent short headline, minimal small text and one dominant metaphor. Keep critical text and subjects away from the edges. Pick a style and palette appropriate to the article, call openmind_generate_image, and use the image compositor to deliver the exact chosen dimensions. Use contain if cropping would remove lettering or the subject.",
-        "Deliver the finished cover PNG, with a concise explanation of its visual concept and dimensions; do not return only a cover prompt."
-      ],
-      "files": [
-        {
-          "source": "_shared/handraw-style/image-workflow.md",
-          "target": "references/image-workflow.md"
-        },
-        {
-          "source": "_shared/handraw-style/visual-library.json",
-          "target": "references/visual-library.json"
-        },
-        {
-          "source": "_shared/handraw-style/LICENSE",
-          "target": "LICENSE.handraw-style"
-        },
-        {
-          "source": "_shared/handraw-style/ATTRIBUTION.md",
-          "target": "ATTRIBUTION.md"
-        },
-        {
-          "source": "_shared/handraw-style/avatars/yang0.jpg",
-          "target": "avatars/yang0.jpg"
-        }
-      ]
+      "recommended": true
     },
     {
-      "id": "om-article-illustrator",
+      "id": "article-illustration-planner",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/article-illustration-planner/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
       "cardCover": "_shared/card-covers/om-article-illustrator.jpg",
-      "version": "1.0.0",
-      "category": "image",
-      "requirement": "image",
-      "contributor": {
-        "nick": "yang0",
-        "avatar": "avatars/yang0.jpg",
-        "profileUrl": "https://github.com/yang0"
-      },
-      "display": {
-        "zh-CN": {
-          "title": "长文自动配图",
-          "subtitle": "生成插图，并交付保留原文的图文副本",
-          "description": "生成插图，并交付保留原文的图文副本。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
-          "inputHint": "提供 Markdown 文章，说明想要的配图数量或风格。"
-        },
-        "en": {
-          "title": "Article illustrator",
-          "subtitle": "Illustrate an article while preserving the original",
-          "description": "Illustrate an article while preserving the original. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
-          "inputHint": "Provide a Markdown article and optional illustration count or style."
-        }
-      },
-      "instructions": [
-        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
-        "Read the full article before planning illustrations. For explanatory writing choose useful diagrams, comparisons or process steps from IG layouts; for stories choose meaningful narrative or emotional transitions. Default to three illustrations for a long article, fewer for short text, and honor an explicit count. Spread the illustrations across meaningful sections instead of clustering them at the top.",
-        "Create a working manifest with each image’s purpose, unique exact paragraph anchor, factual labels, layout, style, palette and output path. Use one coherent style across the article. Preserve all numbers, formulas, quotations, code blocks, source links and headings; do not invent data to fill a chart.",
-        "Generate each illustration separately with openmind_generate_image and reuse the first approved visual as a style reference where useful. Default to 1600 × 1200; fit each finished image with the compositor. Copy final images into a new companion asset directory inside the allowed output directory; never write user content into the installed package.",
-        "Create a new <article-name>_illustrated.md without overwriting any existing file. Insert image links and useful alt text after the verified paragraph anchors; an ambiguous or missing anchor must be resolved by reading the surrounding text, never by global replacement. Do not delete, summarize or rewrite original prose unless the user explicitly requested editing. If moving the copy, resolve existing relative links against the original document and rebase them to the copy; keep code examples and external URLs unchanged. If the conversation only permits text output, present the complete illustrated Markdown through openmind-artifact and report that no file was saved.",
-        "Validate the illustrated copy against the source: original prose, headings, formulas, tables and code remain, with only illustration insertions and necessary local-link rebasing. Verify every inserted image exists and resolves from the copy. Report any incomplete image or unresolved reference honestly. Deliver the new Markdown and finished illustrations, not the internal manifest or prompts. Leave the original file untouched."
-      ],
       "files": [
         {
-          "source": "_shared/handraw-style/image-workflow.md",
-          "target": "references/image-workflow.md"
-        },
-        {
-          "source": "_shared/handraw-style/visual-library.json",
-          "target": "references/visual-library.json"
-        },
-        {
-          "source": "_shared/handraw-style/LICENSE",
-          "target": "LICENSE.handraw-style"
-        },
-        {
-          "source": "_shared/handraw-style/ATTRIBUTION.md",
-          "target": "ATTRIBUTION.md"
-        },
-        {
           "source": "_shared/handraw-style/avatars/yang0.jpg",
-          "target": "avatars/yang0.jpg"
+          "target": "openmind-assets/yang0.jpg"
         }
-      ]
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "文章配图规划",
+          "subtitle": "规划插图位置、风格和图片提示词",
+          "description": "上游原版 Skill：article-illustration-planner。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "article-illustration-planner",
+          "subtitle": "深度分析文章脉络，精准规划插图点位与视觉意象。对知识类/教程类文章默认启动“认知降负与高保真图替繁文机制”，严禁删除公式与量化指标，强制协同 170 种排版图型（IG-*信息图/SC-*社媒卡）与 365 种视觉风格/36 种经典配色，杜绝微缩杂物摆拍；对非知识类文章保持叙事氛围与意境。严格执行双向间距（400~1200字）与全篇章节均衡覆盖，支持自主生图或全自动插图回填排版。",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
     },
     {
-      "id": "om-social-cards",
+      "id": "community-share",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/community-share/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
       "cardCover": "_shared/card-covers/om-social-cards.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "作品分享",
+          "subtitle": "按上游流程准备作品分享",
+          "description": "上游原版 Skill：community-share。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "community-share",
+          "subtitle": "通用手绘风社区发帖与静态页面/资产发布 Skill。打通 handraw-style.com (Discourse) 官方论坛账号系统与静态画廊发布系统。涵盖双重能力：(1) 全板块论坛发帖与管理（创作交流、好用的工具、综合大厅、运营与变现、实战作品与爆款、手绘skill）：支持发布通用长帖、出版级手绘提示词卡片、自动配图直传短链、回帖、帖子查询与删除；(2) 风格画廊与静态资产一键部署上云（index.html、tutorials.html、assets.html、370 种画风WebP、色彩/版式元数据）与论坛联动公告。触发词：手绘风发帖, 社区发帖, 论坛发帖, 发到论坛, 发到社区, 发布帖子, 分享作品, 手绘提示词分享, 查看我的帖子, 删除帖子, 发布静态页面到社区, 发布静态页, 同步画廊, 更新网站, 部署静态页, 画廊发布.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "editorial-hairstylist",
       "version": "1.0.0",
       "category": "image",
-      "requirement": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/couple-photo-orchestrator/skills/hairstyle/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
       "contributor": {
         "nick": "yang0",
-        "avatar": "avatars/yang0.jpg",
+        "avatar": "openmind-assets/yang0.jpg",
         "profileUrl": "https://github.com/yang0"
       },
-      "display": {
-        "zh-CN": {
-          "title": "小红书图文卡片",
-          "subtitle": "把文章和笔记变成风格统一的多页图文",
-          "description": "把文章和笔记变成风格统一的多页图文。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
-          "inputHint": "提供主题或笔记，可指定页数、受众和视觉风格。"
-        },
-        "en": {
-          "title": "Social carousel cards",
-          "subtitle": "Turn notes into a consistent multi-page visual story",
-          "description": "Turn notes into a consistent multi-page visual story. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
-          "inputHint": "Provide a topic or notes, optionally with page count, audience and style."
-        }
-      },
-      "instructions": [
-        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
-        "Read the supplied material and extract a clear audience, useful takeaway and supporting facts. Default to five pages: one cover, three content pages and a closing summary. Adjust to the amount of evidence and any explicit page count. Do not invent experience, statistics, quotations or testimonials.",
-        "Plan each page with one message, a short exact headline and at most three concise supporting points. Choose SC-001 for a cover with an illustration, SC-010 for a list, SC-007 for a meaningful supplied quote, or SC-016 for a short conclusion. Keep typography hierarchy, palette, margins and repeated motifs consistent.",
-        "Generate the cover first, then call openmind_generate_image separately for each remaining page with its own exact copy and layout; count is not a substitute for different page prompts. Pass the first page as a reference image for visual continuity. Default every page to 1200 × 1600 and use the compositor to normalize dimensions without cropping text.",
-        "Inspect reading order, duplicate or missing pages and exact wording; correct obvious text errors. Save numbered files in reading order. Deliver every finished page as an individual image plus a short caption in the reply. A contact sheet or a set of prompts alone is not the requested carousel."
-      ],
-      "files": [
-        {
-          "source": "_shared/handraw-style/image-workflow.md",
-          "target": "references/image-workflow.md"
-        },
-        {
-          "source": "_shared/handraw-style/visual-library.json",
-          "target": "references/visual-library.json"
-        },
-        {
-          "source": "_shared/handraw-style/LICENSE",
-          "target": "LICENSE.handraw-style"
-        },
-        {
-          "source": "_shared/handraw-style/ATTRIBUTION.md",
-          "target": "ATTRIBUTION.md"
-        },
-        {
-          "source": "_shared/handraw-style/avatars/yang0.jpg",
-          "target": "avatars/yang0.jpg"
-        }
-      ]
-    },
-    {
-      "id": "om-knowledge-infographic",
-      "cardCover": "_shared/card-covers/om-knowledge-infographic.jpg",
-      "version": "1.0.0",
-      "category": "image",
-      "requirement": "image",
-      "contributor": {
-        "nick": "yang0",
-        "avatar": "avatars/yang0.jpg",
-        "profileUrl": "https://github.com/yang0"
-      },
-      "display": {
-        "zh-CN": {
-          "title": "知识信息图",
-          "subtitle": "把知识、流程和对比关系讲成一张图",
-          "description": "把知识、流程和对比关系讲成一张图。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
-          "inputHint": "提供知识点、操作步骤或需要对比的资料。"
-        },
-        "en": {
-          "title": "Knowledge infographic",
-          "subtitle": "Explain a concept, process or comparison visually",
-          "description": "Explain a concept, process or comparison visually. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
-          "inputHint": "Provide a concept, procedure or comparison material."
-        }
-      },
-      "instructions": [
-        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
-        "Extract the exact concepts, sequence, relationships and evidence from the user’s material. Choose one primary question the image should answer. Preserve units, dates, labels, formulas and uncertainty; ask only if a missing fact prevents an accurate diagram.",
-        "Choose IG-008 for steps, IG-004 for comparisons, IG-009 for a timeline, IG-012 for hierarchy, IG-014 for a quadrant or IG-017 for a mind map. Use relationships and spatial grouping to explain the idea, not decorative boxes containing a pasted essay. Use a clean background and ample separation between labels.",
-        "Generate one finished image through openmind_generate_image, defaulting to 1600 × 1200, or portrait 1200 × 1600 when the structure is vertical. Normalize dimensions with the compositor. Check arrow direction, chronological order, labels, numbers and readability against the original material. If a formula or dense label cannot be rendered faithfully, supply its exact text alongside the image and state the limitation.",
-        "Deliver the finished infographic with a concise textual equivalent of the important relationships so the knowledge is still accessible and checkable."
-      ],
-      "files": [
-        {
-          "source": "_shared/handraw-style/image-workflow.md",
-          "target": "references/image-workflow.md"
-        },
-        {
-          "source": "_shared/handraw-style/visual-library.json",
-          "target": "references/visual-library.json"
-        },
-        {
-          "source": "_shared/handraw-style/LICENSE",
-          "target": "LICENSE.handraw-style"
-        },
-        {
-          "source": "_shared/handraw-style/ATTRIBUTION.md",
-          "target": "ATTRIBUTION.md"
-        },
-        {
-          "source": "_shared/handraw-style/avatars/yang0.jpg",
-          "target": "avatars/yang0.jpg"
-        }
-      ]
-    },
-    {
-      "id": "om-poster-maker",
-      "version": "1.1.0",
-      "category": "image",
-      "requirement": "image",
-      "contributor": {
-        "nick": "yang0",
-        "avatar": "avatars/yang0.jpg",
-        "profileUrl": "https://github.com/yang0"
-      },
-      "display": {
-        "zh-CN": {
-          "title": "活动／节日海报",
-          "subtitle": "围绕活动、节日或主题制作完整海报",
-          "description": "围绕活动、节日或主题制作完整海报。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
-          "inputHint": "提供主题、宣传文案，以及需要展示的时间、地点等信息。"
-        },
-        "en": {
-          "title": "Event and theme poster",
-          "subtitle": "Create a finished event, holiday or thematic poster",
-          "description": "Create a finished event, holiday or thematic poster. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
-          "inputHint": "Provide the theme, copy and any date, venue or other required details."
-        }
-      },
-      "instructions": [
-        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
-        "Create an actual finished poster for the requested event, holiday or general theme. Extract the audience, message, exact supplied headline, date, venue and call to action. Do not infer an event date from a holiday name, invent an address or generate a fake QR code. Ask for indispensable factual details or omit optional missing details.",
-        "Choose a visual metaphor, appropriate style and restrained palette, then build a clear hierarchy: headline first, key event information second, action last. A user-provided logo or QR code must remain usable; do not redraw it and claim it is faithful.",
-        "Call openmind_generate_image rather than only returning a prompt. Default to one portrait 1200 × 1600 poster; adapt to the user’s specified format. Fit the result to the exact dimensions with the compositor, keeping lettering and essential artwork intact. Inspect spelling, dates and small-text readability.",
-        "Deliver the final poster image and briefly note any omitted information or rendering limitation. Do not publish or share it to external services."
-      ],
-      "files": [
-        {
-          "source": "_shared/handraw-style/image-workflow.md",
-          "target": "references/image-workflow.md"
-        },
-        {
-          "source": "_shared/handraw-style/visual-library.json",
-          "target": "references/visual-library.json"
-        },
-        {
-          "source": "_shared/handraw-style/LICENSE",
-          "target": "LICENSE.handraw-style"
-        },
-        {
-          "source": "_shared/handraw-style/ATTRIBUTION.md",
-          "target": "ATTRIBUTION.md"
-        },
-        {
-          "source": "_shared/handraw-style/avatars/yang0.jpg",
-          "target": "avatars/yang0.jpg"
-        }
-      ],
-      "recommended": true,
-      "cardCover": "_shared/card-covers/om-poster-maker.jpg"
-    },
-    {
-      "id": "om-four-panel-comic",
-      "cardCover": "_shared/card-covers/om-four-panel-comic.jpg",
-      "version": "1.0.0",
-      "category": "image",
-      "requirement": "image",
-      "contributor": {
-        "nick": "yang0",
-        "avatar": "avatars/yang0.jpg",
-        "profileUrl": "https://github.com/yang0"
-      },
-      "display": {
-        "zh-CN": {
-          "title": "四格故事漫画",
-          "subtitle": "把故事或知识点画成有起承转合的四格漫画",
-          "description": "把故事或知识点画成有起承转合的四格漫画。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
-          "inputHint": "描述一个故事、生活场景或想解释的知识点。"
-        },
-        "en": {
-          "title": "Four-panel comic",
-          "subtitle": "Tell a story or explain an idea in four connected panels",
-          "description": "Tell a story or explain an idea in four connected panels. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
-          "inputHint": "Describe a story, everyday scene or concept to explain."
-        }
-      },
-      "instructions": [
-        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
-        "Build four short beats from the request: setup, development, change and payoff. For a factual explanation preserve the supplied facts; do not introduce a misleading twist for comedy. Decide one main character, an identifiable silhouette, clothing and a small consistent palette.",
-        "Use SB-002: four equal panels in a 2 × 2 page, read left to right then top to bottom. Keep gutters clear. Prepare short exact captions or speech bubbles in the user’s language. Avoid densely lettered dialogue and show actions visually.",
-        "Generate the complete four-panel page in one openmind_generate_image call to help continuity. Use user-supplied character references when available. Default to 1600 × 1600 and normalize with contain; never crop away a panel. Check all four beats, character identity, bubble placement and reading order.",
-        "Deliver the complete comic PNG and the four short captions as accessible text. If the user requests separate panels, generate or crop those explicitly in addition; a script alone is not the finished comic."
-      ],
-      "files": [
-        {
-          "source": "_shared/handraw-style/image-workflow.md",
-          "target": "references/image-workflow.md"
-        },
-        {
-          "source": "_shared/handraw-style/visual-library.json",
-          "target": "references/visual-library.json"
-        },
-        {
-          "source": "_shared/handraw-style/LICENSE",
-          "target": "LICENSE.handraw-style"
-        },
-        {
-          "source": "_shared/handraw-style/ATTRIBUTION.md",
-          "target": "ATTRIBUTION.md"
-        },
-        {
-          "source": "_shared/handraw-style/avatars/yang0.jpg",
-          "target": "avatars/yang0.jpg"
-        }
-      ]
-    },
-    {
-      "id": "om-photo-diptych",
-      "cardCover": "_shared/card-covers/om-photo-diptych.jpg",
-      "version": "1.0.0",
-      "category": "image",
-      "requirement": "image",
-      "contributor": {
-        "nick": "yang0",
-        "avatar": "avatars/yang0.jpg",
-        "profileUrl": "https://github.com/yang0"
-      },
-      "display": {
-        "zh-CN": {
-          "title": "照片转手绘双拼",
-          "subtitle": "保留原照片，配上一张同构图的手绘版本",
-          "description": "保留原照片，配上一张同构图的手绘版本。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
-          "inputHint": "上传一张照片，可指定水彩、蜡笔、线描等画风。"
-        },
-        "en": {
-          "title": "Photo-to-illustration diptych",
-          "subtitle": "Pair the original photo with a hand-drawn interpretation",
-          "description": "Pair the original photo with a hand-drawn interpretation. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
-          "inputHint": "Attach a photo and optionally choose watercolor, crayon or another visual style."
-        }
-      },
-      "instructions": [
-        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
-        "Require a real local reference photo from the conversation or permitted content root. If none is available, ask for the photo; do not fabricate an original photo. Identify its main subject, framing and landmarks. Choose or honor a visual medium from the bundled references.",
-        "Generate only the illustrated interpretation using openmind_generate_image with the photo in referenceImages. Preserve the subject, pose and framing where possible while expressing actual drawn lines and material texture. Do not ask the model to reproduce the original half of the comparison.",
-        "Use the deterministic diptych compositor from references/image-workflow.md, passing the actual original path and generated illustration path. Choose vertical stacking (original above) for a landscape photo, horizontal pairing (original left) for a portrait photo, and derive canvas dimensions so both equal panels respect the original aspect ratio. Use contain for both panels and a narrow neutral gutter. Do not crop, stretch, filter or overwrite the original file.",
-        "Deliver the composed PNG and, if useful, the standalone illustrated version. Describe the style transfer without claiming the generated interpretation preserves every detail. Never call a model-regenerated image the unchanged original."
-      ],
-      "files": [
-        {
-          "source": "_shared/handraw-style/image-workflow.md",
-          "target": "references/image-workflow.md"
-        },
-        {
-          "source": "_shared/handraw-style/visual-library.json",
-          "target": "references/visual-library.json"
-        },
-        {
-          "source": "_shared/handraw-style/LICENSE",
-          "target": "LICENSE.handraw-style"
-        },
-        {
-          "source": "_shared/handraw-style/ATTRIBUTION.md",
-          "target": "ATTRIBUTION.md"
-        },
-        {
-          "source": "_shared/handraw-style/avatars/yang0.jpg",
-          "target": "avatars/yang0.jpg"
-        }
-      ]
-    },
-    {
-      "id": "om-product-highlights",
-      "cardCover": "_shared/card-covers/om-product-highlights.jpg",
-      "version": "1.0.0",
-      "category": "image",
-      "requirement": "image",
-      "contributor": {
-        "nick": "yang0",
-        "avatar": "avatars/yang0.jpg",
-        "profileUrl": "https://github.com/yang0"
-      },
-      "display": {
-        "zh-CN": {
-          "title": "商品卖点图",
-          "subtitle": "围绕真实商品资料，生成清晰的卖点标注图",
-          "description": "围绕真实商品资料，生成清晰的卖点标注图。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
-          "inputHint": "提供商品照片和真实规格、功能或卖点。"
-        },
-        "en": {
-          "title": "Product feature image",
-          "subtitle": "Present a real product with clear feature callouts",
-          "description": "Present a real product with clear feature callouts. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
-          "inputHint": "Provide a product photo and factual specifications or benefits."
-        }
-      },
-      "instructions": [
-        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
-        "Read the product photo and supplied specifications. Extract three to five supported buying reasons and their priority for the stated audience. Do not invent certifications, performance data, discounts, sales volumes or customer reviews. If there is no actual product photo, request it unless the user explicitly wants a concept mockup.",
-        "Use EC-005 feature callouts around a large product subject, EC-001 for a clean hero image or EC-009 for a useful lifestyle setting. Keep the product’s real shape, color, label and branding; stylize only the surrounding scene or accents. Supply the original photo as referenceImages.",
-        "Call openmind_generate_image for one finished image, default 1600 × 1600. Normalize via the compositor without cutting off the product or labels. Compare generated details against the original photo and verify every written claim. If the generator changes product details and cannot correct them, identify the result as a concept preview rather than claiming it is an accurate product photo.",
-        "Deliver the finished image and a concise list of the supplied facts it depicts. Never publish to a shop or an advertising platform automatically."
-      ],
-      "files": [
-        {
-          "source": "_shared/handraw-style/image-workflow.md",
-          "target": "references/image-workflow.md"
-        },
-        {
-          "source": "_shared/handraw-style/visual-library.json",
-          "target": "references/visual-library.json"
-        },
-        {
-          "source": "_shared/handraw-style/LICENSE",
-          "target": "LICENSE.handraw-style"
-        },
-        {
-          "source": "_shared/handraw-style/ATTRIBUTION.md",
-          "target": "ATTRIBUTION.md"
-        },
-        {
-          "source": "_shared/handraw-style/avatars/yang0.jpg",
-          "target": "avatars/yang0.jpg"
-        }
-      ]
-    },
-    {
-      "id": "om-brand-character",
       "cardCover": "_shared/card-covers/om-brand-character.jpg",
-      "version": "1.0.0",
-      "category": "image",
-      "requirement": "image",
-      "contributor": {
-        "nick": "yang0",
-        "avatar": "avatars/yang0.jpg",
-        "profileUrl": "https://github.com/yang0"
-      },
-      "display": {
-        "zh-CN": {
-          "title": "品牌 IP 形象设计",
-          "subtitle": "设计角色形象、三视图和配套表情",
-          "description": "设计角色形象、三视图和配套表情。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
-          "inputHint": "介绍品牌、目标受众，以及角色的性格或原型。"
-        },
-        "en": {
-          "title": "Brand character designer",
-          "subtitle": "Design a character, turnaround and expression sheet",
-          "description": "Design a character, turnaround and expression sheet. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
-          "inputHint": "Describe the brand, audience and desired personality or character basis."
-        }
-      },
-      "instructions": [
-        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
-        "Infer a concise character brief from the brand, audience and requested personality. Choose one concept, a distinctive silhouette, recognizable proportions, a limited palette and one or two signature features. Honor existing brand or character references. Default to a small coherent set, not the upstream full eighteen-card package.",
-        "First generate one full-body neutral hero character at 1200 × 1600 using openmind_generate_image. Inspect and establish this as the reference identity before generating further sheets. Preserve its proportions, colors, clothing and distinguishing features in all subsequent prompts.",
-        "Generate a separate 1600 × 1200 front/side/back turnaround with aligned proportions and neutral poses. Generate a separate 1600 × 1200 four-expression sheet with clearly distinct happy, sad, surprised and thoughtful expressions, or user-specified expressions. For every follow-up call pass the established hero image and any relevant supplied brand reference in referenceImages. Fit each sheet to its final dimensions.",
-        "Check identity and proportions across all three deliverables. If a sheet drifts, correct that sheet against the hero reference before declaring the set complete. Deliver the hero, turnaround and expression sheet with a short reusable character brief; do not claim trademark clearance or production-ready 3D geometry."
-      ],
       "files": [
         {
-          "source": "_shared/handraw-style/image-workflow.md",
-          "target": "references/image-workflow.md"
-        },
-        {
-          "source": "_shared/handraw-style/visual-library.json",
-          "target": "references/visual-library.json"
-        },
-        {
-          "source": "_shared/handraw-style/LICENSE",
-          "target": "LICENSE.handraw-style"
-        },
-        {
-          "source": "_shared/handraw-style/ATTRIBUTION.md",
-          "target": "ATTRIBUTION.md"
-        },
-        {
           "source": "_shared/handraw-style/avatars/yang0.jpg",
-          "target": "avatars/yang0.jpg"
+          "target": "openmind-assets/yang0.jpg"
         }
-      ]
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "发型设计",
+          "subtitle": "使用原版发型设计流程",
+          "description": "上游原版 Skill：editorial-hairstylist。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "editorial-hairstylist",
+          "subtitle": "Early professional hairstylist node that designs and locks formal shoot hair for each candidate direction before downstream Look expansion.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
     },
     {
-      "id": "om-style-fusion",
-      "cardCover": "_shared/card-covers/om-style-fusion.jpg",
+      "id": "couple-photo-wardrobe-board",
       "version": "1.0.0",
       "category": "image",
-      "requirement": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/couple-photo-orchestrator/skills/huanzhuang/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
       "contributor": {
         "nick": "yang0",
-        "avatar": "avatars/yang0.jpg",
+        "avatar": "openmind-assets/yang0.jpg",
         "profileUrl": "https://github.com/yang0"
       },
-      "display": {
-        "zh-CN": {
-          "title": "双风格融合插画",
-          "subtitle": "让不同画风的角色和场景自然共处",
-          "description": "让不同画风的角色和场景自然共处。基于 yang0 的 handraw-style，由 OpenMind 改编。来源：https://github.com/yang0/handraw-style",
-          "inputHint": "描述主题，可分别指定角色画风和场景画风。"
-        },
-        "en": {
-          "title": "Dual-style illustration",
-          "subtitle": "Unite distinct character and scene styles in one image",
-          "description": "Unite distinct character and scene styles in one image. Adapted by OpenMind from yang0’s handraw-style: https://github.com/yang0/handraw-style",
-          "inputHint": "Describe the subject and optional character and scene styles."
-        }
-      },
-      "instructions": [
-        "Read references/image-workflow.md first and select only the needed entries from references/visual-library.json. Follow the workflow below to produce real image deliverables using openmind_generate_image; return prompts only when the user explicitly asks for prompts. Source attribution is in ATTRIBUTION.md.",
-        "Identify the requested subject and separately choose the character medium and environment medium. Preserve either style the user specifies. If unspecified, use an expressive crayon character in a realistic everyday environment, or another clearly contrasting pair suited to the topic. Explain the chosen pair briefly and proceed.",
-        "Keep the two visual languages visibly distinct: character contours, pigment and texture belong to one medium; the scene’s space, lighting and materials belong to the other. Use a miniature character scale only when appropriate to the requested scene; it is not mandatory for every subject.",
-        "Unify perspective, light direction, contact shadows, occlusion and physical contact so the character inhabits the scene. Avoid a floating sticker, a split-screen comparison or a muddled average of the two styles. Express a clear narrative moment without adding an unrelated story.",
-        "Generate one image with openmind_generate_image, honoring any supplied references. Default to 1200 × 1600 and normalize with the compositor. Inspect style separation, grounding and lighting, then deliver the finished illustration with the selected style pair."
-      ],
+      "cardCover": "_shared/card-covers/om-brand-character.jpg",
       "files": [
         {
-          "source": "_shared/handraw-style/image-workflow.md",
-          "target": "references/image-workflow.md"
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "换装设计",
+          "subtitle": "使用原版换装设计流程",
+          "description": "上游原版 Skill：couple-photo-wardrobe-board。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
         },
-        {
-          "source": "_shared/handraw-style/visual-library.json",
-          "target": "references/visual-library.json"
-        },
-        {
-          "source": "_shared/handraw-style/LICENSE",
-          "target": "LICENSE.handraw-style"
-        },
-        {
-          "source": "_shared/handraw-style/ATTRIBUTION.md",
-          "target": "ATTRIBUTION.md"
-        },
+        "en": {
+          "title": "couple-photo-wardrobe-board",
+          "subtitle": "Design numbered six-look wardrobe boards for one or any number of participants inside a confirmed portrait theme, preserving full per-person outfit detail.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "couple-photo-requirements-planner",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/couple-photo-orchestrator/skills/kefu/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-photo-diptych.jpg",
+      "files": [
         {
           "source": "_shared/handraw-style/avatars/yang0.jpg",
-          "target": "avatars/yang0.jpg"
+          "target": "openmind-assets/yang0.jpg"
         }
-      ]
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "写真需求沟通",
+          "subtitle": "使用原版写真需求沟通流程",
+          "description": "上游原版 Skill：couple-photo-requirements-planner。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "couple-photo-requirements-planner",
+          "subtitle": "Confirm portrait, couple, family, group, wedding-party, team, cast, travel, period, or cosplay photo requirements and produce complete per-participant Looks, scenes, props, and a confirmed photography handoff for any number of subjects.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "editorial-makeup-artist",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/couple-photo-orchestrator/skills/makeup/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-brand-character.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "妆容设计",
+          "subtitle": "使用原版妆容设计流程",
+          "description": "上游原版 Skill：editorial-makeup-artist。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "editorial-makeup-artist",
+          "subtitle": "Mandatory formal-shoot makeup and skin optimization node for portrait photography.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "reference-beauty-prep",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/couple-photo-orchestrator/skills/meihua/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-photo-diptych.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "人像美化",
+          "subtitle": "使用原版人像美化流程",
+          "description": "上游原版 Skill：reference-beauty-prep。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "reference-beauty-prep",
+          "subtitle": "Turns a real-person reference into a reusable polished identity reference through a visual three-panel beauty exploration.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "couple-photo-shooting-planner",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/couple-photo-orchestrator/skills/paishe/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-photo-diptych.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "写真拍摄",
+          "subtitle": "使用原版写真拍摄流程",
+          "description": "上游原版 Skill：couple-photo-shooting-planner。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "couple-photo-shooting-planner",
+          "subtitle": "Turn confirmed one-person or multi-person portrait styling handoffs into detailed eight-shot plans, numbered grids, and selected detail-render briefs without reducing per-participant specificity.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "couple-photo-orchestrator",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/couple-photo-orchestrator/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-photo-diptych.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "双人写真规划",
+          "subtitle": "统筹写真风格、妆造和拍摄方案",
+          "description": "上游原版 Skill：couple-photo-orchestrator。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "couple-photo-orchestrator",
+          "subtitle": "Orchestrates professional portrait, couple, wedding, family, cosplay, and themed photography planning from direction selection through Look, scene micro-zones, Shot List, and on-demand image generation.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "custom-asset-manager",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/custom-asset-manager/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-product-highlights.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "自定义素材管理",
+          "subtitle": "管理上游风格库的自定义素材",
+          "description": "上游原版 Skill：custom-asset-manager。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "custom-asset-manager",
+          "subtitle": "管理自建图库（角色库、道具库、场景库）全生命周期资产。支持初始化与挂载图库目录、新增归档资产、替换基准图、修改名称与标签、安全删除资产、查询清单及自动刷新画廊。当用户提出“添加到角色库”、“替换IP图片”、“修改角色名称”、“删除角色/道具/场景”、“初始化图库目录”等资产维护需求时使用。",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "handraw-skill",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/handdraw-style-prompter/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-knowledge-infographic.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "手绘风格与排版",
+          "subtitle": "按原版风格、排版和配色库生成图片提示词",
+          "description": "上游原版 Skill：handraw-skill。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "handraw-skill",
+          "subtitle": "内置300多个画风，图型，主题色。支持纯图模式，图文模式，可以给文章做封面，批量制作插图。可以批量制作海报，漫画，小红书组图。信息图，ip设计稿，电商图甚至真人摄影都随意拿捏。",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "ip-designer",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/ip-designer/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-brand-character.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "IP 角色设计",
+          "subtitle": "设计角色形象、风格和应用方案",
+          "description": "上游原版 Skill：ip-designer。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "ip-designer",
+          "subtitle": "专业 IP 形象设计与 Character Bible / IP Design Manual 交付体系技能。按策略层、角色层、视觉层、系统层、商业层 5 个层级规划与生成 18 张标准卡片生图提示词。坚持文字简洁、画面聚焦、大图清晰、无示例污染，支持基础版（6张）、标准版（10张）与完整版（18张）按需输出高质量结构化提示词。",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "layout-library-importer",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/layout-library-importer/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-knowledge-infographic.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "排版库导入",
+          "subtitle": "导入和管理自定义排版图型",
+          "description": "上游原版 Skill：layout-library-importer。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "layout-library-importer",
+          "subtitle": "Add a supplied layout image and bilingual layout prompt to the local handdraw-style layout library and gallery. Use for new SC-* social-card or IG-* infographic layouts; do not use for style-number imports.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "handraw-personal-library",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/personal-library/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-style-fusion.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "个人风格库",
+          "subtitle": "查询和使用个人风格资源",
+          "description": "上游原版 Skill：handraw-personal-library。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "handraw-personal-library",
+          "subtitle": "手绘风个人画风、图型与社区收藏的按需同步、离线导入、创建和派生。不修改官方编号库，不自动上传私人内容。",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "poster-prompt-generator",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/poster-prompt-generator/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-poster-maker.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "海报提示词",
+          "subtitle": "生成海报的构图、风格与配色提示词",
+          "description": "上游原版 Skill：poster-prompt-generator。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "poster-prompt-generator",
+          "subtitle": "专门生成极简结构化 AI 海报提示词的专业设计技能。彻底摒弃冗长描述与套路化格式，深度协同项目 365 种视觉风格与 36 种经典主题色画廊，按核心业务与设计字段输出提示词（主题、业务场景、受众、内容密度、情感基调、主题色、editorial风格、画风），让生图模型（如 GPT Image 2/2.5）自主完成原生高质量构图与排版。",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "release-illustration-planner",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/release-illustration-planner/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-article-illustrator.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "发布配图规划",
+          "subtitle": "规划发布内容的图片和版式",
+          "description": "上游原版 Skill：release-illustration-planner。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "release-illustration-planner",
+          "subtitle": "专为 HandRaw 新【画风 (Style)】或新【图型 (Layout)】发布专栏文章量身定制的实测配图规划与批量生图 Skill。因为发布的本质是实测手绘 Skill 的画风与图型在商业场景中的表现边界，所以必须将商业主题与手绘 Skill 中的图型/画风深度咬合：当适合的商业主题推导出来后，强制为每个主题严密搭配契合的 HandRaw 排版图型（或跨流派画风）；随后严格执行【五维实体异构与零雷同铁律】，5 组案例必须横跨建筑交通、餐饮流体、室内器物、文房平铺与宏大天象，彻底杜绝单一体裁与模板化女孩背影；调用手绘 Skill 官方解析器装配提示词并驱动 VirtualBrowser b1 Plus (ChatGPT Plus) 完成高质量无损实测批量出图，输出标准化 cases_manifest。",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "style-business-analyzer",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/style-business-analyzer/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-product-highlights.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "风格商业分析",
+          "subtitle": "分析风格的商业应用方向",
+          "description": "上游原版 Skill：style-business-analyzer。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "style-business-analyzer",
+          "subtitle": "专门为手绘与写实视觉风格库（FA-001~FI-034 / #001~#365）进行深度商业应用价值洞察、物料矩阵拆解与落地项目策划的专业技能。支持单风格商业应用企划（生成 2500+ 字出版级 business/{number}.md 指南文档）、未覆盖风格审计与批量补全。涵盖商业定位、4大商业优势、5大行业场景与物料矩阵、落地策划案（含4-6款单品组合与交付物清单）、执行避坑与适用边界、及协同 170 种排版图型与 36 种经典单色搭配。触发词：商业应用, 风格商业分析, 商业指南, 适合什么生意, 商业落地, 变现策划, business指南, 补充商业文档.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "style-fusion-prompter",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/style-fusion-prompter/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-style-fusion.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "风格融合",
+          "subtitle": "组合不同视觉风格并生成提示词",
+          "description": "上游原版 Skill：style-fusion-prompter。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "style-fusion-prompter",
+          "subtitle": "跨媒介“角色视觉语言 × 场景视觉语言”双风格共存融合提示词生成技能。支持融合两套不同视觉风格编号（#001–#370），或融合风格编号与写实风格，并可按需注入图型（170 种）与主题色（36种），严格输出造型解耦、物理光影与叙事共存的高质量生图提示词。",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "style-library-importer",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/style-library-importer/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-style-fusion.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "风格库导入",
+          "subtitle": "导入和整理自定义风格",
+          "description": "上游原版 Skill：style-library-importer。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "style-library-importer",
+          "subtitle": "Add a named or text-defined visual style to the numbered hand-drawn style library, generating a square representative image without number badges when none is supplied. Do not use for image-only Tweet imports.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
+    },
+    {
+      "id": "tweet-style-importer",
+      "version": "1.0.0",
+      "category": "image",
+      "packageDirectory": "handraw-style",
+      "packageId": "handdraw-style-prompter",
+      "skillPath": "skills/tweet-style-importer/SKILL.md",
+      "executionKind": "agent",
+      "upstream": {
+        "repository": "https://github.com/yang0/handraw-style",
+        "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89"
+      },
+      "contributor": {
+        "nick": "yang0",
+        "avatar": "openmind-assets/yang0.jpg",
+        "profileUrl": "https://github.com/yang0"
+      },
+      "cardCover": "_shared/card-covers/om-social-cards.jpg",
+      "files": [
+        {
+          "source": "_shared/handraw-style/avatars/yang0.jpg",
+          "target": "openmind-assets/yang0.jpg"
+        }
+      ],
+      "display": {
+        "zh-CN": {
+          "title": "推文风格导入",
+          "subtitle": "从推文素材整理视觉风格",
+          "description": "上游原版 Skill：tweet-style-importer。原始仓库：https://github.com/yang0/handraw-style。与同仓库其他 Skill 共用一份安装，只在对话中选中后使用。"
+        },
+        "en": {
+          "title": "tweet-style-importer",
+          "subtitle": "Automatically scrape any X/Twitter tweet and its images, assign the next sequential style number, generate a 1024x1024 4-grid generation reference and a 16-grid gallery contact sheet without number badges, register the style, set mandatory image passing, and rebuild the gallery.",
+          "description": "Original upstream Skill. Shared repository installation; explicit conversation selection only. https://github.com/yang0/handraw-style"
+        }
+      }
     },
     {
       "id": "video-download",
@@ -609,24 +835,6 @@
       }
     },
     {
-      "id": "daily-topic-selector",
-      "version": "1.0.0",
-      "category": "research",
-      "packageDirectory": "daily-topic-selector",
-      "executionKind": "process",
-      "discoverable": false,
-      "display": {
-        "zh-CN": {
-          "title": "每日选题筛选",
-          "subtitle": "根据用户偏好筛选、排序并说明推荐理由。"
-        },
-        "en": {
-          "title": "Daily topic selection",
-          "subtitle": "Select and rank topics using your saved preferences."
-        }
-      }
-    },
-    {
       "id": "reddit-fetcher",
       "version": "1.0.0",
       "category": "research",
@@ -672,11 +880,11 @@
       "display": {
         "zh-CN": {
           "title": "RSS 到每日总结",
-          "subtitle": "按同一个内容根快照依次执行 RSS 采集、文章总结和每日选题筛选。"
+          "subtitle": "按同一个内容根快照依次执行 RSS 采集和文章总结。"
         },
         "en": {
           "title": "rss-to-summary-workflow",
-          "subtitle": "按同一个内容根快照依次执行 RSS 采集、文章总结和每日选题筛选。"
+          "subtitle": "按同一个内容根快照依次执行 RSS 采集和文章总结。"
         }
       }
     },

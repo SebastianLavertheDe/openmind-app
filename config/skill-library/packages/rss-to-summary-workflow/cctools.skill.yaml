@@ -9,7 +9,7 @@
   "kind": "workflow",
   "display": {
     "name": "RSS 到每日总结",
-    "description": "按同一个内容根快照依次执行 RSS 采集、文章总结；选题可独立运行。",
+    "description": "按同一个内容根快照依次执行 RSS 采集和文章总结。",
     "group": "内容链路"
   },
   "inputs": {
@@ -30,14 +30,12 @@
         "article/**",
         "post/**",
         "reddit/**",
-        "daily-summary/**",
-        "daily-topic/**"
+        "daily-summary/**"
       ],
       "write": [
         "article/**",
         "post/**",
-        "daily-summary/**",
-        "daily-topic/**"
+        "daily-summary/**"
       ]
     },
     "network": {

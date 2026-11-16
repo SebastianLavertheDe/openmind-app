@@ -24,8 +24,7 @@ export const validationMessages = {
       defaults: {
         rss: { name: "RSS collection and daily summary", description: "Run rss-to-summary-workflow every hour to fetch feeds and generate a daily summary, matching the rss-to-summary-workflow cron job." },
         x: { name: "X/Twitter following collection", description: "Fetch the latest posts from followed accounts every 15 minutes, matching the x-following-fetcher cron job." },
-        reddit: { name: "Reddit trending collection", description: "Fetch trending Reddit posts at 5 minutes past every hour, matching the reddit-fetcher cron job." },
-        topics: { name: "Daily topic generation", description: "Generate topic candidates for the next day at 23:55 after the evening summary, matching the daily-topic-selector cron job." }
+        reddit: { name: "Reddit trending collection", description: "Fetch trending Reddit posts at 5 minutes past every hour, matching the reddit-fetcher cron job." }
       }
     },
     skillSource: {

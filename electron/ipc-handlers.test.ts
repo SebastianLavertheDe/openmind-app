@@ -656,6 +656,12 @@ describe("registerIpcHandlers", () => {
 });
 
 describe("handler forwarding — getBootstrap 复合逻辑", () => {
+  it("rejects legacy topic generation before touching installed packages or the worker", async () => {
+    const ctx = makeCtx();
+    const install = vi.spyOn(builtinPackages, "installBuiltinDefault");
+    await expect(invokeHandler(ctx, IPC_METHOD_CHANNELS.generateDailyBrief, { date: "20261116", topics: true })).rejects.toThrow();
+    expect(install).not.toHaveBeenCalled();
+  });
   it("validates the default Skills toggle and refreshes the current worker after installation", async () => {
     const calls: string[] = [];
     const worker = { call: vi.fn(async (method: string, value?: unknown) => {
@@ -676,7 +682,7 @@ describe("handler forwarding — getBootstrap 复合逻辑", () => {
     expect(() => invokeHandler(ctx, IPC_METHOD_CHANNELS.setDefaultSkillsEnabled, "true")).toThrow();
     expect(worker.call).not.toHaveBeenCalled();
     expect(await invokeHandler(ctx, IPC_METHOD_CHANNELS.setDefaultSkillsEnabled, true)).toBe(true);
-    expect(calls).toEqual(["default-skills-stop", ...Array(7).fill("install"), "refresh-skills", "default-skills-set"]);
+    expect(calls).toEqual(["default-skills-stop", ...Array(6).fill("install"), "refresh-skills", "default-skills-set"]);
     expect(setEnabled).toHaveBeenCalledWith("openmind-library/default", "a".repeat(64), true);
     expect(ctx.restartAiWorker).not.toHaveBeenCalled();
   });

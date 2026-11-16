@@ -203,7 +203,7 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
     expect(sdkMock.startup).toHaveBeenCalledTimes(1);
   });
 
-  it.each([false, true])("automatically discovers installed BrowserSkill in a Project=%s warm host", async (projectScoped) => {
+  it.each([false, true])("does not expose unselected Skills in a Project=%s warm host", async (projectScoped) => {
     const adapter = new ClaudeAgentSdkAdapter();
     const skillPath = "/project/.agent/skills/browser-skill/SKILL.md";
     await adapter.prewarm(makePrewarmContext({
@@ -212,9 +212,9 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
     }));
     const options = sdkMock.startup.mock.calls[0][0].options as { mcpServers?: unknown; systemPrompt: { append?: string } };
     expect(options.mcpServers).toHaveProperty("openmind_images");
-    expect(options.systemPrompt.append).toContain(skillPath);
-    expect(options.systemPrompt.append).toContain("Read logged-in pages and capture screenshots");
-    expect(options.systemPrompt.append).toContain("无需用户输入斜杠命令");
+    expect(options.systemPrompt.append).not.toContain(skillPath);
+    expect(options.systemPrompt.append).not.toContain("Read logged-in pages and capture screenshots");
+    expect(options.systemPrompt.append).toContain("本轮未选择 Skill");
     expect(options.systemPrompt.append).not.toContain("capture_source_evidence");
   });
 
@@ -253,14 +253,14 @@ describe("ClaudeAgentSdkAdapter.prewarm()", () => {
     adapter.disposeWarmSlots();
   });
 
-  it("supplies WSL Skill paths to the WSL file tools", async () => {
+  it("does not leak unselected WSL Skill paths to the model", async () => {
     const adapter = new ClaudeAgentSdkAdapter();
     await adapter.prewarm(makePrewarmContext({
       provider: { id: "claude-wsl", provider: "claude", runtime: "wsl", available: true } as never,
       skillCatalog: [{ id: "browser-skill", version: "0.0.0", digest: "a".repeat(64), packageRoot: "\\\\wsl.localhost\\Ubuntu\\home\\fixture\\.agent\\skills\\browser-skill", skillPath: "\\\\wsl.localhost\\Ubuntu\\home\\fixture\\.agent\\skills\\browser-skill\\SKILL.md", description: "Browser tasks" }]
     }));
     const options = sdkMock.startup.mock.calls[0][0].options;
-    expect(options.systemPrompt.append).toContain("/home/fixture/.agent/skills/browser-skill/SKILL.md");
+    expect(options.systemPrompt.append).not.toContain("/home/fixture/.agent/skills/browser-skill/SKILL.md");
     adapter.disposeWarmSlots();
   });
 

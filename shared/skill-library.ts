@@ -20,8 +20,14 @@ export type SkillScene = z.infer<typeof SkillSceneSchema>;
 export type SkillLibraryMode = "explore" | "mine";
 export type SkillLibrarySection = "all" | SkillScene | "github-installed" | "local-imported";
 export const SkillLibraryEntryIdSchema = z.string().min(1).max(257);
-export const SkillSelectionInputSchema = z.object({ key: z.string().min(1).max(257), digest: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
+export const SkillEntrypointPathSchema = z.string().min(1).max(512).refine(value =>
+  !value.includes("\\") && !value.includes(":") && value.split("/").every(part => part && part !== "." && part !== "..")
+  && (value === "SKILL.md" || value.endsWith("/SKILL.md")), "Use a package-relative SKILL.md path");
+export const SkillSelectionInputSchema = z.object({ key: z.string().min(1).max(257), digest: z.string().regex(/^[a-f0-9]{64}$/), entrypoint: SkillEntrypointPathSchema.optional() }).strict();
 export type SkillSelectionInput = z.infer<typeof SkillSelectionInputSchema>;
+export function skillReferenceKey(value: { key: string | null; entrypoint?: string }): string {
+  return `${value.key || ""}\u0000${value.entrypoint || "SKILL.md"}`;
+}
 export const SkillAssetSchema = z.object({ id: z.string().uuid(), name: z.string().max(240), kind: z.enum(["image", "document"]), extension: z.string().regex(/^\.[a-z0-9]{1,8}$/) });
 export type SkillAsset = z.infer<typeof SkillAssetSchema>;
 export const AuthoredSkillContributorSchema = z.object({
@@ -62,7 +68,12 @@ export const SkillLibraryMetadataSchema = z.object({
   /** Installed presentation remains localized without the discovery catalog. */
   display: SkillLibraryDisplaySchema.optional(),
   executionModel: z.object({ provider: z.enum(["codex", "claude"]), model: z.string().max(200) }).nullable().default(null),
-  dependencies: z.array(SkillSelectionInputSchema).max(10).default([])
+  dependencies: z.array(SkillSelectionInputSchema).max(10).default([]),
+  entrypoints: z.array(z.object({
+    id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), path: SkillEntrypointPathSchema,
+    category: SkillSceneSchema, display: SkillLibraryDisplaySchema
+  }).strict()).max(100).optional(),
+  upstream: z.object({ repository: z.string().url(), revision: z.string().regex(/^[a-f0-9]{40}$/) }).strict().optional()
 });
 export type SkillLibraryMetadata = z.infer<typeof SkillLibraryMetadataSchema>;
 export interface SkillLibraryEntry {
@@ -70,6 +81,9 @@ export interface SkillLibraryEntry {
   category: SkillScene | null; origin: "preset" | "authored" | "git" | "local";
   installed: boolean; enabled: boolean; usable: boolean; reason: string | null;
   key: string | null; digest: string | null; version: string | null; skillId: string;
+  /** Selected original SKILL.md inside a shared repository installation. */
+  entrypoint?: string;
+  upstream?: { repository: string; revision: string };
   authoringId: string | null; revision: number; draft: boolean; imageCount: number; source: string;
   executionModel: AuthoredSkill["executionModel"];
   cover?: SkillAsset;

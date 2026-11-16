@@ -306,7 +306,7 @@ export function ChatComposer({ onDraftSubmit, presentation = "conversation" }: {
         setCustomSending(true);
         await onDraftSubmit({
           origin: getSessionOrigin(),
-          selectedSkill: selectedSkill?.key && selectedSkill.digest ? { key: selectedSkill.key, digest: selectedSkill.digest } : undefined,
+          selectedSkill: selectedSkill?.key && selectedSkill.digest ? { key: selectedSkill.key, digest: selectedSkill.digest, ...(selectedSkill.entrypoint ? { entrypoint: selectedSkill.entrypoint } : {}) } : undefined,
           prompt: draft,
           providerId,
           permissionProfile,

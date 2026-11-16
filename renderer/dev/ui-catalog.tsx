@@ -3,7 +3,7 @@ import { installCollectorCatalogApi, CollectorCatalogExample } from "./collector
 import { installRssCatalogApi, RssCatalogExample } from "./rss-catalog";
 import { AiProvider, useAiDraft, useAiUi } from "../src/ai-context";
 import { Chat } from "../src/features/ai-console/Chat";
-import { NEW_TASK_COVERS } from "../src/features/ai-console/new-task-covers";
+import { SKILL_COVER_ASSETS } from "../src/features/ai-console/new-task-covers";
 import { SkillEditor } from "../src/features/skills/SkillEditor";
 import { ComposerSkillPicker } from "../src/features/ai-console/ComposerSkillPicker";
 import { FeedbackProvider } from "../src/feedback-context";
@@ -34,7 +34,7 @@ import "@fontsource/jetbrains-mono/latin-400.css";
 setLocale(new URLSearchParams(location.search).get("lang") === "zh-CN" ? "zh-CN" : "en");
 const query = new URLSearchParams(location.search);
 const current = query.get("case") || "actions";
-if (current.startsWith("rss-source-") || current.startsWith("rss-preferences-")) installRssCatalogApi(current === "rss-source-scale" ? 75 : 0, current === "rss-preferences-platforms");
+if (current.startsWith("rss-source-") || current.startsWith("rss-preferences-")) installRssCatalogApi(current === "rss-source-scale" ? 75 : 0);
 if (current.startsWith("collector-source-")) installCollectorCatalogApi();
 document.documentElement.dataset.theme = query.get("theme") || "light";
 document.documentElement.style.setProperty("--font-sans-default", '"OpenMind UI Fixture", sans-serif');
@@ -225,7 +225,7 @@ function NewTaskExample() {
   const entries = () => catalog.skills.map(preset => {
     const copy = resolveSkillLibraryCopy(preset);
     const ready = installed.current.has(preset.id);
-    return { id: preset.id, skillId: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset" as const, discoverable: preset.discoverable, recommended: preset.recommended, distribution: preset.discoverable ? "remote" as const : "builtin" as const, coverUrl: NEW_TASK_COVERS[preset.id], installed: ready, enabled: ready, usable: true, reason: null, key: ready ? `openmind-library/${preset.id}` : null, digest: ready ? "a".repeat(64) : null, version: "1.0.0", authoringId: null, revision: 0, draft: false, imageCount: 0, source: messages.skillLibrary.origin.preset, executionModel: null };
+    return { id: preset.id, skillId: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset" as const, discoverable: preset.discoverable, recommended: preset.recommended, distribution: preset.discoverable ? "remote" as const : "builtin" as const, entrypoint: preset.skillPath, upstream: preset.upstream, coverUrl: SKILL_COVER_ASSETS[preset.cardCover?.split("/").pop()?.replace(/\.jpg$/, "") || preset.id], installed: ready, enabled: ready, usable: true, reason: null, key: ready ? `openmind-library/${preset.packageId || preset.id}` : null, digest: ready ? "a".repeat(64) : null, version: "1.0.0", authoringId: null, revision: 0, draft: false, imageCount: 0, source: messages.skillLibrary.origin.preset, executionModel: null };
   });
   window.openmind = {
     aiRefresh: async () => snapshot, aiRefreshSkills: async () => [], aiGetEvents: async () => [], onAiEvent: () => () => {},
@@ -254,7 +254,7 @@ function NewTaskBrowsePreview() {
 function SkillLibraryExample() {
   const presets: SkillLibraryEntry[] = SkillLibraryCatalogSchema.parse(skillLibraryCatalog).skills.map((preset, index) => {
     const copy = resolveSkillLibraryCopy(preset);
-    return { id: preset.id, skillId: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", discoverable: preset.discoverable, recommended: preset.recommended, distribution: preset.discoverable ? "remote" : "builtin", coverUrl: NEW_TASK_COVERS[preset.id], installed: index === 0, enabled: index === 0, usable: true, reason: null, key: index === 0 ? `openmind-library/${preset.id}` : null, digest: index === 0 ? "a".repeat(64) : null, version: "1.0.0", authoringId: null, revision: 1, draft: false, imageCount: 0, source: messages.skillLibrary.origin.preset, executionModel: null, contributor: index === 1 ? undefined : { nick: index === 0 ? "CommunityMember" : preset.contributor?.nick || "OpenMind", avatarUrl: index === 0 ? contributorAvatar : undefined, profileUrl: index === 0 ? "https://github.com/example" : preset.contributor?.profileUrl } };
+    return { id: preset.id, skillId: preset.id, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", discoverable: preset.discoverable, recommended: preset.recommended, distribution: preset.discoverable ? "remote" : "builtin", entrypoint: preset.skillPath, upstream: preset.upstream, coverUrl: SKILL_COVER_ASSETS[preset.cardCover?.split("/").pop()?.replace(/\.jpg$/, "") || preset.id], installed: index === 0, enabled: index === 0, usable: true, reason: null, key: index === 0 ? `openmind-library/${preset.packageId || preset.id}` : null, digest: index === 0 ? "a".repeat(64) : null, version: "1.0.0", authoringId: null, revision: 1, draft: false, imageCount: 0, source: messages.skillLibrary.origin.preset, executionModel: null, contributor: index === 1 ? undefined : { nick: index === 0 ? "CommunityMember" : preset.contributor?.nick || "OpenMind", avatarUrl: index === 0 ? contributorAvatar : undefined, profileUrl: index === 0 ? "https://github.com/example" : preset.contributor?.profileUrl } };
   });
   const entries: SkillLibraryEntry[] = [...presets, { ...presets[2], id: "personal-writing", title: "My publication style", origin: "authored", installed: true, enabled: true, key: "user/writing", digest: "b".repeat(64), authoringId: "7b9a8203-f9e0-4ddd-8832-fda5f04c4d19" }, { ...presets[0], id: "imported", title: "Repository helper", origin: "git", category: null, source: "https://github.com/example/skills" }];
   const [selected, setSelected] = useState<SkillLibraryEntry | null>(entries[0]);

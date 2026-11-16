@@ -23,6 +23,8 @@ export function buildProviderSkillContext(bridge: ProviderSkillBridge): string {
     `skill_id: ${bridge.id}`,
     `skill_version: ${bridge.version}`,
     `skill_digest: ${bridge.digest}`,
+    `skill_path: ${bridge.skillPath}`,
+    `package_root: ${bridge.packageRoot}`,
     `openmind_root: ${bridge.openmindRoot}`,
     ...(bridge.capabilitiesDeclared === false ? [
       "capabilities: agent_skill; current_session_permissions_apply"

@@ -24,7 +24,6 @@ const DATE_INPUT_TARGETS = new Set([
   "rss-article-saver",
   "rss-to-summary-workflow",
   "daily-article-summarizer",
-  "daily-topic-selector",
   "reddit-fetcher"
 ]);
 
@@ -308,7 +307,9 @@ export class AutomationScheduler {
     for (const record of this.options.repository.listRuns()) {
       if (record.state !== "running" || !record.childRunId) continue;
       const rule = this.options.repository.getRule(record.ruleId);
-      if (!rule) {
+      const removedTopicDefault = record.ruleId === "daily-topic-generation"
+        && record.target.type === "skill" && record.target.id === "daily-topic-selector";
+      if (!rule && !removedTopicDefault) {
         this.options.repository.updateRun(record.id, { state: "blocked", completedAt: at.toISOString(), error: "关联 Automation Rule 已不存在。" });
         continue;
       }
@@ -325,7 +326,7 @@ export class AutomationScheduler {
         continue;
       }
       if (!["succeeded", "failed", "timed_out", "cancelled"].includes(child.state)) continue;
-      if (child.state !== "succeeded" && child.state !== "cancelled" && record.attempt <= rule.retryPolicy.maxAttempts
+      if (rule && child.state !== "succeeded" && child.state !== "cancelled" && record.attempt <= rule.retryPolicy.maxAttempts
         && !this.options.isRetiredTarget?.(rule.target.id)) {
         this.options.repository.updateRun(record.id, {
           state: "queued",

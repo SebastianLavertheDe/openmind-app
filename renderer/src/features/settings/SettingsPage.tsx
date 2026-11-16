@@ -292,19 +292,6 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
     }
   };
 
-  const openArchivedSession = async (sessionId: string) => {
-    if (sessionBusyId) return;
-    setSessionBusyId(sessionId);
-    try {
-      if (onOpenSession) onOpenSession(sessionId);
-      else await actions.setActiveSession(sessionId);
-    } catch {
-      feedback.notify(m.settings.notify.sessionOpenFailed, "error");
-    } finally {
-      setSessionBusyId(null);
-    }
-  };
-
   return (
     <div className="settings-page" data-settings-section={activeSection} data-compact-detail-open={compactDetailOpen || undefined}>
       <SettingsNavigation
@@ -361,7 +348,7 @@ export function SettingsPage({ repoRoot: initialRepo, providers, onRepo, onBack,
               {activeSection === "x-sources" || activeSection === "reddit-sources" ? prefs.openmindRoot
                 ? <CollectorSourcesPanel key={`${prefs.openmindRoot}:${activeSection}`} skillId={activeSection === "x-sources" ? "x-following-fetcher" : "reddit-fetcher"} title={activeSection === "x-sources" ? "X/Twitter" : "Reddit"} />
                 : <EmptyState title={m.settings.collectorSourcesRootRequired} action={<Button onClick={() => void selectOpenmindRoot()}>{m.rss.selectRoot}</Button>} /> : null}
-              {activeSection === "sessions" ? <ArchivedSessionsSettingsSection sessions={archivedSessions} busyId={sessionBusyId} onOpen={(sessionId) => void openArchivedSession(sessionId)} onRestore={(sessionId) => void restoreArchivedSession(sessionId)} /> : null}
+              {activeSection === "sessions" ? <ArchivedSessionsSettingsSection sessions={archivedSessions} busyId={sessionBusyId} onRestore={(sessionId) => void restoreArchivedSession(sessionId)} /> : null}
             </div>
           )}
         </div>

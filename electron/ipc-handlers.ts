@@ -252,7 +252,7 @@ export function createIpcHandlerEntries(ctx: IpcMainContext): IpcHandlerEntry[] 
     { channel: C.runRss, handler: input => projectAdmission.run(async () => { const value = RssRunInputSchema.parse(input); rss().repository.read(); const record = installBuiltinDefault(skillPackages(), "rss-article-saver"); skillPackages().setEnabled(record.key, record.digest, true); return ai().call("rss-run", value); }) },
     { channel: C.getDailyBriefPreferences, handler: () => rss().repository.preferences() },
     { channel: C.saveDailyBriefPreferences, handler: input => rss().repository.savePreferences(SaveDailyBriefPreferencesSchema.parse(input)) },
-    { channel: C.generateDailyBrief, handler: input => projectAdmission.run(async () => { const value = z.object({ date: z.string().regex(/^\d{8}$/), topics: z.boolean().optional() }).parse(input); const id = value.topics ? "daily-topic-selector" : "daily-article-summarizer"; const record = installBuiltinDefault(skillPackages(), id); skillPackages().setEnabled(record.key, record.digest, true); return ai().call("brief-run", value); }) },
+    { channel: C.generateDailyBrief, handler: input => projectAdmission.run(async () => { const value = z.object({ date: z.string().regex(/^\d{8}$/), topics: z.literal(false).optional() }).parse(input); const record = installBuiltinDefault(skillPackages(), "daily-article-summarizer"); skillPackages().setEnabled(record.key, record.digest, true); return ai().call("brief-run", value); }) },
     { channel: C.listSkillLibrary, handler: async () => (await library().snapshot()).entries },
     { channel: C.getSkillLibrarySnapshot, handler: refresh => library().snapshot(z.boolean().optional().parse(refresh) ?? false) },
     { channel: C.readSkillLibraryPrompt, handler: async id => {

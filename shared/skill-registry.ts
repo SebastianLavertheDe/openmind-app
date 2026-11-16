@@ -4,7 +4,7 @@ import { SkillLibraryPresetSchema } from "./skill-library-catalog";
 
 /** Only these runtime integrations ship in the application installation. */
 export const BUILTIN_SKILL_IDS = [
-  "video-download", "daily-article-summarizer", "daily-topic-selector",
+  "video-download", "daily-article-summarizer",
   "reddit-fetcher", "rss-article-saver", "rss-to-summary-workflow", "x-following-fetcher"
 ] as const;
 
@@ -38,7 +38,7 @@ export const RemoteSkillCatalogEntrySchema = z.object({
   }).strict(),
   avatarDataUrl: rasterDataUrlSchema(SKILL_AVATAR_MAX_BYTES).optional(),
   coverDataUrl: rasterDataUrlSchema(SKILL_REGISTRY_COVER_MAX_BYTES).optional()
-}).strict().refine(entry => !isBuiltinSkillId(entry.preset.id), "Built-in Skills cannot be replaced by registry entries");
+}).strict().refine(entry => !isBuiltinSkillId(entry.preset.id) && !isBuiltinSkillId(entry.preset.packageId || entry.preset.id), "Built-in Skills cannot be replaced by registry entries");
 
 export const RemoteSkillCatalogSchema = z.object({
   schemaVersion: z.literal(1),

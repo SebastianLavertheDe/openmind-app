@@ -566,7 +566,7 @@ export class ClaudeAgentSdkAdapter implements ProviderAdapter {
     const nativeExecutable = context.provider.runtime === "native" && process.platform === "win32"
       ? context.serviceProvider ? resolveNativeClaudeExecutable() : resolveClaudeExecutable()
       : null;
-    const discoveryInstructions = skillDiscoveryInstructions(context.skillCatalog, (value) => context.provider.runtime === "wsl" ? parseWslPath(value)?.linuxPath ?? toWslPath(value) : value);
+    const discoveryInstructions = skillDiscoveryInstructions(context.skillCatalog, (value) => context.provider.runtime === "wsl" ? parseWslPath(value)?.linuxPath ?? toWslPath(value) : value, context.skillBridge?.id);
     const skillInstructions = context.skillBridge ? buildProviderSkillContext(context.skillBridge) : "";
     const systemAppend = [
       openmindFilesystemInstructions(context.openmindRoot),

@@ -13,7 +13,6 @@ PACKAGES = Path(__file__).resolve().parents[2] / 'config/skill-library/packages'
 ADAPTERS = (
     '_shared/ai_client.py',
     'daily-article-summarizer/src/ai_client.py',
-    'daily-topic-selector/scripts/ai_client.py',
     'rss-article-saver/src/ai_client.py',
 )
 

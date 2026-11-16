@@ -1,10 +1,12 @@
 /** Retired App-owned packages; user-imported copies keep their own lifecycle. */
 export const RETIRED_BUILTIN_SKILL_IDS = new Set([
-  "creative-writing", "daily-writing-orchestrator", "ai-media-topic-selector",
+  "creative-writing", "daily-writing-orchestrator", "ai-media-topic-selector", "daily-topic-selector",
   "collect-interest-markers", "asset-collector", "skill-run-reporter", "video-burnin-subtitles",
   "om-image-editor", "om-slide-outline", "om-slide-deck",
   "om-storyboard", "om-short-video", "om-landing-page", "om-mini-tool",
-  "om-research-brief", "om-source-compare", "om-article-writer", "om-text-rewriter"
+  "om-research-brief", "om-source-compare", "om-article-writer", "om-text-rewriter",
+  "om-article-cover", "om-article-illustrator", "om-social-cards", "om-knowledge-infographic", "om-poster-maker",
+  "om-four-panel-comic", "om-photo-diptych", "om-product-highlights", "om-brand-character", "om-style-fusion"
 ]);
 
 export const RETIRED_SKILL_REASON = "该内置 Skill 已退役，无法再启动新任务。";

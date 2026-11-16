@@ -1,13 +1,13 @@
 # RSS、每日偏好与 Skill 分发
 
-OpenMind 现在自己维护、构建和分发原 `cctools-skills` 的 10 个保留原生包，以及 `blog-rss-feed` 的 RSS 转换能力。运行和安装均不需要检出这两个仓库；它们可继续保留历史。`knowledge-wiki-compiler` 不再分发，已有知识库文件不会被删除。
+OpenMind 现在自己维护、构建和分发原 `cctools-skills` 的保留原生包，以及 `blog-rss-feed` 的 RSS 转换能力。运行和安装均不需要检出这两个仓库；它们可继续保留历史。`knowledge-wiki-compiler` 不再分发，已有知识库文件不会被删除。
 
 ## 开始使用
 
 1. 选择自己的 OpenMind 内容目录，在设置中开启内置 Python。首次准备依赖需要联网；之后运行使用应用管理的解释器，不依赖系统 Python。
 2. 打开 **设置 → RSS 源**。227 个公开建议源默认全部停用，以卡片展示，按 **AI、Agent、Prompt、编程技术、产品设计、商业创业、科技资讯、生活思考** 八个主题浏览。也保留自定义分类和未分类；搜索名称、完整网址、标签和分类，可组合启用、停用、异常、待配置筛选，并按名称或最近 RSS 更新排序。数量以当前内容目录的实际订阅为准。
 3. 启用需要的源，或点击 **添加源**，填写网站或 RSS/Atom 链接并检测。检测会实际解析 Feed 或运行网站转换器，至少得到一篇有标题和有效链接的文章才通过；不会生成本地 RSS 或采集正文。网站提供多个 Feed 时，选择具体频道并重新检测通过后保存。也可导入 OPML。
-4. **总结与选题偏好**位于 **设置 → 数据与会话**；定时设置在侧边栏 **自动化**。手动执行时，点击卡片底部的 **更新并采集**只处理该源；详情内也可单独更新 RSS 或采集文章。提交后提示“已提交”，实际结果在详情中查看。
+4. **总结偏好**位于 **设置 → 数据与会话**；定时设置在侧边栏 **自动化**。手动执行时，点击卡片底部的 **更新并采集**只处理该源；详情内也可单独更新 RSS 或采集文章。提交后提示“已提交”，实际结果在详情中查看。
 5. 需要自动执行时，打开 **自动化**，分别配置 **RSS 更新**、**RSS 文章采集**、**每日总结**。首次准备内置包会建立默认停用的任务模板；分别设置周期、时区并启用。安装 Skill、订阅启停和任务启停是独立设置。
 
 **设置 → 数据与会话** 中分别提供 **RSS 源**、**X/Twitter 源**和 **Reddit 源**。X 显示已配置的请求数量和编辑入口，默认隐藏完整登录请求；Reddit 显示当前实际配置的社区名称、地址和启停状态，可直接搜索、添加或编辑。这里复用 Skills 管理中的来源配置，修改会保存到同一份持久化数据中；定时任务的周期和启停继续在 **自动化** 中管理。
@@ -36,28 +36,17 @@ OpenMind 现在自己维护、构建和分发原 `cctools-skills` 的 10 个保�
 
 “准备内置 Skills”从本地资源安装完整集合；关闭这个开关保留已安装包、内容、订阅和任务设置。需要停止采集时停用相应源或任务；需要停止某个 Skill 时使用它自己的启停操作。
 
-## 总结与选题偏好
+## 总结偏好
 
-每日总结按来源分别生成：X 提供原始/参与条数、概览、今日主线和按主题分类的短摘要；Reddit 按社区提供每帖一句摘要和原帖链接；文章按类别提供详细摘要。文章保留本地相同 URL 去重，全部成功总结的文章都会收入，不再交给模型做语义去重、筛选、排序或限制条数，也不生成推荐理由。分类按首次出现顺序排列，分类内按已有评分降序排列，同分保留来源顺序。X、Reddit 的处理保持独立，默认覆盖全部有信息量且符合内容偏好的帖子，语言、内容排除和表达偏好继续生效。社交短摘要逐帖缓存，追加采集只处理新帖或内容发生变化的帖子；修改偏好或模型会使对应缓存失效。每日选题仍使用独立的通用/平台选题规则。
+每日总结按来源分别生成：X 提供原始/参与条数、概览、今日主线和按主题分类的短摘要；Reddit 按社区提供每帖一句摘要和原帖链接；文章按类别提供详细摘要。文章保留本地相同 URL 去重，全部成功总结的文章都会收入，不再交给模型做语义去重、筛选、排序或限制条数，也不生成推荐理由。分类按首次出现顺序排列，分类内按已有评分降序排列，同分保留来源顺序。X、Reddit 的处理保持独立，默认覆盖全部有信息量且符合内容偏好的帖子，语言、内容排除和表达偏好继续生效。社交短摘要逐帖缓存，追加采集只处理新帖或内容发生变化的帖子；修改偏好或模型会使对应缓存失效。每日选题已退役。
 
-在 **设置 → 数据与会话 → 总结与选题偏好**直接编辑以下内容，点击保存后生效；切换设置项时会检查未保存修改：
+在 **设置 → 数据与会话 → 总结偏好**编辑每日总结要求和分类规则，保存后下次生成时生效。切换设置项会检查未保存修改。“恢复默认 prompt”只恢复总结要求和分类规则；输出字段名和类型保持固定，隐藏的历史字段在保存时保留。
 
-- **总结提示词**：可编辑总体总结要求、表达风格与分类规则。标题、摘要、关键点和评分不再单独显示编辑区，保存时保留它们已有的要求。输出字段名和类型固定：`translated_title`、`summary`、`category` 为文本，`key_points` 为文本数组，`score` 为 0–100 整数。默认中文标题、80–200 字中文摘要、0–5 个要点和旧版分类。
-- **选题规则**：填写一段通用选题提示词，再按需添加任意平台的“名称＋选题提示词”。关注主题、语言、排除项和条数直接填写在对应提示词中。各平台可改名、增删，底部可预览完整组装结果。不附加领域、作者、来源或评分门槛。通用规则应用于所有平台，平台规则只影响对应平台。留空的选题提示词不增加限制；删除全部平台后只生成一组通用选题。初始提供简短的通用提示词、小红书和微信公众号示例，都可编辑。
+总结按冻结的偏好修订号生成，缓存考虑原文、模型和偏好。生成失败保留上一份文档；成功重新生成时将旧文档保存在 .versions/ 中。来源备份保存在私有数据目录，原文链接和文件路径保持原值。默认使用本地中文文案，最终汇总排版不调用模型。
 
-总结要求、分类规则、通用选题提示词、小红书和微信公众号提示词均有内置默认值。两个标签页都提供“恢复默认 prompt”：总结页恢复总结要求与分类规则，选题页恢复通用提示词及两个默认平台；只修改当前标签页的草稿，点击保存后在下一次生成中生效。
+每日选题已退役：不再安装、调度或生成 daily-topic-selector，CLI 不再接受 --topics。升级移除对应默认自动化并阻止未准入的重试；已有选题文件、运行历史和旧版偏好保留，独立导入的 Skill 按其来源管理。
 
-保存规则与生成是两个独立操作。页面只显示“总结提示词”和“选题规则”两个标签页，已有总结要求和旧版补充偏好仍保留兼容；旧版自定义选题规则迁到通用提示词，旧的整段内置复杂规则替换成简短默认提示词。总结项清空保存会恢复该项默认要求；选题提示词清空和平台删除会原样保留，只有主动点击“恢复默认 prompt”才恢复默认选题规则。
-
-选题输出保留完整选题稿结构：今日最终推荐、按平台展开的选题 Agent 输出、候选热点池、明日可追踪话题和长期主题。每个选题保留标题备选、核心观点、选题理由、适合人群、内容结构、开头钩子、配图建议、互动引导、风险点和推荐指数，以及原文链接和源文件。用户提示词控制选题和内容，输出栏目结构固定。相同主题可以适合多个平台；总数限制按跨平台唯一主题计算，平台单独指定的数量只作用于该平台。结构化来源元数据保持兼容后续写作素材包。
-
-文章总结、社交内容处理和每日选题读取同一份偏好快照，分别应用对应规则。每次任务冻结修订号，缓存同时考虑原文、模型、提示词版本和偏好；修改偏好后直接重新生成，无需重新抓取原文。生成失败保留上一份文档，成功重新生成时把旧文档留在对应目录的 `.versions/` 中。
-
-指定输出语言时，文档标题、栏目名称和选题推荐理由也使用该语言；没有可展示内容时，仍按该语言显示零条结果。每日总结默认直接使用本地中文标题模板；自定义总结偏好会在任务开始时通过独立的小请求确定文案并缓存，仅发送偏好和标签定义，不附带文章或帖子内容。最终汇总排版不调用模型。原文链接和文件路径保持原值。
-
-每日总结的逐条来源备份保存在私有数据目录，不嵌入 Markdown 正文。原始内容缺失时，每日选题可读取与当前文档匹配的备份；恢复历史版本时也会匹配该版本的来源数据。
-
-总结和选题需要在 **设置 → AI 与模型**配置可用的默认 Process Provider。普通 RSS 同步和文章采集不需要大模型。Agent 类型的 Skill 继续通过已配置的 Claude Code / Codex CLI 会话执行。
+总结需要在 **设置 → AI 与模型**配置默认 Process Provider。普通 RSS 同步和文章采集不需要大模型。
 
 ## 三个 RSS 执行模式
 
@@ -66,7 +55,7 @@ OpenMind 现在自己维护、构建和分发原 `cctools-skills` 的 10 个保�
 | `sync` | 请求启用的原网站或 Feed，生成本地标准 RSS 2.0 | 否 |
 | `collect` | 从有效本地 RSS 提取新文章，保存正文和去重索引 | 否 |
 | `pipeline` | 先更新，再采集本次成功更新的源；失败源保留旧 RSS | 否 |
-| `brief generate` | 按偏好生成当天总结；加 `--topics` 生成选题 | 是 |
+| `brief generate` | 按偏好生成当天总结 | 是 |
 
 源更新失败不会被显示成完整采集成功。单源失败不阻断其他源；批次记录成功、部分失败、失败及各源跳过原因。同一源重叠执行跳过，文章 URL 索引跨源共享；远端文章更新保存至 `article/.updates/`，保留用户编辑过的原文件。
 
@@ -74,7 +63,7 @@ OpenMind 现在自己维护、构建和分发原 `cctools-skills` 的 10 个保�
 
 新采集文章使用 `文章标题.md` 作为文件名，保留中文标题；同名文件按 `文章标题 (2).md`、`文章标题 (3).md` 区分。URL 哈希只用于私有去重索引和任务锁，不作为文章文件名。已有文件保留原路径，避免影响简报、选题及用户文档中的引用。
 
-应用内默认提供 RSS 更新、RSS 文章采集、每日总结、每日选题、X 关注流和 Reddit 采集六个独立任务模板。`rss-to-summary-workflow` 是可手动运行的“完整采集 → 总结”组合，不隐式执行选题。
+应用内默认提供 RSS 更新、RSS 文章采集、每日总结、X 关注流和 Reddit 采集五个独立任务模板。`rss-to-summary-workflow` 是可手动运行的“完整采集 → 总结”组合。
 
 三个任务各自运行：**RSS 更新**只获取文章列表并生成本地 RSS；**RSS 文章采集**只读取本地 RSS、下载正文并去重保存；**每日总结**只读取已经保存的内容、按偏好生成总结，不触发 RSS 更新或正文采集。
 
@@ -98,12 +87,11 @@ Linux 示例（替换为自己的安装位置和数据目录）：
 "/opt/OpenMind/resources/cli/openmind" rss collect --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
 "/opt/OpenMind/resources/cli/openmind" rss pipeline --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
 "/opt/OpenMind/resources/cli/openmind" brief generate --date 20261027 --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
-"/opt/OpenMind/resources/cli/openmind" brief generate --topics --date 20261027 --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
 "/opt/OpenMind/resources/cli/openmind" reddit collect --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
 "/opt/OpenMind/resources/cli/openmind" x collect --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data"
 ```
 
-`runtime prepare --scheduled` 一次准备 RSS、摘要、选题、Reddit、X 五个内置包及共享 Python 依赖。`rss pipeline --summarize` 按同一个日期依次执行 RSS、摘要；RSS 失败或取消时不启动摘要。各采集及简报命令支持 `--check`：安装/验证对应内置包、解析配置并准备运行时，但不启动采集或调用模型；检查通过不代表外部服务可用。手动导入的同名包仍需明确迁移，CLI 不会自动覆盖它们。
+`runtime prepare --scheduled` 一次准备 RSS、摘要、Reddit、X 四个内置包及共享 Python 依赖。`rss pipeline --summarize` 按同一个日期依次执行 RSS、摘要；RSS 失败或取消时不启动摘要。各采集及简报命令支持 `--check`：安装/验证对应内置包、解析配置并准备运行时，但不启动采集或调用模型；检查通过不代表外部服务可用。手动导入的同名包仍需明确迁移，CLI 不会自动覆盖它们。
 
 源码部署可使用本仓库的 `resources/cli/openmind`，启动器会调用 `.build/electron/electron/cli/openmind.js`。先执行 `npm run prepare:skill-library`、`npm run build:electron`、`npm run prepare:python-runtime`。cron 不加载交互式 shell 配置，使用 nvm 时需设置绝对路径 `OPENMIND_NODE_EXECUTABLE`（Node 22.12+）。构建缺失时启动器明确退出，不会回退运行旧仓库脚本。
 
@@ -118,7 +106,6 @@ crontab 示例：
 0 * * * * flock -n "/srv/OpenMind App Data/locks/rss-summary.lock" "/opt/OpenMind/resources/cli/openmind" rss pipeline --summarize --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data" >> "/srv/OpenMind App Data/logs/cron/rss-summary.log" 2>&1
 */10 * * * * flock -n "/srv/OpenMind App Data/locks/x.lock" "/opt/OpenMind/resources/cli/openmind" x collect --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data" >> "/srv/OpenMind App Data/logs/cron/x.log" 2>&1
 0 */2 * * * flock -n "/srv/OpenMind App Data/locks/reddit.lock" "/opt/OpenMind/resources/cli/openmind" reddit collect --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data" >> "/srv/OpenMind App Data/logs/cron/reddit.log" 2>&1
-0 18 * * * flock -n "/srv/OpenMind App Data/locks/topics.lock" "/opt/OpenMind/resources/cli/openmind" brief generate --topics --root "/srv/My OpenMind" --user-data "/srv/OpenMind App Data" >> "/srv/OpenMind App Data/logs/cron/topics.log" 2>&1
 ```
 
 App 的定时规则明确保存自己的 IANA 时区；系统 crontab 使用主机 cron 的时区设置。Ubuntu/Debian 的 cron 不支持 `CRON_TZ`，`TZ` 也只影响任务内的日期，不能改变触发时间；应将目标时间换算到主机时区。两者不会相互编辑调度配置；选择 cron 调度时，保持 App 中同类定时规则停用，避免重复触发。上面的 `flock` 防止同一 cron 任务重叠，不代替 App 内手动执行的并发控制。
@@ -127,13 +114,12 @@ App 的定时规则明确保存自己的 IANA 时区；系统 crontab 使用主�
 
 Windows 可通过任务计划程序运行 `openmind.cmd`；macOS 可由 launchd 或用户自己的 cron 调用。两种启动器随包提供，本次实际安装包验证的平台为 Linux ARM64。
 
-## 7 个内置包与额外条件
+## 6 个内置包与额外条件
 
 | Skill | 类型 | 输出或使用条件 |
 | --- | --- | --- |
 | `rss-article-saver` | Process / Python | 本地 RSS、`article/`；部分源需要浏览器 |
 | `daily-article-summarizer` | Process / Python | `daily-summary/`；Process Provider |
-| `daily-topic-selector` | Process / Python | `daily-topic/`；Process Provider |
 | `rss-to-summary-workflow` | Workflow | 使用上述采集、总结包，保留同次偏好快照 |
 | `reddit-fetcher` | Process / Python | `reddit/`；用户管理的社区与网站访问条件 |
 | `x-following-fetcher` | Process / Python | `post/`、`article/`；用户自己的登录凭据 |
@@ -141,11 +127,11 @@ Windows 可通过任务计划程序运行 `openmind.cmd`；macOS 可由 launchd 
 
 Python 依赖由应用管理的 uv 环境根据已安装包准备。视频包包含较大的语音/模型依赖；下载模型、访问登录网站、配置外部导出位置仍由相应能力的正常设置流程完成。FFmpeg 复用应用的视频工具设置，Whisper 通过同一个 Python 解释器启动。
 
-以上 7 个包随 App 分发，默认不在「探索」展示，安装后可在「我的」使用。`agent-browser` 改由下面的独立目录提供，仍要求已连接的 Agent CLI 与浏览器能力，证据导出位置由用户指定。
+以上 6 个包随 App 分发，默认不在「探索」展示，安装后可在「我的」使用。`agent-browser` 改由下面的独立目录提供，仍要求已连接的 Agent CLI 与浏览器能力，证据导出位置由用户指定。
 
-## 15 张目录卡片与独立发布
+## 22 张目录卡片与独立发布
 
-资料研究报告、多资料对比、长文写作、改写与润色 4 张卡片，加上 10 张 handraw-style 图像卡片和浏览器自动化 Agent，共 15 张探索卡片使用「远程卡片目录 + Skill ZIP 下载 + 本地缓存」。它们与上面的 7 个内置包共计 22 个 Skill，源码仍统一维护在 `config/skill-library/`；App 安装包只包含 7 个内置包。图像卡片及作者/许可证说明见 [应用技能库配置](../config/skill-library/README.md#handraw-style-图像卡片)。
+21 张 handraw-style 原版子 Skill 卡片和浏览器自动化 Agent，共 22 张探索卡片使用「远程卡片目录 + Skill ZIP 下载 + 本地缓存」。它们与上面的 6 个内置包共计 28 张卡片，源码仍统一维护在 `config/skill-library/`；App 安装包只包含 6 个内置包。图像卡片及作者/许可证说明见 [应用技能库配置](../config/skill-library/README.md#handraw-style-图像卡片)。
 
 维护者修改源清单、提示词或资源后，运行 `npm run publish:skill-library` 即可生成项目根目录的 `skill-registry/catalog.json` 和 `skill-registry/packages/*.zip`，无需重新构建 App。生成目录已被 Git 忽略；提交源配置和资源，不提交生成 ZIP、用户内容或缓存。发布包采用内容哈希文件名，目录在全部包验证后才替换，旧包保留供正在使用旧目录的客户端获取。`prepare:skill-library` 也会生成该目录，便于开发启动。
 
@@ -157,7 +143,7 @@ Python 依赖由应用管理的 uv 环境根据已安装包准备。视频包包
 
 运行报告（`skill-run-reporter`）和视频烧录字幕（`video-burnin-subtitles`）已退出内置清单，源码不再打包。升级会隐藏并停用确认属于 App 的旧安装，阻止新执行并停用相关定时规则；已有报告、`video/` 内容、安装文件及运行历史保留。用户导入或显式保留的副本继续按独立来源处理。
 
-图片风格编辑、演示内容策划、演示文稿制作、短视频脚本与分镜、短视频制作、落地页制作和交互小工具这 7 个配置式预设已退役，专属脚本不再打包；10 个 handraw-style 图像预设及其参考资源继续保留。旧内置安装沿用上述退役机制；短视频的旧帧渲染命令明确报退役错误，不再加载脚本或启动桌面。
+图片风格编辑、演示内容策划、演示文稿制作、短视频脚本与分镜、短视频制作、落地页制作和交互小工具这 7 个配置式预设已退役，专属脚本不再打包；原先 10 个 handraw-style 改编预设也已退役，改为 21 个原版子 Skill 卡片，共享完整上游仓库安装。未选中时不向模型提供发现目录，只在对话明确选用时加载对应原版 `SKILL.md`。旧内置安装沿用上述退役机制；短视频的旧帧渲染命令明确报退役错误，不再加载脚本或启动桌面。
 
 ## 数据与迁移
 
@@ -205,7 +191,7 @@ uv run --project config/skill-library/packages/rss-article-saver python -m unitt
 OPENMIND_TEST_PYTHON="/absolute/path/to/python" npm run test:rss
 ```
 
-`scripts/rss-packaged-smoke.cjs <Linux解包目录>` 使用真实安装包启动器和临时用户目录验证无显示服务、内置 Python、1025 个源的完整结果、同步/采集、并发去重及历史记录保护；再通过本地 HTTP 模型替身检查 Provider 配置、偏好改变后的总结/选题、缓存和旧版本。`scripts/rss-ui-smoke.cjs` 先使用公开目录的 227 个源定义验证八个主题、新建分类及浅深色 720/1280 页面，再用独立的 213 源压力夹具验证长分组、长地址、操作范围、详情分页、日志、错误重试和键盘操作。截图不抓取公网 Feed，不读取真实用户配置。`rss-motion-smoke.cjs` 与 Skills 实际组件比较弹窗和胶囊 Tab，保存进退场帧及正常／减少动态效果的时序证据。生产组件目录另外覆盖约 390px 内嵌布局。测试使用隔离 Electron 配置；截图输出到忽略的 `.tmp/`。
+`scripts/rss-packaged-smoke.cjs <Linux解包目录>` 使用真实安装包启动器和临时用户目录验证无显示服务、内置 Python、1025 个源的完整结果、同步/采集、并发去重及历史记录保护；再通过本地 HTTP 模型替身检查 Provider 配置、偏好改变后的总结、缓存和旧版本。`scripts/rss-ui-smoke.cjs` 先使用公开目录的 227 个源定义验证八个主题、新建分类及浅深色 720/1280 页面，再用独立的 213 源压力夹具验证长分组、长地址、操作范围、详情分页、日志、错误重试和键盘操作。截图不抓取公网 Feed，不读取真实用户配置。`rss-motion-smoke.cjs` 与 Skills 实际组件比较弹窗和胶囊 Tab，保存进退场帧及正常／减少动态效果的时序证据。生产组件目录另外覆盖约 390px 内嵌布局。测试使用隔离 Electron 配置；截图输出到忽略的 `.tmp/`。
 
 逐项结果见[实施计划的验收记录](RSS_AND_SKILLS_CONSOLIDATION_PLAN.md#12-实施与验收记录)。固定样例和模型替身用于检验配置、筛选与缓存契约；不将其当作公网登录站点、真实模型质量或跨平台实测结果。
 
@@ -220,4 +206,4 @@ OPENMIND_TEST_PYTHON="/absolute/path/to/python" npm run test:rss
 - RSS 条目 XML 在工作线程中解析，按文件版本与基础 URL 缓存，最多保留 8 个 Feed，缓存预算为 24 MiB（文件与序列化条目大小）。翻页重用已解析结果；文件替换会使缓存失效并重置旧游标。文件大小、目录边界及来源/内容根隔离检查仍然生效。
 
 
-创作工作台及其五个自带生产包已退役：`creative-writing`、`daily-writing-orchestrator`、`ai-media-topic-selector`、`collect-interest-markers`、`asset-collector`。升级时停止它们的新任务准入并停用相关自动化；历史记录、旧安装文件、运行数据和 `creative/` 文稿保留。Git、目录、ZIP 导入及用户明确保留的副本按来源区分，继续独立管理。已准入任务保留绑定版本，完成前不替换或删除包。每日简报、每日选题和项目的公众号导出不受影响。
+创作工作台及其五个自带生产包已退役：`creative-writing`、`daily-writing-orchestrator`、`ai-media-topic-selector`、`collect-interest-markers`、`asset-collector`。升级时停止它们的新任务准入并停用相关自动化；历史记录、旧安装文件、运行数据和 `creative/` 文稿保留。Git、目录、ZIP 导入及用户明确保留的副本按来源区分，继续独立管理。已准入任务保留绑定版本，完成前不替换或删除包。每日简报和项目的公众号导出不受影响；每日选题已另行退役。

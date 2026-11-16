@@ -8,7 +8,7 @@ import { getLocale } from "@shared/messages";
 import { useLocale } from "../../i18n";
 import { messages as uiMessages } from "@shared/messages";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, LoaderCircle, MessageSquareText, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Wrench } from "lucide-react";
+import { Archive, ChevronDown, Copy, ExternalLink, FolderOpen, Globe, LoaderCircle, MoreHorizontal, Package, Plus, RefreshCw, RotateCcw, Server, ShieldCheck, Wrench } from "lucide-react";
 import type { AiSession, BrowserSkillStatus, CliInstallProgress, CliProviderBindings, CliToolUpdateView, McpServerDefinition, ProviderAuthMode, ProviderCapabilities, ProviderYamlInputEntry, ProviderProtocol, ProvidersYamlInput, ProvidersYamlView, SharedPythonRuntimeStatus, SkillDefinition, UserPreferences } from "@shared/contracts";
 import { PROVIDER_PRESETS, supportsCliProvider } from "@shared/contracts";
 import { formatContextWindow } from "@shared/model-catalog";
@@ -793,12 +793,10 @@ export function PathSettingsSection({ openmind, notes, onSelectOpenmind, onOpenN
 export function ArchivedSessionsSettingsSection({
   sessions,
   busyId,
-  onOpen,
   onRestore
 }: {
   sessions: AiSession[];
   busyId: string | null;
-  onOpen(sessionId: string): void;
   onRestore(sessionId: string): void;
 }) {
   useLocale();
@@ -815,9 +813,6 @@ export function ArchivedSessionsSettingsSection({
                 <span>{session.provider === "claude" ? "Claude Code" : "Codex"} · <time dateTime={session.createdAt}>{formatSessionDate(session.createdAt)}</time></span>
               </div>
               <div className="settings-archived-actions">
-                <Button variant="ghost" type="button" data-motion="action" disabled={busyId === session.id} onClick={() => onOpen(session.id)} aria-label={m.settings.archivedSessions.openNamed(session.title || m.common.unnamedTopic)}>
-                  <MessageSquareText size={13} />{m.settings.archivedSessions.open}
-                </Button>
                 <Button variant="ghost" type="button" data-motion="action" disabled={busyId === session.id} onClick={() => onRestore(session.id)} aria-label={m.settings.archivedSessions.restoreNamed(session.title || m.common.unnamedTopic)}>
                   <RotateCcw size={13} />{busyId === session.id ? m.settings.archivedSessions.restoring : m.settings.archivedSessions.restore}
                 </Button>

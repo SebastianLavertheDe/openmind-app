@@ -41,7 +41,7 @@ export interface ProviderRunContext {
   providerModel: string;
   /** Main-only bridge for an integrity-checked Installed package. */
   skillBridge?: ProviderSkillBridge | null;
-  /** Catalog for automatic, progressive loading of enabled Installed Skills. */
+  /** Only the current user-selected Skill; never the installed discovery catalog. */
   skillCatalog?: readonly ProviderSkillCatalogEntry[];
   /** App-managed trees that an ordinary Workspace provider may read but must
    * not mutate. Project-scoped runs receive an empty list and use their own

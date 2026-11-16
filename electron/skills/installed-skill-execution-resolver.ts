@@ -1,6 +1,7 @@
 import { YoutubeToolsService } from "../install/youtube-tools-service";
 import { readSkillLibraryMetadata } from "./skill-library-service";
 import fs from "node:fs";
+import { parseSkillFrontmatter } from "../../shared/skill-frontmatter";
 import path from "node:path";
 import type { SkillRunRequest } from "../../shared/execution-contracts";
 import type { AiSessionSkillSnapshotEntry, SkillDefinition } from "../../shared/contracts";
@@ -153,7 +154,7 @@ export class InstalledSkillExecutionResolver {
     const record = this.packages.getInstalled(reference.key, reference.digest);
     if (record && this.packages.isRetired(record)) throw new InstalledSkillExecutionError("该内置 Skill 已退役，历史会话不能重新执行它。");
     if (!record
-      || record.id !== snapshot.definition.id
+      || (!reference.entrypoint && record.id !== snapshot.definition.id)
       || record.version !== reference.version
       || record.digest.toLowerCase() !== reference.digest.toLowerCase()) {
       throw new InstalledSkillExecutionError(`会话绑定的 Installed Skill 已被替换或删除：${snapshot.definition.id}`);
@@ -165,9 +166,16 @@ export class InstalledSkillExecutionResolver {
     // Every installed kind (agent/process/workflow) is bridged through its
     // SKILL.md; exact-identity checks above prevent any workspace fallback.
     const packageRoot = canonicalDirectory(record.packagePath);
-    const skillPath = resolvePackageFile(packageRoot, "SKILL.md");
+    const originalEntry = reference.entrypoint && isAppLibraryInstall(record)
+      ? readSkillLibraryMetadata(packageRoot)?.entrypoints?.find(entry => entry.path === reference.entrypoint && entry.id === snapshot.definition.id)
+      : undefined;
+    if (reference.entrypoint && !originalEntry) throw new InstalledSkillExecutionError("所选原版 Skill 入口不属于当前安装包。");
+    const skillPath = resolvePackageFile(packageRoot, originalEntry?.path || "SKILL.md");
+    if (originalEntry && parseSkillFrontmatter(fs.readFileSync(skillPath, "utf8")).name !== originalEntry.id) {
+      throw new InstalledSkillExecutionError("原版 SKILL.md 身份已变化。");
+    }
     return {
-      id: inspection.manifest.id,
+      id: originalEntry?.id || inspection.manifest.id,
       version: inspection.manifest.version,
       digest: record.digest,
       packageRoot,
@@ -212,7 +220,17 @@ export class InstalledSkillExecutionResolver {
     const entries = records.flatMap((record) => {
       try {
         const entry = this.snapshotEntry(record);
-        return entry ? [entry] : [];
+        if (!entry) return [];
+        const originals = isAppLibraryInstall(record) ? readSkillLibraryMetadata(record.packagePath)?.entrypoints : undefined;
+        return originals?.length ? originals.map(original => {
+          const file = resolvePackageFile(canonicalDirectory(record.packagePath), original.path);
+          const frontmatter = parseSkillFrontmatter(fs.readFileSync(file, "utf8"));
+          if (frontmatter.name !== original.id || !frontmatter.description) throw new InstalledSkillExecutionError("Invalid original Skill entrypoint");
+          const copy = resolveSkillLibraryCopy(original);
+          return { definition: { ...entry.definition, id: original.id, title: copy.title,
+            description: frontmatter.description, inputHint: copy.inputHint, group: original.category },
+            installed: { ...entry.installed!, entrypoint: original.path } };
+        }) : [entry];
       } catch {
         return [];
       }

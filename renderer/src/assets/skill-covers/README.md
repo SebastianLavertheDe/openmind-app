@@ -1,6 +1,6 @@
 # Skill gallery covers
 
-Original raster assets generated individually with the Codex built-in Image Gen tool for App-owned Skills. The ten previously missing covers were generated on 2026-11-06; the existing poster cover was retained. No provider credentials or third-party fetched content were used. Each selected output was visually inspected, then resized and encoded as an 864 × 512 JPEG for the 27:16 card slot. Application UI text remains outside the cover; text intrinsic to poster artwork remains inside the image.
+Original raster assets generated individually with the Codex built-in Image Gen tool for the Skill gallery. The original generation batch was created on 2026-11-06; the existing poster cover was retained. Nine images are reused by the current original sub-Skill cards, alongside the browser cover. The unused comic cover was removed with the old adaptations. No provider credentials or third-party fetched content were used. Each selected output was visually inspected, then resized and encoded as an 864 × 512 JPEG for the 27:16 card slot. Application UI text remains outside the cover; text intrinsic to poster artwork remains inside the image.
 
 All prompts specified a full-bleed landscape cover with no UI frame, border, rounded corners, watermark or external brand logo. The reference supplied editorial density, tactile-paper treatment and a restrained cream/blue/coral palette.
 
@@ -11,11 +11,10 @@ All prompts specified a full-bleed landscape cover with no UI frame, border, rou
 | `om-article-illustrator.jpg` | Long article scroll with illustrations embedded between prose. |
 | `om-social-cards.jpg` | Five coordinated illustrated social carousel cards. |
 | `om-knowledge-infographic.jpg` | Seed-to-flower explanation with connectors and root detail. |
-| `om-four-panel-comic.jpg` | Consistent cat character plants a seed in a complete four-panel story. |
 | `om-photo-diptych.jpg` | Same coffee scene shown as a photo and a matching hand-drawn illustration. |
 | `om-product-highlights.jpg` | Travel bottle with detail callouts for cap, construction and carry loop. |
 | `om-brand-character.jpg` | Original otter mascot, turnaround views and expression studies. |
 | `om-style-fusion.jpg` | Crayon fox physically grounded in a photographic cafe scene. |
 | `agent-browser.jpg` | Browser search, form and table linked by an automation path and pointer. |
 
-The complete new prompt set is in [generation-prompts.json](generation-prompts.json). Canonical catalog publication assets are mirrored under `config/skill-library/assets/_shared/card-covers/` and referenced by `cardCover` in the catalog. `features/ai-console/new-task-covers.ts` bundles local copies for older library providers and the UI catalog. Cover availability does not change recommendation eligibility.
+The complete new prompt set is in [generation-prompts.json](generation-prompts.json). Canonical catalog publication assets are mirrored under `config/skill-library/assets/_shared/card-covers/` and referenced by `cardCover` in the catalog. `features/ai-console/new-task-covers.ts` supplies local copies to the UI catalog, indexed by artwork filename rather than retired Skill identity. Cover availability does not change recommendation eligibility.

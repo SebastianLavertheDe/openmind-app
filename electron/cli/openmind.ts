@@ -19,7 +19,7 @@ import { commandInputs, parseCommand } from "./command-options";
 /** Run with Node or Electron's RUN_AS_NODE launcher: no app/window/display initialization. */
 export async function runCommand(argv: string[]): Promise<number> {
   if (argv[0] === "--help" || !argv.length) {
-    process.stdout.write("openmind rss sync|collect|pipeline --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--source-id ID] [--check]\nopenmind rss pipeline --summarize --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--check]\nopenmind brief generate --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--topics] [--check]\nopenmind reddit collect --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--check]\nopenmind x collect --root ABSOLUTE --user-data ABSOLUTE [--check]\nopenmind runtime prepare --root ABSOLUTE --user-data ABSOLUTE [--browser] [--scheduled]\n");
+    process.stdout.write("openmind rss sync|collect|pipeline --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--source-id ID] [--check]\nopenmind rss pipeline --summarize --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--check]\nopenmind brief generate --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--check]\nopenmind reddit collect --root ABSOLUTE --user-data ABSOLUTE [--date YYYYMMDD] [--check]\nopenmind x collect --root ABSOLUTE --user-data ABSOLUTE [--check]\nopenmind runtime prepare --root ABSOLUTE --user-data ABSOLUTE [--browser] [--scheduled]\n");
     return 0;
   }
   const { area, command, options, skillIds } = parseCommand(argv);

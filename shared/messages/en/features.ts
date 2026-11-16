@@ -447,7 +447,7 @@ export const featureMessages = {
         xSources: { title: "X/Twitter sources", description: "Manage timeline requests and sign-in configuration for X." },
         redditSources: { title: "Reddit sources", description: "Manage community names, addresses, and collection enablement." },
         storage: { title: "Data and storage", description: "Set local retention policies for caches, logs, and notification history." },
-        sessions: { title: "Archived sessions", description: "View, open, or restore archived AI sessions." },
+        sessions: { title: "Archived sessions", description: "View archived AI sessions or restore them to recent sessions." },
         runtime: { title: "Built-in runtime", description: "Manage the shared Python environment, video import settings, and download tools." }
       }
     },
@@ -700,19 +700,16 @@ export const featureMessages = {
       description: "Archived sessions are hidden from recent sessions in the sidebar. Their records and run history are kept locally.",
       listAria: "Archived sessions list",
       empty: "No archived sessions",
-      open: "Open",
       restore: "Restore",
       restoring: "Restoring",
-      openNamed: (title: string) => `Open archived session: ${title}`,
       restoreNamed: (title: string) => `Restore archived session: ${title}`,
-      emptyDescription: "Archived sessions appear here. Open them at any time or restore them to recent sessions."
+      emptyDescription: "Archived sessions appear here. Restore them to recent sessions at any time."
     },
     notify: {
       saveFailed: "Could not save settings",
       workspaceUpdated: "Working directory updated",
       workspaceSelectFailed: "Could not select working directory",
       notesOpenFailed: "Could not open notes folder",
-      sessionOpenFailed: "Could not open archived session",
       sessionRestoreFailed: "Could not restore archived session",
       providersLoadFailed: "Could not read config/providers.yaml",
       providersSaved: "AI provider configuration saved",

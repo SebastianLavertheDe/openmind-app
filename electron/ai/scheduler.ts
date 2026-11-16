@@ -249,7 +249,7 @@ export class RunScheduler {
       adapter: this.adapters[provider],
       provider,
       resolveProviderModel: this.resolveProviderModel,
-      skillCatalog: this.skillTools.providerSkillCatalog(this.skillTools.captureSessionSnapshot())
+      skillCatalog: []
     }, sessionId);
   }
 
@@ -258,7 +258,8 @@ export class RunScheduler {
     return this.skillTools.submitRun({ skillId: "rss-article-saver", inputs: { date: input.date || new Date().toLocaleDateString("sv-SE").replace(/-/g, ""), mode: input.mode, sourceId: input.sourceId || "" }, trigger: { type: "manual" }, providerBindings: {}, externalExportBindingIds: [], rootGeneration: this.rootGeneration });
   }
   runDailyBrief(input: { date: string; topics?: boolean }): BrokerRunRecord {
-    return this.skillTools.submitRun({ skillId: input.topics ? "daily-topic-selector" : "daily-article-summarizer", inputs: { date: input.date }, trigger: { type: "manual" }, providerBindings: {}, externalExportBindingIds: [], rootGeneration: this.rootGeneration });
+    if (input.topics) throw new Error("每日选题功能已退役。");
+    return this.skillTools.submitRun({ skillId: "daily-article-summarizer", inputs: { date: input.date }, trigger: { type: "manual" }, providerBindings: {}, externalExportBindingIds: [], rootGeneration: this.rootGeneration });
   }
   getSkillRun(runId: string): BrokerRunRecord { return this.skillTools.getRun(runId); }
   getSkillRunEvents(runId: string): BrokerRunEvent[] { return this.skillTools.getRunEvents(runId); }
@@ -420,7 +421,8 @@ export class RunScheduler {
       : null;
     const skillInvocation = parseSkillSlashInvocation(input.prompt, skillSnapshot.map((entry) => entry.definition));
     const slashEntry = skillInvocation && skillSnapshot.find(entry => entry.definition.id === skillInvocation.skill.id);
-    if (input.selectedSkill && slashEntry?.installed && input.selectedSkill.key !== slashEntry.installed.key) throw new Error(messages.skillLibrary.errors.skillConflict);
+    if (input.selectedSkill && slashEntry?.installed && (input.selectedSkill.key !== slashEntry.installed.key
+      || input.selectedSkill.entrypoint !== slashEntry.installed.entrypoint)) throw new Error(messages.skillLibrary.errors.skillConflict);
     const selection = retry?.selectedSkill !== undefined ? retry.selectedSkill?.installed : input.selectedSkill || slashEntry?.installed;
     const selectedSkill = selection ? this.skillTools.resolveSelection(selection, skillSnapshot, input.selectedSkill ? "picker" : "slash") : null;
     const commandError = selectedSkill || skillInvocation ? null : slashCommandValidationError(input.prompt, contexts);

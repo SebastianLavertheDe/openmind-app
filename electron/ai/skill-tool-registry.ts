@@ -125,7 +125,8 @@ export class SkillToolRegistry {
   }
 
   resolveSelection(input: SkillSelectionInput, snapshot: AiSessionSkillSnapshotEntry[], selectionSource: "picker" | "slash"): SelectedSkillSnapshot {
-    const entry = snapshot.find(item => item.installed?.key === input.key && item.installed.digest === input.digest);
+    const entry = snapshot.find(item => item.installed?.key === input.key && item.installed.digest === input.digest
+      && item.installed.entrypoint === input.entrypoint);
     if (!entry) throw new Error(messages.skillLibrary.errors.stale);
     let bridge: ProviderSkillBridge | null;
     try { bridge = this.providerSkillBridge(entry); } catch (error) {
@@ -135,8 +136,8 @@ export class SkillToolRegistry {
     if (!bridge && selectionSource === "picker") throw new Error(messages.skillLibrary.errors.stale);
     const metadata = bridge ? readSkillLibraryMetadata(bridge.packageRoot) : null;
     const dependencies = (metadata?.dependencies || []).map(reference => {
-      const dependency = snapshot.find(item => item.installed?.key === reference.key && item.installed.digest === reference.digest);
-      if (!dependency || reference.key === input.key) throw new Error(messages.skillLibrary.errors.dependency);
+      const dependency = snapshot.find(item => item.installed?.key === reference.key && item.installed.digest === reference.digest && item.installed.entrypoint === reference.entrypoint);
+      if (!dependency || reference.key === input.key && reference.entrypoint === input.entrypoint) throw new Error(messages.skillLibrary.errors.dependency);
       this.providerSkillBridge(dependency);
       return dependency;
     });

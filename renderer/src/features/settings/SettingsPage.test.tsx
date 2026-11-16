@@ -152,7 +152,7 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("button", { name: "RSS 源" }).getAttribute("aria-current")).toBe("page");
     expect(screen.getByRole("button", { name: "添加源" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "导入 OPML" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "总结与选题偏好" }).closest(".settings-nav-group")?.textContent).toContain("数据与会话");
+    expect(screen.getByRole("button", { name: messages.rss.preferences }).closest(".settings-nav-group")?.textContent).toContain("数据与会话");
     expect(document.querySelector('.rss-toolbar [data-action="daily-preferences"]')).toBeNull();
     for (const name of ["定时任务", "运行记录", "更新 RSS", "采集文章", "更新并采集"]) expect(screen.queryByRole("button", { name })).toBeNull();
   });
@@ -168,9 +168,8 @@ describe("SettingsPage", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(screen.queryByText(messages.settings.saveStatus.saved)).toBeNull();
     expect(getDailyBriefPreferences).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("tab", { name: messages.rss.topicRules }));
-    expect(screen.getByRole("textbox", { name: messages.rss.topicPrompt })).toBeTruthy();
-    fireEvent.click(screen.getByRole("tab", { name: messages.rss.summaryPrompt }));
+    expect(screen.queryByRole("tab", { name: messages.rss.topicRules })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: messages.rss.topicPrompt })).toBeNull();
     fireEvent.change(screen.getByRole("textbox", { name: messages.rss.summaryInstructions }), { target: { value: "A draft summary prompt" } });
     openCategory("RSS 源");
     const confirmation = await screen.findByRole("alertdialog");
@@ -946,6 +945,7 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByRole("heading", { name: "已归档会话" })).toBeTruthy();
     expect(screen.getByText("已经归档的研究会话")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "打开归档会话：已经归档的研究会话" })).toBeNull();
     expect(document.querySelector<HTMLTimeElement>(".settings-archived-item time")?.dateTime).toBe(archivedSession.createdAt);
 
     fireEvent.click(screen.getByRole("button", { name: "恢复归档会话：已经归档的研究会话" }));
@@ -954,15 +954,4 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(screen.getByText("暂无已归档会话")).toBeTruthy());
   });
 
-  it("opens an archived session from settings", async () => {
-    const onOpenSession = vi.fn();
-    window.openmind = makeApi();
-    renderSettings(vi.fn(), archivedSnapshot, onOpenSession);
-    await screen.findByRole("heading", { name: "常规" });
-    openCategory("会话归档");
-
-    fireEvent.click(await screen.findByRole("button", { name: "打开归档会话：已经归档的研究会话" }));
-
-    await waitFor(() => expect(onOpenSession).toHaveBeenCalled());
-  });
 });

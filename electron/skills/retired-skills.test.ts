@@ -34,7 +34,7 @@ beforeAll(() => {
 });
 afterAll(() => { if (fixtureRoot) fs.rmSync(fixtureRoot, { recursive: true, force: true }); });
 const retiredFixtureIds = [
-  "daily-writing-orchestrator", "skill-run-reporter", "video-burnin-subtitles",
+  "daily-topic-selector", "daily-writing-orchestrator", "skill-run-reporter", "video-burnin-subtitles",
   "om-image-editor", "om-slide-outline", "om-slide-deck",
   "om-storyboard", "om-short-video", "om-landing-page", "om-mini-tool",
   "om-research-brief", "om-source-compare", "om-article-writer", "om-text-rewriter"
@@ -45,7 +45,7 @@ function fixture(sourceType: "builtin" | "directory" | "git" | "catalog" = "buil
   const content = path.join(root, "content"); fs.mkdirSync(content);
   const paths = buildAppPaths(path.join(root, "state"), path.join(content, ".agent", "skills")); ensureAppPaths(paths);
   const source = path.join(root, "source");
-  const template = skillId.startsWith("om-") ? "agent-browser" : "daily-topic-selector";
+  const template = skillId.startsWith("om-") ? "agent-browser" : "daily-article-summarizer";
   fs.cpSync(path.join(skillId.startsWith("om-") ? remoteFixtures : builtinBundle, template), source, { recursive: true });
   const manifestFile = path.join(source, "openmind.skill.yaml");
   const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
@@ -105,7 +105,7 @@ describe("retired built-in packages", () => {
   });
   it("deduplicates disabled rules and avoids re-hashing unchanged packages on later scheduler ticks", async () => {
     const { paths, packages, resolver } = fixture();
-    const live = packages.install(path.join(builtinBundle, "daily-topic-selector"));
+    const live = packages.install(path.join(builtinBundle, "daily-article-summarizer"));
     const repository = new AutomationRepository(paths);
     for (let index = 0; index < 8; index++) repository.saveRule({
       ...DEFAULT_AUTOMATION_RULES[0], id: `disabled-${index}`, enabled: false,
@@ -132,7 +132,7 @@ describe("retired built-in packages", () => {
   });
   it("refreshes cached workflow dependencies after another service replaces or reinstalls its identity", () => {
     const { root, paths, packages, record, resolver } = fixture();
-    const live = packages.install(path.join(builtinBundle, "daily-topic-selector"));
+    const live = packages.install(path.join(builtinBundle, "daily-article-summarizer"));
     const { source, file, manifest, workflow } = installWorkflow(root, packages, record.id);
     const inspect = vi.spyOn(packages, "inspectInstalledCopy");
     expect(resolver.isRetiredTarget(workflow.id)).toBe(true);
@@ -168,7 +168,7 @@ describe("retired built-in packages", () => {
   });
   it("keeps fresh Broker and Workflow integrity checks after retirement metadata is cached", () => {
     const { root, packages, resolver } = fixture();
-    const live = packages.install(path.join(builtinBundle, "daily-topic-selector"));
+    const live = packages.install(path.join(builtinBundle, "daily-article-summarizer"));
     const { workflow } = installWorkflow(root, packages, live.id);
     expect(resolver.isRetiredTarget(live.id)).toBe(false);
     expect(resolver.isRetiredTarget(workflow.id)).toBe(false);
@@ -241,7 +241,7 @@ describe("retired built-in packages", () => {
   it.each(retiredFixtureIds)("disables only affected schedules, preserves history and does not reactivate on repeated migration: %s", skillId => {
     const { paths, packages, record } = fixture("builtin", skillId);
     const repository = new AutomationRepository(paths);
-    const template = DEFAULT_AUTOMATION_RULES.find(rule => rule.id === "daily-topic-generation")!;
+    const template = DEFAULT_AUTOMATION_RULES.find(rule => rule.id === "daily-summary-generation")!;
     repository.saveRule({ ...template, enabled: true });
     const old = repository.saveRule({ ...template, id: "legacy-writing", enabled: true, target: { type: "skill", id: record.id, versionPolicy: "*" } });
     const history = repository.createRun({ ruleId: old.id, target: old.target, state: "succeeded", childRunId: "old-child", triggerReason: "manual", scheduledFor: null, createdAt: old.createdAt, completedAt: old.updatedAt, error: null });

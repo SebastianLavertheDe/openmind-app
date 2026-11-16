@@ -43,6 +43,12 @@ const partialRssResult = { status: "partial", results: [
 ] };
 
 describe("scheduled CLI commands", () => {
+  it("rejects retired topic generation before installing or submitting a Skill", async () => {
+    expect(() => parseCommand(["brief", "generate", "--topics", ...args])).toThrow(/Invalid argument/);
+    expect(SCHEDULED_SKILLS).not.toContain("daily-topic-selector");
+    expect(mocks.install).not.toHaveBeenCalled();
+    expect(mocks.submit).not.toHaveBeenCalled();
+  });
   it("runs RSS then summary with the same date and isolated inputs", async () => {
     expect(await runCommand(["rss", "pipeline", "--summarize", "--date", "20261030", ...args])).toBe(0);
     expect(mocks.submit.mock.calls.map(([r]) => [r.skillId, r.inputs])).toEqual([

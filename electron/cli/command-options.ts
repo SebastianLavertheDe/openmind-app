@@ -1,4 +1,4 @@
-export const SCHEDULED_SKILLS = ["rss-article-saver", "daily-article-summarizer", "daily-topic-selector", "reddit-fetcher", "x-following-fetcher"] as const;
+export const SCHEDULED_SKILLS = ["rss-article-saver", "daily-article-summarizer", "reddit-fetcher", "x-following-fetcher"] as const;
 
 export function parseCommand(argv: string[]) {
   const [area, command, ...rest] = argv;
@@ -7,7 +7,7 @@ export function parseCommand(argv: string[]) {
     || ["reddit", "x"].includes(area) && command === "collect"
     || area === "runtime" && command === "prepare")) throw new Error("Unknown command. Use --help.");
   const options = new Map<string, string>();
-  const flags = ["--check", ...(area === "brief" ? ["--topics"] : []), ...(area === "runtime" ? ["--browser", "--scheduled"] : []), ...(area === "rss" && command === "pipeline" ? ["--summarize"] : [])];
+  const flags = ["--check", ...(area === "runtime" ? ["--browser", "--scheduled"] : []), ...(area === "rss" && command === "pipeline" ? ["--summarize"] : [])];
   const values = ["--root", "--user-data", ...(area !== "runtime" && area !== "x" ? ["--date"] : []), ...(area === "rss" ? ["--source-id"] : [])];
   for (let i = 0; i < rest.length; i++) {
     const key = rest[i];
@@ -24,7 +24,7 @@ export function parseCommand(argv: string[]) {
   const skillIds: string[] = area === "runtime" && options.has("--scheduled") ? [...SCHEDULED_SKILLS]
     : area === "rss" ? ["rss-article-saver", ...(options.has("--summarize") ? ["daily-article-summarizer"] : [])]
     : area === "reddit" ? ["reddit-fetcher"] : area === "x" ? ["x-following-fetcher"]
-    : area === "brief" ? [options.has("--topics") ? "daily-topic-selector" : "daily-article-summarizer"] : ["rss-article-saver"];
+    : area === "brief" ? ["daily-article-summarizer"] : ["rss-article-saver"];
   return { area, command, options, skillIds };
 }
 

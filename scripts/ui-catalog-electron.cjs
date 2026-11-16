@@ -88,27 +88,25 @@ app.whenReady().then(async () => {
     }
     if (scenario.id.startsWith("skill-library-")) {
       await waitForSelector(".skill-library-card");
-      if (scenario.id === "skill-library-explore") assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('.skill-library-card').length"), 11, `${name}: public remote card count`);
+      if (scenario.id === "skill-library-explore") assert.equal(await win.webContents.executeJavaScript("document.querySelectorAll('.skill-library-card').length"), 22, `${name}: public remote card count`);
     }
     if (scenario.id.startsWith("rss-source-")) await waitForSelector(".rss-source-card");
     if (scenario.id.startsWith("rss-preferences-")) {
       await waitForSelector('.daily-preferences-editor textarea:not(:disabled)');
-      if (scenario.id === "rss-preferences-topics" || scenario.id === "rss-preferences-platforms") await click('.daily-preferences-editor [data-value="topics"]');
       await settled();
       const editor = await win.webContents.executeJavaScript(`(() => {
-        const dialog = document.querySelector('.daily-preferences-settings'), panel = dialog.querySelector('[role="tabpanel"]');
+        const dialog = document.querySelector('.daily-preferences-settings'), panel = dialog.querySelector('.daily-preferences-panel');
         const rect = dialog.getBoundingClientRect();
         return { labels: [...panel.querySelectorAll('label')].map(label => label.textContent), fields: panel.querySelectorAll('textarea').length,
           hasDefaults: [...panel.querySelectorAll('textarea')].every(input => input.value.trim().length > 0),
           contained: rect.left >= 0 && rect.right <= innerWidth,
           inline: !document.querySelector('[role="dialog"]'), tabs: dialog.querySelectorAll('[role="tab"]').length };
       })()`);
-      assert.equal(editor.fields, scenario.id === 'rss-preferences-summary' ? 2 : 4);
-      assert.equal(editor.tabs, 2); assert.ok(editor.contained && editor.inline);
+      assert.equal(editor.fields, 2);
+      assert.equal(editor.tabs, 0); assert.ok(editor.contained && editor.inline);
       assert.ok(editor.hasDefaults);
       assert.equal(await win.webContents.executeJavaScript(`document.querySelectorAll('.daily-preferences-actions button').length`), 1);
       if (scenario.id === 'rss-preferences-summary') assert.deepEqual(editor.labels.slice(1), ['category']);
-      if (scenario.id === 'rss-preferences-platforms') assert.deepEqual(await win.webContents.executeJavaScript(`[...document.querySelectorAll('.topic-platform-editor input')].map(input => input.value)`), ['nameA', 'nameB']);
     }
     if (scenario.id.startsWith("collector-source-")) await waitForSelector(".collector-source-card");
     if (scenario.id === "collector-source-editor") { await click('.collector-source-card:nth-child(4) .collector-card-open'); await waitForSelector('.ui-dialog [role="switch"]'); }
@@ -185,6 +183,9 @@ app.whenReady().then(async () => {
       if (width >= 1280) assert.equal(home.composerWidth, 650, `${name}: welcome composer width`);
       for (const key of ['fillsFrame', 'centered', 'contained', 'compactInput', 'allWrapped']) assert.equal(home[key], true, `${name}: ${key}`);
       await click('.new-task-categories [data-value="image"]'); await settled();
+      // Decode offscreen lazy images too; the full original library extends
+      // beyond the viewport and should still have a valid cover for each card.
+      await win.webContents.executeJavaScript("Promise.all([...document.querySelectorAll('.new-task-skill-card img')].map(image => { image.loading = 'eager'; return image.decode(); }))");
       const imageCards = await win.webContents.executeJavaScript(`(() => {
         const cards = [...document.querySelectorAll('.new-task-skill-card')];
         return { count: cards.length, coversLoaded: cards.every(card => {
@@ -192,7 +193,7 @@ app.whenReady().then(async () => {
           return image.complete && image.naturalWidth > 0;
         }) };
       })()`);
-      assert.equal(imageCards.count, 10, `${name}: handraw image card count`);
+      assert.equal(imageCards.count, 21, `${name}: handraw image card count`);
       assert.equal(imageCards.coversLoaded, true, `${name}: image category covers`);
       await click('.new-task-categories [data-value="recommended"]'); await settled();
       report.geometry.push({ name, home });

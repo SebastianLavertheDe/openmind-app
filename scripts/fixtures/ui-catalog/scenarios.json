@@ -141,20 +141,6 @@
     "pixelPlatforms": []
   },
   {
-    "id": "rss-preferences-topics",
-    "title": "Editable topic rules",
-    "height": 900,
-    "navigation": false,
-    "pixelPlatforms": []
-  },
-  {
-    "id": "rss-preferences-platforms",
-    "title": "Custom platform topic prompts",
-    "height": 900,
-    "navigation": false,
-    "pixelPlatforms": []
-  },
-  {
     "id": "rss-source-cards",
     "title": "RSS source cards",
     "height": 1400,

@@ -122,7 +122,10 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
     const usesExternalSession = host.adapters[session.provider].usesExternalSession !== false;
     // Dynamic tools are registered at thread/start, not thread/resume. Upgrade
     // old threads through the app's existing recovered-history path once.
-    if (session.provider === "codex" && session.providerSessionId && session.appToolsVersion !== 1) {
+    const previousSkillTurn = host.store.listRuns(session.id).find(candidate => candidate.id !== run.id
+      && !["queued", "running", "waiting-approval", "applying"].includes(candidate.status));
+    if (session.provider === "codex" && session.providerSessionId
+      && (session.appToolsVersion !== 2 || run.selectedSkill || previousSkillTurn?.selectedSkill)) {
       session = host.store.updateSession(session.id, { providerSessionId: null });
     }
     if (!usesExternalSession && session.providerSessionId) {
@@ -177,10 +180,10 @@ export async function executeScheduledRun(host: SchedulerExecutionHost, initialR
         raw: skillInvocation.raw,
         prompt: composeNativeSkillTaskPrompt(run, skillInvocation)
       } : null,
-      // Discovery and explicit invocation share the verified Installed catalog.
+      // The UI keeps the installed catalog; providers receive only this turn's selection.
       skillBridge,
       providerModel: run.executionModel || host.resolveProviderModel(session.provider),
-      skillCatalog: host.skillTools.providerSkillCatalog(session.skillSnapshot ?? []),
+      skillCatalog: host.skillTools.providerSkillCatalog(run.selectedSkill ? [run.selectedSkill] : []),
       protectedPaths: session.scope?.type === "project-task" ? [] : host.protectedPaths,
       stateRoot: host.stateRoot,
       images: turnImages

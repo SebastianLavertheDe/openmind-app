@@ -29,33 +29,42 @@ export function publishSkillRegistry(configRoot: string, outputRoot: string): Re
     const bundledCatalog = readSkillLibraryCatalog(bundle);
     const inspector = new SkillPackageService(buildAppPaths(path.join(temporary, "state"), path.join(temporary, "installed")));
     const packageFiles = new Map<string, string>();
+    const publishedPackages = new Map<string, { inspection: ReturnType<SkillPackageService["inspect"]>; filename: string; sha256: string; size: number }>();
     const catalog: RemoteSkillCatalog = { schemaVersion: 1, generatedAt: new Date().toISOString(), skills: [] };
     for (const entry of bundledCatalog.skills) {
-      const skillRoot = path.join(bundle, entry.id);
-      const inspection = inspector.inspect(skillRoot);
-      if (!inspection.valid || !inspection.manifest) throw new Error(`Cannot publish invalid Skill: ${entry.id}`);
-      const files: Zippable = {};
-      for (const file of [...inspection.files].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0)) {
-        files[file.path] = fs.readFileSync(path.join(skillRoot, file.path));
+      const packageId = entry.packageId || entry.id;
+      const skillRoot = path.join(bundle, packageId);
+      let published = publishedPackages.get(packageId);
+      if (!published) {
+        const inspection = inspector.inspect(skillRoot);
+        if (!inspection.valid || !inspection.manifest) throw new Error(`Cannot publish invalid Skill: ${entry.id}`);
+        const files: Zippable = {};
+        for (const file of [...inspection.files].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0)) {
+          files[file.path] = fs.readFileSync(path.join(skillRoot, file.path));
+        }
+        // A fixed local DOS timestamp makes identical sources produce identical ZIPs.
+        const bytes = Buffer.from(zipSync(files, { level: 6, mtime: new Date(2000, 0, 1, 0, 0, 0) }));
+        const sha256 = crypto.createHash("sha256").update(bytes).digest("hex");
+        const filename = `${packageId}-${sha256}.zip`;
+        const archivePath = path.join(temporary, filename);
+        fs.writeFileSync(archivePath, bytes);
+        const archived = inspector.inspect(archivePath);
+        if (!archived.valid || archived.digest !== inspection.digest) throw new Error(`Skill ZIP verification failed: ${entry.id}`);
+        packageFiles.set(filename, archivePath);
+        published = { inspection, filename, sha256, size: bytes.length };
+        publishedPackages.set(packageId, published);
       }
-      // A fixed local DOS timestamp makes identical sources produce identical ZIPs.
-      const bytes = Buffer.from(zipSync(files, { level: 6, mtime: new Date(2000, 0, 1, 0, 0, 0) }));
-      const sha256 = crypto.createHash("sha256").update(bytes).digest("hex");
-      const filename = `${entry.id}-${sha256}.zip`;
-      const archivePath = path.join(temporary, filename);
-      fs.writeFileSync(archivePath, bytes);
-      const archived = inspector.inspect(archivePath);
-      if (!archived.valid || archived.digest !== inspection.digest) throw new Error(`Skill ZIP verification failed: ${entry.id}`);
-      packageFiles.set(filename, archivePath);
+      const { inspection, filename, sha256, size } = published;
+      if (!inspection.manifest) throw new Error(`Missing Skill manifest: ${packageId}`);
       // Preview comes from the catalog without downloading the archive. Native
       // packages keep their authored SKILL.md; generated presets keep the same
       // shared execution rules that the builder appended to their package.
       const instructions = entry.instructions.length ? entry.instructions
-        : [fs.readFileSync(path.join(skillRoot, "SKILL.md"), "utf8")
+        : [fs.readFileSync(path.join(skillRoot, entry.skillPath || "SKILL.md"), "utf8")
           .replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "").trim()];
       catalog.skills.push({
-        preset: { ...entry, version: inspection.manifest.version, instructions: [...instructions, ...bundledCatalog.executionRules] },
-        package: { path: `packages/${filename}`, sha256, size: bytes.length, digest: inspection.digest },
+        preset: { ...entry, version: inspection.manifest.version, instructions: entry.packageId ? instructions : [...instructions, ...bundledCatalog.executionRules] },
+        package: { path: `packages/${filename}`, sha256, size, digest: inspection.digest },
         avatarDataUrl: entry.contributor?.avatar ? skillAvatarDataUrl(readSkillAvatar(skillRoot, entry.contributor.avatar)) : undefined,
         coverDataUrl: entry.cardCover ? readCoverDataUrl(configRoot, entry.cardCover) : undefined
       });

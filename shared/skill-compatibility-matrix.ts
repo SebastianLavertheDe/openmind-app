@@ -1,4 +1,4 @@
-/** The 8 retained native Skills shipped from config/skill-library/packages.
+/** The retained native Skills shipped from config/skill-library/packages.
  * Original migration batch/issue fields document provenance; executable
  * contracts are validated from the current manifests during every build. */
 
@@ -61,19 +61,6 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     batch: "B",
     primaryArtifact: "daily-summary/YYYYMMDD_daily_summary.md",
     notes: "Provider Profile; date schema; fatal error non-zero exit; cache→userData."
-  },
-  {
-    id: "daily-topic-selector",
-    sourceDir: "daily-topic-selector",
-    targetKind: "process",
-    runtimePacks: ["python-core"],
-    externalExport: false,
-    openmindRead: ["daily-summary/**"],
-    openmindWrite: ["daily-topic/**"],
-    legacyIssues: ["shared-ai-client-relative", "no-pyproject"],
-    batch: "B",
-    primaryArtifact: "daily-topic/YYYYMMDD_daily_topic.md",
-    notes: "Remove direct dependency on other skills' .env; unified Provider."
   },
   {
     id: "rss-article-saver",
@@ -144,7 +131,7 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
   }
 ] as const;
 
-/** All 8 retained native skill IDs. */
+/** All retained native skill IDs. */
 export const ALL_SKILL_IDS: readonly string[] = SKILL_COMPATIBILITY_MATRIX.map((e) => e.id);
 
 /** Count by kind — used by the §17.7 acceptance gate. */

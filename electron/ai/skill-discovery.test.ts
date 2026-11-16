@@ -14,7 +14,7 @@ function discoveryEntries(instructions: string): Array<{ skill_path: string; pac
   return instructions.split("\n").filter(line => line.startsWith("{")).map(line => JSON.parse(line));
 }
 
-describe("Installed Skill automatic discovery", () => {
+describe("Installed Skill explicit selection", () => {
   let root: string;
   beforeEach(() => { root = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-discovery-")); });
   afterEach(() => { fs.rmSync(root, { recursive: true, force: true }); });
@@ -33,19 +33,22 @@ describe("Installed Skill automatic discovery", () => {
     return { packages, installed, registry };
   }
 
-  it("discovers a differently named source directory and supplies metadata for progressive loading", () => {
+  it("keeps installed metadata private until a Skill is explicitly selected", () => {
     const { installed, registry } = fixture();
     const catalog = registry.providerSkillCatalog(registry.captureSessionSnapshot());
     expect(installed.packagePath).toContain(`${path.sep}browser-skill`);
     expect(catalog).toHaveLength(1);
-    const instructions = skillDiscoveryInstructions(catalog);
+    const unselected = skillDiscoveryInstructions(catalog);
+    expect(discoveryEntries(unselected)).toEqual([]);
+    expect(unselected).not.toContain(catalog[0].skillPath);
+    const instructions = skillDiscoveryInstructions(catalog, undefined, catalog[0].id);
     expect(instructions).toContain("Read logged-in pages and capture screenshots");
     expect(discoveryEntries(instructions)).toEqual([expect.objectContaining({
       skill_path: catalog[0].skillPath,
       package_root: installed.packagePath
     })]);
-    expect(instructions).toContain("无需用户输入斜杠命令");
-    expect(instructions).toContain("必须先用文件读取工具读取对应 SKILL.md");
+    expect(instructions).toContain("用户明确选中的 Skill");
+    expect(instructions).toContain("不要自动发现");
     expect(instructions).not.toContain("PRIVATE_FULL_INSTRUCTIONS");
     expect(fs.readFileSync(catalog[0].skillPath, "utf8")).toContain("PRIVATE_FULL_INSTRUCTIONS");
   });
@@ -57,7 +60,7 @@ describe("Installed Skill automatic discovery", () => {
     packages.setEnabled(installed.key, installed.digest, true);
     fs.appendFileSync(path.join(installed.packagePath, "SKILL.md"), "tampered\n");
     expect(registry.captureSessionSnapshot()).toEqual([]);
-    expect(skillDiscoveryInstructions([])).toBe("");
+    expect(skillDiscoveryInstructions([])).toContain("本轮未选择 Skill");
   });
 
   it("does not invent capability denials for a standard Agent Skill without a manifest", () => {
@@ -75,7 +78,7 @@ describe("Installed Skill automatic discovery", () => {
     const catalog = registry.providerSkillCatalog(registry.captureSessionSnapshot());
     // Exercise escaped Windows paths even when this test runs on a POSIX host.
     const mapPath = (value: string) => path.win32.join("C:\\Provider runtime\\技能", path.basename(value));
-    const instructions = skillDiscoveryInstructions(catalog, mapPath);
+    const instructions = skillDiscoveryInstructions(catalog, mapPath, catalog[0].id);
     expect(discoveryEntries(instructions)).toEqual([{
       name: catalog[0].id,
       description: catalog[0].description,

@@ -17,6 +17,7 @@ import { RuntimePackService } from "../runtime/runtime-pack-service";
 import { SkillPackageService } from "./skill-package-service";
 import { InstalledSkillExecutionResolver } from "./installed-skill-execution-resolver";
 import { prepareSkillLibraryBundle } from "./skill-library-bundle";
+import { BUILTIN_SKILL_IDS } from "../../shared/skill-registry";
 
 const roots: string[] = [];
 let internalSkillsRoot = "";
@@ -30,7 +31,7 @@ const ORIGINAL_WORKSPACE_ROOT = process.env.OPENMIND_WORKSPACE_ROOT;
 // of both old build artifacts and the user's installed Skills.
 beforeAll(() => {
   internalSkillsRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openmind-resolver-packages-"));
-  prepareSkillLibraryBundle(path.resolve(__dirname, "../../config/skill-library"), internalSkillsRoot);
+  prepareSkillLibraryBundle(path.resolve(__dirname, "../../config/skill-library"), internalSkillsRoot, { includeIds: [...BUILTIN_SKILL_IDS, "agent-browser"] });
 });
 afterAll(() => { if (internalSkillsRoot) fs.rmSync(internalSkillsRoot, { recursive: true, force: true }); });
 
@@ -832,8 +833,8 @@ describe("InstalledSkillExecutionResolver", () => {
     }
   }, 120_000);
 
-  linuxRealSkillIt("chains reddit-fetcher → daily-article-summarizer → daily-topic-selector under one shared root snapshot", async () => {
-    // This is the first multi-Skill link of the RSS → Summary → Topic chain
+  linuxRealSkillIt("chains reddit-fetcher → daily-article-summarizer under one shared root snapshot", async () => {
+    // This is the first multi-Skill link of the RSS → Summary chain
     // (plan §17.7): the summarizer reads the fetcher's reddit/** output and
     // produces the daily-summary Artifact under the SAME openmind root snapshot.
     const python = resolvePythonExecutable();
@@ -959,10 +960,6 @@ describe("InstalledSkillExecutionResolver", () => {
       copyTree(skillSourcePath("daily-article-summarizer"), summarizerSource);
       const summarizerInstalled = packages.install(summarizerSource);
 
-      // Install the third link against the exact same root and Runtime Pack.
-      const topicSource = skillSourcePath("daily-topic-selector");
-      const topicInstalled = packages.install(topicSource);
-
       const broker = new ExecutionBroker(
         paths,
         (request, runId) => resolver.resolve(request, runId),
@@ -1017,46 +1014,6 @@ describe("InstalledSkillExecutionResolver", () => {
         (a) => a.declared && (a.logicalPath || "").includes("daily-summary/20260805_daily_summary.md")
       )).toBe(true);
 
-      // --- Stage 3 run: daily-topic-selector (reads daily-summary, writes daily-topic) ---
-      const topicRun = broker.submit(SkillRunRequestSchema.parse({
-        skillId: "daily-topic-selector",
-        version: "1.0.0",
-        digest: topicInstalled.digest,
-        inputs: { date: "20260805" },
-        providerBindings: { default: "default" },
-        trigger: { type: "manual" },
-        externalExportBindingIds: [],
-        rootGeneration: 1
-      }));
-      await waitFor(
-        () => ["succeeded", "failed", "cancelled"].includes(broker.get(topicRun.id).state),
-        60_000
-      );
-
-      const topicCompleted = broker.get(topicRun.id);
-      if (topicCompleted.state !== "succeeded") {
-        throw new Error([
-          `daily-topic-selector ended in ${topicCompleted.state}`,
-          ...broker.events(topicRun.id).map((event) => event.text || "")
-        ].join("\n"));
-      }
-      expect(topicCompleted.terminalState).toBe("succeeded");
-      const topicFile = path.join(openmindRoot, "daily-topic", "20260805_daily_topic.md");
-      expect(fs.existsSync(topicFile)).toBe(true);
-      expect(fs.readFileSync(topicFile, "utf8")).toContain("链路测试文章");
-      expect(topicCompleted.artifacts.some(
-        (a) => a.declared && (a.logicalPath || "").includes("daily-topic/20260805_daily_topic.md")
-      )).toBe(true);
-
-      // Both AI stages used the injected scoped credential, and all three
-      // stages stayed on the same managed Runtime Pack.
-      expect(providerRequests.length).toBeGreaterThan(0);
-      expect(providerRequests.every((request) => request.authorization === "Bearer mock-credential-for-credential-token")).toBe(true);
-      expect(providerRequests.every((request) => request.body.includes("local-test-model"))).toBe(true);
-      // All three runs shared the same root snapshot (same openmindRoot + generation).
-      expect(broker.get(fetchRun.id).runtime?.packId).toBe("python-core");
-      expect(summaryCompleted.runtime?.packId).toBe("python-core");
-      expect(topicCompleted.runtime?.packId).toBe("python-core");
     } finally {
       server.close();
     }

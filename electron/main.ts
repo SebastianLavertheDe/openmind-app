@@ -566,9 +566,9 @@ function createWindow(): void {
   if (!PACKAGED_SMOKE_TEST && !DESKTOP_E2E_TEST) registerWindowStatePersistence(window);
   if (DESKTOP_E2E_TEST) {
     const timeout = setTimeout(() => {
-      console.error("Desktop E2E timed out before the real preload bridge became ready.");
+      console.error("Desktop E2E timed out while verifying the real preload bridge and shared repository installation.");
       app.exit(1);
-    }, 20_000);
+    }, 90_000);
     window.webContents.once("did-finish-load", () => {
       void runDesktopE2e(window, timeout);
     });
@@ -645,11 +645,12 @@ async function runDesktopE2e(window: BrowserWindow, timeout: NodeJS.Timeout): Pr
       if (await api.setDefaultSkillsEnabled(false)) throw new Error("Default Skills opt-out failed");
       const librarySnapshot = await api.getSkillLibrarySnapshot(true);
       const library = librarySnapshot.entries;
-      if (librarySnapshot.remote.state !== "fresh" || library.filter(entry => entry.distribution === "builtin").length !== 7) throw new Error("Skill registry or built-in package boundary is incorrect");
+      if (librarySnapshot.remote.state !== "fresh" || library.filter(entry => entry.distribution === "builtin").length !== 6) throw new Error("Skill registry or built-in package boundary is incorrect");
+      if (library.some(entry => entry.skillId === "daily-topic-selector")) throw new Error("Retired daily topic generation is still available");
       const availablePreset = library.find(entry => entry.distribution === "remote" && entry.usable);
       if (!availablePreset) throw new Error("Scene Skill library has no usable remote preset");
       const preset = await api.installLibraryPreset(availablePreset.id);
-      if (preset.key !== "openmind-library/" + preset.skillId || !preset.digest || !preset.enabled) throw new Error("Preset installation did not activate an independent App package");
+      if (!preset.key?.startsWith("openmind-library/") || !preset.digest || !preset.enabled) throw new Error("Preset installation did not activate a verified App package");
       const installedPreset = (await api.listInstalledSkills()).find(record => record.key === preset.key);
       if (installedPreset?.sourceType !== "catalog" || !installedPreset.sourceRevision) throw new Error("Remote package source did not survive the real IPC installation");
       const chatPreset = (await api.aiRefreshSkills()).find(skill => skill.id === preset.skillId);

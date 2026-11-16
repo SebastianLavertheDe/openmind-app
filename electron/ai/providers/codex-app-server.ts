@@ -76,7 +76,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       const readOnly = context.session.permissionProfile === "read-only";
       const projectReadOnly = projectScoped && readOnly;
       const genericConfig = projectScoped ? buildProjectCodexConfig() : buildWorkspaceBoundaryCodexConfig(context);
-      const discoveryInstructions = skillDiscoveryInstructions(context.skillCatalog, (value) => context.provider.runtime === "wsl" ? parseWslPath(value)?.linuxPath ?? toWslPath(value) : value);
+      const discoveryInstructions = skillDiscoveryInstructions(context.skillCatalog, (value) => context.provider.runtime === "wsl" ? parseWslPath(value)?.linuxPath ?? toWslPath(value) : value, context.skillBridge?.id);
       const projectInstructions = projectSessionInstructions(context.session);
       const developerInstructions = [
         openmindFilesystemInstructions(openmindRoot, projectReadOnly ? "read-only" : projectScoped ? "workspace-write" : "none"),
@@ -125,7 +125,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         });
       const thread = threadResult.thread as { id?: string } | undefined;
       if (!thread?.id) throw new Error("Codex App Server 未返回 thread id。");
-      context.updateProviderSession(thread.id, 1);
+      context.updateProviderSession(thread.id, 2);
       let nativeSkill: CodexNativeSkill | null = null;
       if (context.skillInvocation) {
         if (!context.skillBridge) throw new Error("Codex 会话只允许应用已校验的 Installed Skill。");

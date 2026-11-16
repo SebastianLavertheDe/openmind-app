@@ -39,6 +39,8 @@ describe("Skill library catalog configuration", () => {
     { ...preset, id: "nested/skill" },
     { ...preset, category: "typo" },
     { ...preset, requirement: "typo" },
+    { ...preset, packageId: "shared-original" },
+    { ...preset, skillPath: "../SKILL.md" },
     { ...preset, instructions: [] },
     { ...preset, files: ["../outside.txt"] },
     { ...preset, files: [{ source: "../outside.txt", target: "references/source.txt" }] },

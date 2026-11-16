@@ -1,5 +1,5 @@
 export const skillLibraryMessages = { skillLibrary: {
-  title: "技能", explore: "探索", mine: "我的", views: "技能视图", categories: "技能分类",
+  title: "技能", explore: "探索", mine: "我的", views: "技能视图", categories: "技能分类", original: "上游原版",
   recommended: "为你推荐", browseAll: "浏览全部", loadFailed: "技能暂时未能加载，请重试。",
   refresh: "刷新", offlineCached: "暂时无法连接，正在展示已保存的技能。", remoteUnavailable: "在线技能暂时不可用，已安装和个人技能仍可使用。",
   uncategorized: "未分类", noImages: "暂无展示图片",

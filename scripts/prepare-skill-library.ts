@@ -7,4 +7,4 @@ const root = path.resolve(__dirname, "..");
 const config = path.join(root, "config", "skill-library");
 const count = prepareSkillLibraryBundle(config, path.join(root, ".build", "skill-library"), { includeIds: BUILTIN_SKILL_IDS });
 const registry = publishSkillRegistry(config, path.join(root, "skill-registry"));
-process.stdout.write(`Prepared ${count} built-in Skill packages and published ${registry.skills.length} registry packages.\n`);
+process.stdout.write(`Prepared ${count} built-in Skill packages and published ${registry.skills.length} registry cards over ${new Set(registry.skills.map(entry => entry.package.path)).size} packages.\n`);

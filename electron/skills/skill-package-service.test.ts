@@ -332,7 +332,6 @@ describe("SkillPackageService", () => {
     const expected = [
       "reddit-fetcher",
       "daily-article-summarizer",
-      "daily-topic-selector",
       "rss-article-saver",
       "x-following-fetcher",
       "rss-to-summary-workflow",
@@ -350,8 +349,7 @@ describe("SkillPackageService", () => {
     expect(xInspection?.files.some((file) => ["external_article_fetch.log", "posted_ids.json"].includes(file.path))).toBe(false);
     const packagedAiFiles: Record<string, string> = {
       "daily-article-summarizer": "src/ai_client.py",
-      "rss-article-saver": "src/ai_client.py",
-      "daily-topic-selector": "scripts/ai_client.py"
+      "rss-article-saver": "src/ai_client.py"
     };
     for (const [id, file] of Object.entries(packagedAiFiles)) {
       const inspection = inspections.find((item) => item.manifest?.id === id);
@@ -388,18 +386,17 @@ describe("SkillPackageService", () => {
       .map((entry) => path.join(INTERNAL_SKILLS_ROOT, entry.name));
     const installed = packageDirectories.map((source) => service.install(source));
 
-    // Only the seven core packages ship in the App; browser is downloaded.
+    // Only the six core packages ship in the App; browser is downloaded.
     // `_shared` has no manifest and remains outside the installation catalog.
     expect(installed.map((record) => record.id).sort()).toEqual([
       "daily-article-summarizer",
-      "daily-topic-selector",
       "reddit-fetcher",
       "rss-article-saver",
       "rss-to-summary-workflow",
       "video-download",
       "x-following-fetcher"
     ].sort());
-    expect(installed.length).toBe(7);
+    expect(installed.length).toBe(6);
     expect(installed.every((record) => service.isInstalledCopyUsable(record))).toBe(true);
 
     const sharedRoot = path.join(INTERNAL_SKILLS_ROOT, "rss-article-saver", "_shared");

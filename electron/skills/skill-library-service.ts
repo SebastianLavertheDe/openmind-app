@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { unzipSync } from "fflate";
 import { AuthoredSkillSchema, SkillAssetSchema, SkillLibraryMetadataSchema, type AuthoredSkill, type AuthoredSkillContributor, type SkillAsset, type SkillLibraryEntry, type SkillLibraryMetadata, type SkillLibrarySnapshot, type SkillSelectionInput } from "../../shared/skill-library";
 import { SkillContributorSchema, type SkillContributor, type SkillContributorView } from "../../shared/skill-contributor";
 import { resolveSkillLibraryCopy, SKILL_LIBRARY_PUBLISHER, SKILL_LIBRARY_SOURCE, type SkillLibraryPreset } from "../../shared/skill-library-catalog";
@@ -24,6 +25,14 @@ const m = messages.skillLibrary;
 export function readSkillLibraryMetadata(packageRoot: string): SkillLibraryMetadata | null {
   const file = path.join(packageRoot, METADATA);
   return fs.existsSync(file) ? SkillLibraryMetadataSchema.parse(JSON.parse(fs.readFileSync(file, "utf8"))) : null;
+}
+
+function assertOriginalEntrypoint(preset: SkillLibraryPreset, metadata: SkillLibraryMetadata | null, currentRevision = true): void {
+  if (!preset.packageId) return;
+  if (!metadata?.entrypoints?.some(entry => entry.id === preset.id && entry.path === preset.skillPath)
+    || metadata.upstream?.repository !== preset.upstream?.repository || currentRevision && metadata.upstream?.revision !== preset.upstream?.revision) {
+    throw new Error(m.errors.stale);
+  }
 }
 
 /** Authoring sources, installation facts and catalog UI share one root-bound service. */
@@ -90,21 +99,21 @@ export class SkillLibraryService {
     const presets = [...readSkillLibraryCatalog(this.bundleRoot).skills.filter(entry => !remoteById.has(entry.id) && !RETIRED_BUILTIN_SKILL_IDS.has(entry.id)), ...remoteEntries.map(entry => entry.preset)];
     const result: SkillLibraryEntry[] = presets.map(preset => {
       const remote = remoteById.get(preset.id);
-      const record = installed.find(item => item.id === preset.id && (isAppLibraryInstall(item)
+      const record = installed.find(item => item.id === (preset.packageId || preset.id) && (isAppLibraryInstall(item)
         || Boolean(remote && this.isManagedNativeLegacy(remote.preset, item.key, item.digest)))
         && (item.sourceType !== "catalog" || item.sourceLocator === this.registry.source));
       if (record) presetKeys.add(record.key);
       const copy = resolveSkillLibraryCopy(preset);
-      let reason: string | null = !remote && !fs.existsSync(path.join(this.bundleRoot, preset.id, "SKILL.md")) && !record ? m.errors.bundle : null;
-      if (!record && installed.some(item => item.id === preset.id)) reason = m.errors.sourceConflict;
+      let reason: string | null = !remote && !fs.existsSync(path.join(this.bundleRoot, preset.packageId || preset.id, preset.skillPath || "SKILL.md")) && !record ? m.errors.bundle : null;
+      if (!record && installed.some(item => item.id === (preset.packageId || preset.id))) reason = m.errors.sourceConflict;
       if (!reason && record && !record.usable) reason = m.errors.stale;
       reason ||= runtimeUnavailable(preset.requirement);
-      const expectedDigest = remote?.package.digest || bundledDigests[preset.id];
+      const expectedDigest = remote?.package.digest || bundledDigests[preset.packageId || preset.id];
       const updateAvailable = Boolean(record && expectedDigest && expectedDigest !== record.digest
         && (!remote || registryStatus.state === "fresh"));
       const contributor = remote ? preset.contributor && { nick: preset.contributor.nick, profileUrl: preset.contributor.profileUrl, avatarUrl: remote.avatarDataUrl }
-        : this.contributorView(preset.contributor, path.join(this.bundleRoot, preset.id));
-      return { id: preset.id, discoverable: preset.discoverable, updateAvailable, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? true), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? (remote ? preset.version : null), skillId: preset.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: m.origin.preset, executionModel: null, updatedAt: record?.installedAt, contributor,
+        : this.contributorView(preset.contributor, path.join(this.bundleRoot, preset.packageId || preset.id));
+      return { id: preset.id, entrypoint: preset.skillPath, upstream: preset.upstream, discoverable: preset.discoverable, updateAvailable, title: copy.title, subtitle: copy.subtitle, description: copy.description ?? copy.subtitle, inputHint: copy.inputHint, category: preset.category, origin: "preset", installed: Boolean(record), enabled: record?.enabled ?? false, usable: !reason && (record?.usable ?? true), reason, key: record?.key ?? null, digest: record?.digest ?? null, version: record?.version ?? (remote ? preset.version : null), skillId: preset.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: m.origin.preset, executionModel: null, updatedAt: record?.installedAt, contributor,
         distribution: remote ? "remote" : "builtin", coverUrl: remote?.coverDataUrl, recommended: remote ? preset.recommended : undefined, cached: remote ? registryStatus.state === "cached" : undefined };
     });
     const authored = this.documents();
@@ -129,6 +138,19 @@ export class SkillLibraryService {
       }
       const display = inspection?.manifest?.display;
       const builtin = isAppLibraryInstall(record);
+      const originals = usable && builtin ? readSkillLibraryMetadata(record.packagePath)?.entrypoints : undefined;
+      if (originals?.length) {
+        for (const original of originals) {
+          const copy = resolveSkillLibraryCopy(original);
+          result.push({ id: original.id, entrypoint: original.path, upstream: readSkillLibraryMetadata(record.packagePath)?.upstream, title: copy.title, subtitle: copy.subtitle,
+            description: copy.description || copy.subtitle, inputHint: copy.inputHint, category: original.category,
+            origin: "preset", discoverable: false, installed: true, enabled: record.enabled, usable, reason: null,
+            key: record.key, digest: record.digest, version: record.version, skillId: original.id,
+            authoringId: null, revision: 0, draft: false, imageCount: 0, source: m.origin.preset,
+            executionModel: null, distribution: "remote", contributor: this.installedContributorView(record.packagePath) });
+        }
+        continue;
+      }
       result.push({ id: record.key, title: display?.name || record.id, subtitle: display?.description || "", description: display?.description || "", inputHint: "", category: null, origin: builtin ? "preset" : record.sourceType === "git" ? "git" : "local", discoverable: false, installed: true, enabled: record.enabled, usable, reason: usable ? null : m.errors.stale, key: record.key, digest: record.digest, version: record.version, skillId: record.id, authoringId: null, revision: 0, draft: false, imageCount: 0, source: builtin ? m.origin.preset : record.sourceLocator || record.sourceType || "local", executionModel: null, updatedAt: record.installedAt, contributor: usable ? this.installedContributorView(record.packagePath) : undefined });
     }
     return result;
@@ -144,7 +166,7 @@ export class SkillLibraryService {
     if (entry.key && entry.digest) {
       const record = this.packages.getInstalled(entry.key, entry.digest);
       if (!record || !this.packages.inspectInstalledCopy(record).valid) throw new Error(m.errors.stale);
-      const file = path.join(record.packagePath, "SKILL.md");
+      const file = path.join(record.packagePath, entry.entrypoint || "SKILL.md");
       if (!fs.existsSync(file)) return "";
       if (!fs.realpathSync(file).startsWith(`${fs.realpathSync(record.packagePath)}${path.sep}`)) throw new Error(m.errors.stale);
       return fs.readFileSync(file, "utf8").replace(/^\uFEFF/, "").replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "").trim();
@@ -154,6 +176,7 @@ export class SkillLibraryService {
     const catalog = readSkillLibraryCatalog(this.bundleRoot);
     const preset = catalog.skills.find(item => item.id === entry.id);
     if (!preset) throw new Error(m.errors.missing);
+    if (preset.packageId) return fs.readFileSync(path.join(this.bundleRoot, preset.packageId, preset.skillPath!), "utf8");
     return [...preset.instructions, ...catalog.executionRules].join("\n\n");
   }
 
@@ -161,6 +184,20 @@ export class SkillLibraryService {
     if (RETIRED_BUILTIN_SKILL_IDS.has(id)) throw new Error(RETIRED_SKILL_REASON);
     const preset = readSkillLibraryCatalog(this.bundleRoot).skills.find(item => item.id === id);
     if (!preset) throw new Error(m.errors.missing);
+    if (preset.packageId) {
+      const previous = this.packages.getInstalledById(preset.packageId);
+      if (previous && !isAppLibraryInstall(previous)) throw new Error(m.errors.sourceConflict);
+      const source = path.join(this.bundleRoot, preset.packageId);
+      const inspection = this.packages.inspect(source);
+      const digests = JSON.parse(fs.readFileSync(path.join(this.bundleRoot, "bundle.json"), "utf8")) as { packages: Record<string, string> };
+      if (!inspection.valid || inspection.manifest?.id !== preset.packageId || inspection.digest !== digests.packages[preset.packageId]) throw new Error(m.errors.stale);
+      assertOriginalEntrypoint(preset, readSkillLibraryMetadata(source));
+      if (previous && previous.digest !== inspection.digest) assertSkillInactive(this.packages, previous.id);
+      const record = this.packages.install(source, { sourceType: "builtin", sourceLocator: SKILL_LIBRARY_SOURCE, sourcePackageRef: preset.packageId });
+      this.packages.setEnabled(record.key, record.digest, true);
+      writeJsonAtomic(path.join(this.privateRoot, "bindings.json"), { ...this.bindings(), [id]: { key: record.key, digest: record.digest } });
+      return this.list().find(entry => entry.id === id)!;
+    }
     if (preset.packageDirectory) {
       const record = installBuiltinDefault(this.packages, id, this.bundleRoot, key => this.isUserRetained(key));
       this.packages.setEnabled(record.key, record.digest, true);
@@ -189,14 +226,21 @@ export class SkillLibraryService {
     await this.registry.refresh();
     const remote = this.registry.readCached()?.skills.find(entry => entry.preset.id === id);
     if (!remote) { beforeInstall(); return this.installPreset(id); }
+    const packageId = remote.preset.packageId || id;
     const assertSource = () => {
-      const previous = this.packages.getInstalledById(id);
+      const previous = this.packages.getInstalledById(packageId);
       if (previous && (!(isAppLibraryInstall(previous) || this.isManagedNativeLegacy(remote.preset, previous.key, previous.digest))
         || previous.sourceType === "catalog" && previous.sourceLocator !== this.registry.source)) throw new Error(m.errors.sourceConflict);
       if (previous && !this.packages.inspectInstalledCopy(previous).valid) throw new Error(m.errors.stale);
       return previous;
     };
-    assertSource();
+    const current = assertSource();
+    if (remote.preset.packageId && current?.digest === remote.package.digest) {
+      assertOriginalEntrypoint(remote.preset, readSkillLibraryMetadata(current.packagePath));
+      beforeInstall();
+      this.packages.setEnabled(current.key, current.digest, true);
+      return this.list().find(entry => entry.id === id)!;
+    }
     let archive: string;
     try { archive = await this.registry.packageFile(remote); }
     catch (error) {
@@ -207,22 +251,28 @@ export class SkillLibraryService {
       beforeInstall();
       const current = assertSource();
       if (!current) throw error;
+      assertOriginalEntrypoint(remote.preset, readSkillLibraryMetadata(current.packagePath), false);
       this.packages.setEnabled(current.key, current.digest, true);
-      return this.list().find(entry => entry.key === current.key)!;
+      return this.list().find(entry => entry.id === id)!;
     }
     beforeInstall();
     const previous = assertSource();
     const inspection = this.packages.inspect(archive);
-    if (!inspection.valid || inspection.manifest?.id !== id || inspection.manifest.publisher.id !== SKILL_LIBRARY_PUBLISHER
+    if (!inspection.valid || inspection.manifest?.id !== packageId || inspection.manifest.publisher.id !== SKILL_LIBRARY_PUBLISHER
       || inspection.manifest.version !== remote.preset.version || inspection.manifest.kind !== remote.preset.executionKind
       || inspection.digest !== remote.package.digest || !this.registry.source) throw new Error(m.errors.stale);
-    if (previous && previous.digest !== inspection.digest) assertSkillInactive(this.packages, id);
+    if (remote.preset.packageId) {
+      const files = unzipSync(fs.readFileSync(archive), { filter: file => file.name === METADATA });
+      const bytes = files[METADATA];
+      assertOriginalEntrypoint(remote.preset, bytes ? SkillLibraryMetadataSchema.parse(JSON.parse(Buffer.from(bytes).toString("utf8"))) : null);
+    }
+    if (previous && previous.digest !== inspection.digest) assertSkillInactive(this.packages, packageId);
     const legacy = previous && (isLegacyAppLibraryInstall(previous) || this.isManagedNativeLegacy(remote.preset, previous.key, previous.digest))
       ? { key: previous.key, digest: previous.digest } : undefined;
-    const record = this.packages.install(archive, { sourceType: "catalog", sourceLocator: this.registry.source, sourcePackageRef: id, sourceRevision: remote.package.sha256 }, legacy);
+    const record = this.packages.install(archive, { sourceType: "catalog", sourceLocator: this.registry.source, sourcePackageRef: packageId, sourceRevision: remote.package.sha256 }, legacy);
     this.packages.setEnabled(record.key, record.digest, true);
     writeJsonAtomic(path.join(this.privateRoot, "bindings.json"), { ...this.bindings(), [id]: { key: record.key, digest: record.digest } });
-    return this.list().find(entry => entry.key === record.key)!;
+    return this.list().find(entry => entry.id === id)!;
   }
 
   editor(id?: string): AuthoredSkill {
@@ -283,7 +333,7 @@ export class SkillLibraryService {
       const text = doc.instructions.filter(block => block.text.trim() || block.assets.length || block.skills.length).map((block, index) => [
         `## ${index + 1}\n\n${block.text}`,
         ...block.assets.map(asset => `Reference material: references/${asset.id}${asset.extension} (${asset.name})`),
-        ...block.skills.map(reference => `Referenced installed Skill: ${reference.key} (${reference.digest}). Use the verified rules supplied in the referenced_skill context for this instruction block.`)
+        ...block.skills.map(reference => `Referenced installed Skill: ${reference.key}${reference.entrypoint ? ` / ${reference.entrypoint}` : ""} (${reference.digest}). Use the verified rules supplied in the referenced_skill context for this instruction block.`)
       ].join("\n\n")).join("\n\n");
       fs.writeFileSync(path.join(stage, "SKILL.md"), `---\nname: om-user-${doc.id}\ndescription: ${JSON.stringify(summary)}\n---\n\n# ${doc.name}\n\n${text}\n`);
       writeJsonAtomic(path.join(stage, METADATA), { schemaVersion: 1, origin: "authored", capabilityMode: "session", document: next, category: doc.category, inputHint: doc.inputHint, executionModel: doc.executionModel, requirement: doc.requirement, dependencies, contributor } satisfies SkillLibraryMetadata);
@@ -424,14 +474,16 @@ export class SkillLibraryService {
   private dependencies(doc: AuthoredSkill): SkillSelectionInput[] {
     const all = new Map<string, SkillSelectionInput>();
     const visit = (reference: SkillSelectionInput, ancestors: Set<string>, depth: number) => {
-      if (depth > 3 || ancestors.has(reference.key) || reference.key === `user/om-user-${doc.id}`) throw new Error(m.errors.dependency);
+      const selectionKey = `${reference.key}\u0000${reference.entrypoint || "SKILL.md"}`;
+      if (depth > 3 || ancestors.has(selectionKey) || reference.key === `user/om-user-${doc.id}`) throw new Error(m.errors.dependency);
       const record = this.packages.getInstalled(reference.key, reference.digest);
       if (!record || !this.packages.isEnabled(record) || !this.packages.inspectInstalledCopy(record).valid) throw new Error(m.errors.dependency);
-      const previous = all.get(reference.key);
+      if (reference.entrypoint && !readSkillLibraryMetadata(record.packagePath)?.entrypoints?.some(entry => entry.path === reference.entrypoint)) throw new Error(m.errors.dependency);
+      const previous = all.get(selectionKey);
       if (previous && previous.digest !== reference.digest) throw new Error(m.errors.dependency);
-      all.set(reference.key, reference);
+      all.set(selectionKey, reference);
       if (all.size > 10) throw new Error(m.errors.dependency);
-      const next = new Set(ancestors).add(reference.key);
+      const next = new Set(ancestors).add(selectionKey);
       for (const child of readSkillLibraryMetadata(record.packagePath)?.dependencies || []) visit(child, next, depth + 1);
     };
     for (const reference of doc.instructions.flatMap(block => block.skills)) visit(reference, new Set(), 1);

@@ -7,7 +7,7 @@ description: Run RSS synchronization and article collection followed by a daily 
 
 The workflow manifest invokes `rss-article-saver` in pipeline mode, followed by `daily-article-summarizer`, for the same date and content root. OpenMind's Workflow Engine validates both installed dependencies and freezes the daily brief preferences before admitting the workflow.
 
-Topic selection is an independent Process Skill and schedule. Running RSS synchronization alone must not generate summaries or topics.
+Running RSS synchronization alone must not generate summaries.
 
 For system cron, use the packaged OpenMind CLI. Run `openmind rss pipeline --root ... --user-data ...`, then `openmind brief generate --root ... --user-data ...` after a successful collection. These commands share state, locks, provider bindings and run history with the app. Stop legacy cron jobs that invoke sibling repositories before switching.
 

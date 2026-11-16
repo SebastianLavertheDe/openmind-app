@@ -22,8 +22,7 @@ export const validationMessages = {
       defaults: {
         rss: { name: "RSS 抓取与每日总结", description: "每小时运行 rss-to-summary-workflow（抓取订阅源 → 生成每日总结），对应 crontab 里的 rss-to-summary-workflow。" },
         x: { name: "X/Twitter 关注动态抓取", description: "每 15 分钟拉取关注账号的最新帖子，对应 crontab 里的 x-following-fetcher。" },
-        reddit: { name: "Reddit 热门抓取", description: "每小时第 5 分钟拉取 Reddit 热门帖子，对应 crontab 里的 reddit-fetcher。" },
-        topics: { name: "每日选题生成", description: "每天 23:55 在晚间摘要完成后生成次日候选选题，对应 crontab 里的 daily-topic-selector。" }
+        reddit: { name: "Reddit 热门抓取", description: "每小时第 5 分钟拉取 Reddit 热门帖子，对应 crontab 里的 reddit-fetcher。" }
       }
     },
     skillSource: {

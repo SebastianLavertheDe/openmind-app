@@ -29,7 +29,7 @@ function fixture(production = false) {
   const paths = buildAppPaths(path.join(root, "state"), path.join(content, ".agent/skills")); ensureAppPaths(paths);
   const config = production ? path.resolve("config/skill-library") : path.join(root, "config");
   const definition = SkillLibraryCatalogSchema.parse({ schemaVersion: 1, executionRules: ["Cite supplied evidence."], skills: [
-    { id: "daily-topic-selector", category: "research", discoverable: false, instructions: ["Local instructions."], display: { en: { title: "Local builtin" } } },
+    { id: "daily-article-summarizer", category: "research", discoverable: false, instructions: ["Local instructions."], display: { en: { title: "Local builtin" } } },
     { id: "new-remote-card", category: "writing", recommended: true, instructions: ["Remote instructions."], display: { en: { title: "New remote card" } } }
   ] });
   const write = () => fs.writeFileSync(path.join(config, "catalog.json"), JSON.stringify(definition));
@@ -141,7 +141,7 @@ describe("remote Skill library integration", () => {
     expect(updated).toMatchObject({ installed: true, enabled: true, key: "openmind-library/agent-browser", updateAvailable: false });
     expect(f.packages.getInstalled(legacy.key, legacy.digest)).toBeUndefined();
     expect(f.packages.getInstalledById("agent-browser")).toMatchObject({ sourceType: "catalog", sourceLocator: f.source });
-  });
+  }, 90_000);
 
   it("keeps an explicitly retained official Git browser separate from the directory card", async () => {
     const f = fixture(true);
@@ -154,7 +154,7 @@ describe("remote Skill library integration", () => {
     expect(snapshot.entries.find(entry => entry.key === legacy.key)).toMatchObject({ installed: true, usable: true, origin: "git" });
     await expect(f.service.installFromCatalog("agent-browser")).rejects.toThrow();
     expect(f.packages.getInstalledById("agent-browser")).toMatchObject({ key: legacy.key, digest: legacy.digest, sourceType: "git", sourceLocator: OPENMIND_SKILLS_REPO_URL });
-  });
+  }, 90_000);
 
   it("does not apply the legacy native migration exception to a generated preset", async () => {
     const f = fixture();
@@ -222,20 +222,24 @@ describe("remote Skill library integration", () => {
     expect(resolver.captureSessionSnapshot().find(entry => entry.definition.id === installed.id)?.definition.title).toBe("New remote card");
   });
 
-  it("publishes and installs all fifteen actual cards including ten restored handraw packages", async () => {
+  it("installs all original cards over one shared repository", async () => {
     const f = fixture(true);
     const snapshot = await f.service.snapshot();
-    expect(snapshot.entries.filter(entry => entry.distribution === "builtin")).toHaveLength(7);
-    expect(snapshot.entries.filter(entry => entry.distribution === "remote")).toHaveLength(15);
-    for (const remote of f.published.skills) {
+    expect(snapshot.entries.filter(entry => entry.distribution === "builtin")).toHaveLength(6);
+    expect(snapshot.entries.filter(entry => entry.distribution === "remote")).toHaveLength(22);
+    for (const remote of f.published.skills.filter((entry, index, entries) => entries.findIndex(other => other.package.path === entry.package.path) === index)) {
       const installed = await f.service.installFromCatalog(remote.preset.id);
       expect(installed).toMatchObject({ installed: true, digest: remote.package.digest });
       const record = f.packages.getInstalled(installed.key!, installed.digest!)!;
       expect(f.packages.inspectInstalledCopy(record).valid).toBe(true);
-      if (remote.preset.contributor?.nick === "yang0") expect(fs.readFileSync(path.join(record.packagePath, "ATTRIBUTION.md"), "utf8")).toContain("yang0/handraw-style");
+      if (remote.preset.packageId) expect(fs.readFileSync(path.join(record.packagePath, "LICENSE"), "utf8")).toContain("yang0/handraw-style");
     }
-    expect(f.packages.listInstalled().filter(record => record.sourceType === "catalog")).toHaveLength(15);
-  });
+    const originals = f.service.list().filter(entry => entry.upstream);
+    expect(originals).toHaveLength(21);
+    expect(originals.every(entry => entry.installed && entry.usable && entry.entrypoint)).toBe(true);
+    expect(new Set(originals.map(entry => entry.key)).size).toBe(1);
+    expect(f.packages.listInstalled().filter(record => record.sourceType === "catalog")).toHaveLength(2);
+  }, 90_000);
 });
 
 describe("Skill registry configuration", () => {
@@ -258,6 +262,6 @@ describe("Skill registry configuration", () => {
     const service = new SkillLibraryService(f.content, f.paths, f.packages, f.bundle);
     const snapshot = await service.snapshot();
     expect(snapshot.remote.state).toBe("unavailable");
-    expect(snapshot.entries.map(entry => entry.id)).toEqual(["daily-topic-selector"]);
+    expect(snapshot.entries.map(entry => entry.id)).toEqual(["daily-article-summarizer"]);
   });
 });

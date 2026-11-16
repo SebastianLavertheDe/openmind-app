@@ -5,9 +5,8 @@ import { RssSourceSchema, type RssDocumentView } from "../../shared/rss-contract
 import type { DesktopApi } from "../../shared/contracts";
 import { resolveDailyBriefPreferences } from "../../shared/daily-brief-preferences";
 
-export function installRssCatalogApi(count = 0, customPlatforms = false) {
+export function installRssCatalogApi(count = 0) {
   let preferences = resolveDailyBriefPreferences({ schemaVersion: 1, revision: 0, text: "", updatedAt: null });
-  if (customPlatforms) preferences = { ...preferences, topicPrompt: "Select original product design research.", topicPlatforms: [{ id: "name-a", name: "nameA", prompt: "Select practical experiments." }, { id: "name-b", name: "nameB", prompt: "Select long-form analysis." }] };
   let document: RssDocumentView = { schemaVersion: 1, initialized: true, revision: 1, rootKey: "catalog-root", deletedPresetIds: [], migrationWarnings: [], sources: [
     { id: "design", name: "Design research", group: "product", enabled: true, itemCount: 120, lastSyncAt: "2026-10-28T08:00:00Z", lastError: { stage: "collect", code: "access-denied", message: "HTTP 403 returned by the article endpoint. No login requirement inferred.", retryable: false } },
     { id: "wechat", name: "Agent workflows", group: "agents", enabled: true },

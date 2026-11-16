@@ -35,7 +35,7 @@ describe("RunScheduler input boundaries", () => {
     const attempts: Array<{ prompt: string; thread: string | null }> = [];
     internals.adapters.codex.run = async context => {
       attempts.push({ prompt: context.prompt, thread: context.session.providerSessionId });
-      context.updateProviderSession("thread-with-image-tool", 1);
+      context.updateProviderSession("thread-with-image-tool", 2);
       await context.emit("assistant-message", { text: "continued", phase: "final" });
     };
     let session = internals.store.createSession({ provider: "codex", providerId: provider.id, cwd: ".", title: "Existing conversation", permissionProfile: "edit", scope: workspaceScope });
@@ -53,7 +53,7 @@ describe("RunScheduler input boundaries", () => {
     expect(attempts[0].prompt).toContain("Earlier answer");
     expect(attempts[1].thread).toBe("thread-with-image-tool");
     expect(attempts[1].prompt).not.toContain('source="local_rollout"');
-    expect(internals.store.getSession(session.id).appToolsVersion).toBe(1);
+    expect(internals.store.getSession(session.id).appToolsVersion).toBe(2);
   });
 
   it("freezes each turn's image selection while later turns and forks keep their own settings", async () => {
@@ -186,7 +186,7 @@ describe("RunScheduler Project Task scope", () => {
 
   it.each([
     ["claude", false], ["claude", true], ["codex", false], ["codex", true]
-  ] as const)("automatically discovers enabled Skills without a slash command for %s Project=%s and refreshes on continuation", async (provider, projectScoped) => {
+  ] as const)("exposes a Skill only on its explicitly selected turn for %s Project=%s", async (provider, projectScoped) => {
     const fixture = projectScheduler(`${provider}-native`);
     const paths = buildAppPaths(fixture.stateRoot, path.join(fixture.contentRoot, ".agent", "skills"));
     ensureAppPaths(paths);
@@ -198,17 +198,13 @@ describe("RunScheduler Project Task scope", () => {
     const internals = schedulerInternals(fixture.scheduler);
     const selectedProvider = { ...claudeProvider, provider, id: `${provider}-native` };
     internals.registry.detect = () => [selectedProvider];
-    let expectedEnabled = true;
+    let selected = false;
     let observedCatalog = false;
     internals.adapters[provider] = {
       run: async (context) => {
-        expect(context.skillInvocation).toBeNull();
-        expect(context.skillCatalog?.map((entry) => entry.id)).toEqual(expectedEnabled ? ["browser-skill"] : []);
-        if (expectedEnabled) {
-          const entry = context.skillCatalog![0];
-          expect(entry.description).toBe("Read logged-in browser pages");
-          expect(fs.readFileSync(entry.skillPath, "utf8")).toContain("Use bsk for this task.");
-        }
+        expect(Boolean(context.skillInvocation)).toBe(selected);
+        expect(context.skillCatalog?.map(entry => entry.id)).toEqual(selected ? ["browser-skill"] : []);
+        if (selected) expect(context.skillBridge?.instructions).toContain("Use bsk for this task.");
         observedCatalog = true;
         await context.emit("assistant-message", { text: "done", phase: "final" });
       }
@@ -219,8 +215,14 @@ describe("RunScheduler Project Task scope", () => {
     await waitUntil(() => fixture.scheduler.snapshot().runs.find((item) => item.id === first.run.id)?.status === "completed");
     expect(observedCatalog).toBe(true);
     expect(first.session.skillSnapshot?.map((entry) => entry.definition.id)).toEqual(["browser-skill"]);
+    selected = true;
+    const selection = { key: installed.key, digest: installed.digest };
+    const explicit = projectScoped
+      ? fixture.scheduler.startProjectRun({ sessionId: first.session.id, permissionProfile: first.session.permissionProfile, prompt: "读取网页", selectedSkill: selection, contexts: [] })
+      : fixture.scheduler.startRun({ sessionId: first.session.id, providerId: selectedProvider.id, permissionProfile: first.session.permissionProfile, cwd: first.session.cwd, prompt: "读取网页", selectedSkill: selection, contexts: [] });
+    await waitUntil(() => fixture.scheduler.snapshot().runs.find(item => item.id === explicit.run.id)?.status === "completed");
     packages.setEnabled(installed.key, installed.digest, false);
-    expectedEnabled = false;
+    selected = false;
     observedCatalog = false;
     const next = projectScoped
       ? fixture.scheduler.startProjectRun({ sessionId: first.session.id, permissionProfile: first.session.permissionProfile, prompt: "继续", contexts: [] })

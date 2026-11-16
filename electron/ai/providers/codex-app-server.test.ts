@@ -483,7 +483,7 @@ describe("CodexAppServerAdapter.run()", () => {
     const ctx = makeContext();
     const child = await driveSuccessfulRun(ctx);
 
-    expect(ctx.updateProviderSession).toHaveBeenCalledWith("thread-abc", 1);
+    expect(ctx.updateProviderSession).toHaveBeenCalledWith("thread-abc", 2);
     const requests = child.writtenLines.map((line) => JSON.parse(line));
     expect(requests.find((r) => r.method === "initialize")).toBeDefined();
     expect(requests.find((r) => r.method === "thread/start")).toBeDefined();
@@ -530,7 +530,7 @@ describe("CodexAppServerAdapter.run()", () => {
     expect(fs.existsSync(path.join(isolatedHome, "skills"))).toBe(false);
   });
 
-  it.each([false, true])("automatically discovers installed BrowserSkill in a Project=%s turn", async (projectScoped) => {
+  it.each([false, true])("does not expose an unselected installed Skill in a Project=%s turn", async (projectScoped) => {
     const base = makeContext();
     const child = await driveSuccessfulRun(makeContext({
       skillCatalog: [{ id: "browser-skill", version: "0.0.0", digest: "a".repeat(64), packageRoot: "/project/.agent/skills/browser-skill", skillPath: "/project/.agent/skills/browser-skill/SKILL.md", description: "Read logged-in pages and capture screenshots" }],
@@ -538,9 +538,9 @@ describe("CodexAppServerAdapter.run()", () => {
     }));
     const request = child.writtenLines.map((line) => JSON.parse(line)).find((item) => item.method === "thread/start")!;
     expect(request.params.config.mcp_servers).toBeUndefined();
-    expect(request.params.developerInstructions).toContain("browser-skill/SKILL.md");
-    expect(request.params.developerInstructions).toContain("Read logged-in pages and capture screenshots");
-    expect(request.params.developerInstructions).toContain("无需用户输入斜杠命令");
+    expect(request.params.developerInstructions).not.toContain("browser-skill/SKILL.md");
+    expect(request.params.developerInstructions).not.toContain("Read logged-in pages and capture screenshots");
+    expect(request.params.developerInstructions).toContain("本轮未选择 Skill");
     expect(request.params.developerInstructions).not.toContain("capture_source_evidence");
   });
 

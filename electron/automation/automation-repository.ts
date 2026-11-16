@@ -14,6 +14,7 @@ import {
 import { DEFAULT_AUTOMATION_RULES, isDefaultAutomationRule } from "../../shared/automation-defaults";
 import type { AppPaths } from "../paths/app-paths-service";
 import { messages } from "../../shared/messages";
+import { RETIRED_SKILL_REASON } from "../../shared/retired-skills";
 
 type AutomationRegistry = {
   schemaVersion: typeof AUTOMATION_SCHEMA_VERSION;
@@ -164,10 +165,22 @@ export class AutomationRepository {
       const defaultSkillsEnabled = typeof raw.defaultSkillsEnabled === "boolean"
         ? raw.defaultSkillsEnabled : raw.defaultsSeeded === true;
       const registry: AutomationRegistry = { schemaVersion: AUTOMATION_SCHEMA_VERSION, rssTasksVersion: 1, defaultsSeeded: raw.defaultsSeeded === true, defaultSkillsEnabled, rules, runs };
+      // Remove only the App's retired default. Keep custom/imported rules and
+      // all execution history; unsubmitted retries can no longer be admitted.
+      const topicRule = rules.find(rule => rule.id === "daily-topic-generation"
+        && rule.target.type === "skill" && rule.target.id === "daily-topic-selector");
+      if (topicRule) {
+        registry.rules = rules.filter(rule => rule !== topicRule);
+        for (const run of runs) {
+          if (run.ruleId === topicRule.id && run.state === "queued" && !run.childRunId) {
+            Object.assign(run, { state: "blocked", retryAt: null, completedAt: new Date().toISOString(), error: RETIRED_SKILL_REASON });
+          }
+        }
+      }
       if (raw.rssTasksVersion !== 1) {
         this.migrateRssTasks(registry);
-        this.write(registry);
       }
+      if (topicRule || raw.rssTasksVersion !== 1) this.write(registry);
       return registry;
     } catch (error) {
       throw new Error(`Automation registry 无法读取，拒绝覆盖现有状态：${error instanceof Error ? error.message : String(error)}`);

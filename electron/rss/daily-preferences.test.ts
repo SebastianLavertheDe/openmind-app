@@ -26,7 +26,8 @@ describe("editable brief rules", () => {
   it("uses and displays the legacy defaults for a new content root", () => {
     const { root, repository, file } = fixture();
     expect(repository.preferences()).toMatchObject({ revision: 0, text: "", summaryPrompt: DEFAULT_SUMMARY_PROMPT, topicPrompt: DEFAULT_TOPIC_PROMPT, topicPlatforms: DEFAULT_TOPIC_PLATFORMS });
-    expect(dailyPreferencesContext(root)).toContain(DEFAULT_TOPIC_PROMPT);
+    expect(dailyPreferencesContext(root)).toContain(DEFAULT_SUMMARY_PROMPT.instructions);
+    expect(dailyPreferencesContext(root)).not.toContain(DEFAULT_TOPIC_PROMPT);
     expect(fs.existsSync(file)).toBe(false);
   });
   it("persists both editable rules, preserves them for older clients and restores blank entries", () => {
@@ -35,6 +36,8 @@ describe("editable brief rules", () => {
     repository.savePreferences({ revision: 0, text: "Keep my preferences", summaryPrompt, topicPrompt: "Select all design research." });
     expect(readDailyPreferences(root)).toMatchObject({ revision: 1, summaryPrompt, topicPrompt: "Select all design research." });
     expect(dailyPreferencesContext(root)).toContain("Three short sentences.");
+    expect(dailyPreferencesContext(root)).toContain("Keep my preferences");
+    expect(dailyPreferencesContext(root)).not.toContain("Select all design research.");
     const olderClient = repository.savePreferences({ revision: 1, text: "New extra preferences" });
     expect(olderClient).toMatchObject({ summaryPrompt, topicPrompt: "Select all design research." });
     expect(() => repository.savePreferences({ revision: 1, text: "Stale" })).toThrow(/changed/);

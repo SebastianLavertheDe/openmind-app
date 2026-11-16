@@ -444,7 +444,7 @@ export const featureMessages = {
         xSources: { title: "X/Twitter 源", description: "管理 X 时间线的请求和登录配置。" },
         redditSources: { title: "Reddit 源", description: "管理采集使用的社区名称、地址和启停状态。" },
         storage: { title: "数据与存储", description: "记录缓存、日志和通知历史的本地保留策略。" },
-        sessions: { title: "会话归档", description: "查看、打开或恢复已经归档的 AI 会话。" },
+        sessions: { title: "会话归档", description: "查看已归档的 AI 会话，或将其恢复到最近会话。" },
         runtime: { title: "内置运行时", description: "管理共享 Python 环境、视频导入设置与下载工具。" }
       }
     },
@@ -697,19 +697,16 @@ export const featureMessages = {
       description: "归档会话不会出现在侧边栏的最近会话中，记录与运行历史仍保存在本地。",
       listAria: "已归档会话列表",
       empty: "暂无已归档会话",
-      open: "打开",
       restore: "恢复",
       restoring: "恢复中",
-      openNamed: (title: string) => `打开归档会话：${title}`,
       restoreNamed: (title: string) => `恢复归档会话：${title}`,
-      emptyDescription: "归档后的会话会显示在这里，可随时打开或恢复到最近会话。"
+      emptyDescription: "归档后的会话会显示在这里，可随时恢复到最近会话。"
     },
     notify: {
       saveFailed: "设置保存失败",
       workspaceUpdated: "工作目录已更新",
       workspaceSelectFailed: "选择工作目录失败",
       notesOpenFailed: "无法打开笔记目录",
-      sessionOpenFailed: "无法打开归档会话",
       sessionRestoreFailed: "恢复归档会话失败",
       providersLoadFailed: "config/providers.yaml 读取失败",
       providersSaved: "AI Provider 配置已保存",

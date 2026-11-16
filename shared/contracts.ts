@@ -1,6 +1,6 @@
 import { normalizeLegacyCreativeContext } from "./legacy-creative";
 import { AiSessionOriginSchema } from "./ai-session-origin";
-import { SkillSelectionInputSchema } from "./skill-library";
+import { SkillEntrypointPathSchema, SkillSelectionInputSchema } from "./skill-library";
 import { messages } from "./messages";
 import { z } from "zod";
 import { ImageSelectionSchema } from "./image-generation";
@@ -230,7 +230,8 @@ export const AiSessionSkillSnapshotEntrySchema = z.object({
   installed: z.object({
     key: z.string().min(1),
     version: z.string().min(1),
-    digest: z.string().regex(/^[a-f0-9]{64}$/)
+    digest: z.string().regex(/^[a-f0-9]{64}$/),
+    entrypoint: SkillEntrypointPathSchema.optional()
   }).nullable().default(null)
 });
 export type AiSessionSkillSnapshotEntry = z.infer<typeof AiSessionSkillSnapshotEntrySchema>;
@@ -250,10 +251,11 @@ export const AiSessionSkillSnapshotSchema = z.array(AiSessionSkillSnapshotEntryS
     }
     ids.add(entry.definition.id);
     if (!entry.installed) continue;
-    if (keys.has(entry.installed.key)) {
+    const selectionKey = `${entry.installed.key}\u0000${entry.installed.entrypoint || "SKILL.md"}`;
+    if (keys.has(selectionKey)) {
       context.addIssue({ code: "custom", path: [index, "installed", "key"], message: `Skill snapshot key 重复：${entry.installed.key}` });
     }
-    keys.add(entry.installed.key);
+    keys.add(selectionKey);
   }
 });
 
@@ -1065,7 +1067,7 @@ export interface DesktopApi {
   runRss(input: RssRunInput): Promise<BrokerRunRecord>;
   getDailyBriefPreferences(): Promise<DailyBriefPreferences>;
   saveDailyBriefPreferences(input: SaveDailyBriefPreferences): Promise<DailyBriefPreferences>;
-  generateDailyBrief(input: { date: string; topics?: boolean }): Promise<BrokerRunRecord>;
+  generateDailyBrief(input: { date: string; topics?: false }): Promise<BrokerRunRecord>;
   updateSource(id: string, patch: SourcePatch): Promise<SourceDefinition>;
   removeRedditSource(input: RemoveRedditSourceInput): Promise<void>;
   addRssSource(input: AddRssSourceInput): Promise<SourceDefinition>;

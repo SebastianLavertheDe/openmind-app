@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_LOCALE, getLocale, type Locale } from "./messages";
-import { SkillLibraryDisplaySchema, SkillSceneSchema } from "./skill-library";
+import { SkillEntrypointPathSchema, SkillLibraryDisplaySchema, SkillSceneSchema } from "./skill-library";
 import { SkillIdSchema } from "./skill-manifest-schema";
 import { SkillContributorSchema } from "./skill-contributor";
 
@@ -8,7 +8,7 @@ export const SKILL_LIBRARY_CATALOG_FILE = "catalog.json";
 export const SKILL_LIBRARY_PUBLISHER = "openmind-library";
 export const SKILL_LIBRARY_SOURCE = "openmind:skill-library";
 
-const InstructionSchema = z.string().trim().min(1).max(20_000);
+const InstructionSchema = z.string().trim().min(1).max(100_000);
 const AssetPathSchema = z.string().min(1).max(512).refine(value =>
   !value.includes("\\") && !value.includes(":") && value.split("/").every(part => part && part !== "." && part !== ".."), "Use a relative asset path without traversal");
 // Strings remain relative to assets/<skill-id>; mapped files can share one
@@ -22,6 +22,10 @@ export const SkillLibraryPresetSchema = z.object({
   contributor: SkillContributorSchema.optional(),
   instructions: z.array(InstructionSchema).max(50).default([]),
   packageDirectory: AssetPathSchema.optional(),
+  /** Several original Skill cards may share one unmodified repository package. */
+  packageId: SkillIdSchema.optional(),
+  skillPath: SkillEntrypointPathSchema.optional(),
+  upstream: z.object({ repository: z.string().url(), revision: z.string().regex(/^[a-f0-9]{40}$/) }).strict().optional(),
   executionKind: z.enum(["agent", "process", "workflow"]).default("agent"),
   discoverable: z.boolean().default(true),
   recommended: z.boolean().default(false),
@@ -30,7 +34,10 @@ export const SkillLibraryPresetSchema = z.object({
   files: z.array(AssetSchema).max(50).default([]),
   requirement: z.enum(["image", "ffmpeg", "python"]).optional(),
   display: SkillLibraryDisplaySchema
-}).strict().refine(value => Boolean(value.packageDirectory) || value.instructions.length > 0, "Provide instructions or a manifest package directory");
+}).strict().refine(value => Boolean(value.packageDirectory) || value.instructions.length > 0, "Provide instructions or a manifest package directory")
+  .refine(value => !(value.packageId || value.skillPath || value.upstream)
+    || Boolean(value.packageId && value.packageDirectory && value.skillPath && value.upstream && value.executionKind === "agent"),
+  "Original Skill cards require a shared agent package, entrypoint and upstream revision");
 
 export const SkillLibraryCatalogSchema = z.object({
   schemaVersion: z.literal(1),

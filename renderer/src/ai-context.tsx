@@ -727,7 +727,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
         cwd: targetSession?.cwd || ".",
         prompt,
         contexts,
-        selectedSkill: options.selectedSkill !== undefined ? options.selectedSkill : (() => { const skill = draftStore.getSkill(sourceKey); return skill?.key && skill.digest ? { key: skill.key, digest: skill.digest } : null; })(),
+        selectedSkill: options.selectedSkill !== undefined ? options.selectedSkill : (() => { const skill = draftStore.getSkill(sourceKey); return skill?.key && skill.digest ? { key: skill.key, digest: skill.digest, ...(skill.entrypoint ? { entrypoint: skill.entrypoint } : {}) } : null; })(),
         imageGeneration: options.imageGeneration,
         ...(options.retryOfRunId ? { retryOfRunId: options.retryOfRunId } : {}),
         ...(acknowledgeProviderChange ? { acknowledgeProviderChange: true } : {})
@@ -815,7 +815,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
       providerId: run.providerId,
       permissionProfile: run.permissionProfile,
       interactionMode: run.interactionMode,
-      selectedSkill: run.selectedSkill?.installed ? { key: run.selectedSkill.installed.key, digest: run.selectedSkill.installed.digest } : null,
+      selectedSkill: run.selectedSkill?.installed ? { key: run.selectedSkill.installed.key, digest: run.selectedSkill.installed.digest, ...(run.selectedSkill.installed.entrypoint ? { entrypoint: run.selectedSkill.installed.entrypoint } : {}) } : null,
       imageGeneration: run.imageGeneration,
       contexts: run.contexts
     });
@@ -826,7 +826,7 @@ function AiStateProvider({ initial, skills: initialSkills = [], storageScope = "
     if (!run) return;
     draftStore.set(run.sessionId, run.prompt);
     const skill = run.selectedSkill;
-    if (skill?.installed) draftStore.setSkill(run.sessionId, { id: skill.definition.id, title: skill.definition.title, inputHint: skill.definition.inputHint || "", key: skill.installed.key, digest: skill.installed.digest, skillId: skill.definition.id, installed: true, enabled: true, usable: true, reason: null, category: null, origin: "local", subtitle: "", description: "", version: skill.installed.version, authoringId: null, revision: 0, draft: false, imageCount: 0, source: "", executionModel: skill.executionModel });
+    if (skill?.installed) draftStore.setSkill(run.sessionId, { id: skill.definition.id, title: skill.definition.title, inputHint: skill.definition.inputHint || "", key: skill.installed.key, digest: skill.installed.digest, entrypoint: skill.installed.entrypoint, skillId: skill.definition.id, installed: true, enabled: true, usable: true, reason: null, category: null, origin: "local", subtitle: "", description: "", version: skill.installed.version, authoringId: null, revision: 0, draft: false, imageCount: 0, source: "", executionModel: skill.executionModel });
     else draftStore.setSkill(run.sessionId, null);
     setContextsByDraft((current) => ({ ...current, [run.sessionId]: run.contexts }));
   }, [draftStore]);

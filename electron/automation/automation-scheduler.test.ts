@@ -16,6 +16,40 @@ afterEach(() => {
 });
 
 describe("AutomationRepository", () => {
+  it("removes the old default topic schedule, blocks unsubmitted retries and keeps history and custom rules", () => {
+    const paths = buildAppPaths(path.join(makeRoot(), "user-data"));
+    ensureAppPaths(paths);
+    const repository = new AutomationRepository(paths);
+    repository.setDefaultRulesEnabled(true);
+    const template = repository.getRule("daily-summary-generation")!;
+    const oldTopic = { ...template, id: "daily-topic-generation", enabled: true,
+      target: { type: "skill", id: "daily-topic-selector", versionPolicy: "*" } };
+    const custom = { ...oldTopic, id: "user-topic-import" };
+    const replacement = { ...template, id: "custom-summary" };
+    const file = path.join(paths.automation, "registry.json");
+    const registry = JSON.parse(fs.readFileSync(file, "utf8"));
+    const run = { schemaVersion: 1, ruleId: oldTopic.id, target: oldTopic.target,
+      triggerReason: "manual", scheduledFor: null, createdAt: template.createdAt,
+      completedAt: null, error: null, retryAt: null, attempt: 0 };
+    registry.rules.push(oldTopic, custom, replacement);
+    registry.runs = [
+      { ...run, id: "topic-old-success", state: "succeeded", childRunId: "finished-child", completedAt: template.updatedAt },
+      { ...run, id: "topic-retry", state: "queued", childRunId: null },
+      { ...run, id: "topic-running", state: "running", childRunId: "running-child" }
+    ];
+    fs.writeFileSync(file, JSON.stringify(registry));
+    const reloaded = new AutomationRepository(paths);
+    expect(reloaded.getRule(oldTopic.id)).toBeUndefined();
+    expect(reloaded.getRule(custom.id)).toEqual(custom);
+    expect(reloaded.getRule(replacement.id)).toEqual(replacement);
+    expect(reloaded.getRun("topic-old-success")).toEqual(registry.runs[0]);
+    expect(reloaded.getRun("topic-retry")).toMatchObject({ state: "blocked", retryAt: null });
+    expect(reloaded.getRun("topic-running")).toEqual(registry.runs[2]);
+    reloaded.setDefaultRulesEnabled(true);
+    expect(reloaded.getRule(oldTopic.id)).toBeUndefined();
+    expect(reloaded.listRuns()).toHaveLength(3);
+  });
+
   it("persists rules and keeps scheduler metadata across reload", () => {
     const root = makeRoot();
     const paths = buildAppPaths(path.join(root, "user-data"));
@@ -51,7 +85,7 @@ describe("AutomationRepository", () => {
     expect(new AutomationRepository(paths).getDefaultSkillsEnabled()).toBe(false);
     expect(reloaded.listRules().every((rule) => !rule.enabled)).toBe(true);
     reloaded.setDefaultRulesEnabled(true);
-    expect(reloaded.listRules()).toHaveLength(6);
+    expect(reloaded.listRules()).toHaveLength(5);
     expect(reloaded.listRules().every((rule) => !rule.enabled)).toBe(true);
   });
 
@@ -66,6 +100,21 @@ describe("AutomationRepository", () => {
 });
 
 describe("AutomationScheduler", () => {
+  it.each(["succeeded", "failed"] as const)("reconciles admitted topic work after removing its default rule without retrying: %s", async terminalState => {
+    const harness = createHarness(new Date("2026-11-16T08:00:00.000Z"));
+    const target = { type: "skill" as const, id: "daily-topic-selector", versionPolicy: "*" };
+    const run = harness.repository.createRun({ ruleId: "daily-topic-generation", target,
+      state: "running", childRunId: "old-topic-child", triggerReason: "manual", scheduledFor: null,
+      createdAt: "2026-11-16T07:59:00.000Z", completedAt: null, error: null, attempt: 0, retryAt: null });
+    harness.children.set("old-topic-child", child("old-topic-child", "running", target.id));
+    await harness.scheduler.tick();
+    expect(harness.repository.getRun(run.id)?.state).toBe("running");
+    harness.children.set("old-topic-child", child("old-topic-child", terminalState, target.id));
+    await harness.scheduler.tick();
+    expect(harness.repository.getRun(run.id)).toMatchObject({ state: terminalState, childRunId: "old-topic-child", retryAt: null });
+    expect(harness.submitted).toEqual([]);
+  });
+
   it("calculates weekly and daily schedule rows without scanning each minute", () => {
     const harness = createHarness(new Date("2026-11-06T00:00:00.000Z"));
     for (let index = 0; index < 3; index++) harness.scheduler.saveRule(rule({ id: `weekly-${index}`,
@@ -497,8 +546,9 @@ function createHarness(initialNow: Date, options: {
   const submittedWorkflows: string[] = [];
   const submittedWorkflowInputs: Record<string, unknown>[] = [];
   let now = initialNow;
+  const repository = new AutomationRepository(paths);
   const scheduler = new AutomationScheduler({
-    repository: new AutomationRepository(paths),
+    repository,
     rootGeneration: 1,
     isRetiredTarget: options.isRetiredTarget,
     now: () => now,
@@ -533,7 +583,7 @@ function createHarness(initialNow: Date, options: {
     fileFingerprint: options.fileFingerprint,
     environment: options.environment
   });
-  return { scheduler, children, workflows, submitted, submittedInputs, submittedWorkflows, submittedWorkflowInputs, setNow: (value: Date) => { now = value; } };
+  return { scheduler, repository, children, workflows, submitted, submittedInputs, submittedWorkflows, submittedWorkflowInputs, setNow: (value: Date) => { now = value; } };
 }
 
 function child(id: string, state: BrokerRunRecord["state"], skillId: string): BrokerRunRecord {

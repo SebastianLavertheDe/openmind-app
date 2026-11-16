@@ -23,34 +23,39 @@ function fixture() {
 }
 
 describe("remote Skill registry publication", () => {
-  it("ships only the seven built-ins and publishes eleven gallery Skills with credits and covers", () => {
+  it("publishes original upstream Skill cards over one shared repository archive", () => {
     const f = fixture();
     const config = path.resolve("config/skill-library");
     const sourceCatalog = fs.readFileSync(path.join(config, "catalog.json"), "utf8");
     const bundled = path.join(f.root, "app-bundle");
-    expect(prepareSkillLibraryBundle(config, bundled, { includeIds: BUILTIN_SKILL_IDS })).toBe(7);
+    expect(prepareSkillLibraryBundle(config, bundled, { includeIds: BUILTIN_SKILL_IDS })).toBe(6);
     expect(readSkillLibraryCatalog(bundled).skills.map(entry => entry.id).sort()).toEqual([...BUILTIN_SKILL_IDS].sort());
     const registry = publishSkillRegistry(config, f.output);
-    expect(registry.skills).toHaveLength(11);
+    expect(registry.skills).toHaveLength(22);
     expect(registry.skills.every(entry => !BUILTIN_SKILL_IDS.includes(entry.preset.id as typeof BUILTIN_SKILL_IDS[number]))).toBe(true);
     expect(registry.skills.filter(entry => entry.preset.recommended)).toHaveLength(1);
-    expect(registry.skills.filter(entry => entry.coverDataUrl?.startsWith("data:image/jpeg;base64,"))).toHaveLength(11);
+    expect(registry.skills.filter(entry => entry.coverDataUrl?.startsWith("data:image/jpeg;base64,"))).toHaveLength(22);
     const commonRules = readSkillLibraryCatalog(config).executionRules;
-    for (const entry of registry.skills) expect(entry.preset.instructions.slice(-commonRules.length)).toEqual(commonRules);
+    for (const entry of registry.skills.filter(item => !item.preset.packageId)) expect(entry.preset.instructions.slice(-commonRules.length)).toEqual(commonRules);
     const browserPreview = registry.skills.find(entry => entry.preset.id === "agent-browser")!.preset.instructions.join("\n\n");
     expect(browserPreview).toContain("# Browser Automation with agent-browser");
     expect(browserPreview).not.toContain("name: agent-browser");
     const handraw = registry.skills.filter(entry => entry.preset.contributor?.nick === "yang0");
-    expect(handraw).toHaveLength(10);
+    expect(handraw).toHaveLength(21);
+    expect(new Set(handraw.map(entry => entry.package.path)).size).toBe(1);
+    const files = unzipSync(fs.readFileSync(path.join(f.output, handraw[0].package.path)));
+    expect(Buffer.from(files["LICENSE"]).toString()).toContain("yang0/handraw-style");
+    expect(files["openmind-assets/yang0.jpg"]).toBeDefined();
     for (const entry of handraw) {
       expect(entry.avatarDataUrl).toMatch(/^data:image\/jpeg;base64,/);
-      const files = unzipSync(fs.readFileSync(path.join(f.output, entry.package.path)));
-      expect(Buffer.from(files["ATTRIBUTION.md"]).toString()).toContain("yang0/handraw-style");
-      expect(files["avatars/yang0.jpg"]).toBeDefined();
+      const original = fs.readFileSync(path.join(config, "packages/handraw-style", entry.preset.skillPath!));
+      expect(Buffer.from(files[entry.preset.skillPath!])).toEqual(original);
+      expect(entry.preset.instructions.join("\n\n")).not.toContain("openmind_generate_image");
     }
+    expect(Buffer.from(files["SKILL.md"])).toEqual(fs.readFileSync(path.join(config, "packages/handraw-style/SKILL.md")));
     expect(fs.readFileSync(path.join(config, "catalog.json"), "utf8")).toBe(sourceCatalog);
     expect(fs.readdirSync(bundled).some(file => file.endsWith(".zip"))).toBe(false);
-  });
+  }, 90_000);
 
   it("publishes new cards without an App build, external checkout or changes to source", () => {
     const f = fixture();
@@ -122,6 +127,9 @@ describe("remote Skill registry publication", () => {
     const entry = catalog.skills[0];
     expect(RemoteSkillCatalogSchema.safeParse({ ...catalog, skills: [entry, entry] }).success).toBe(false);
     expect(RemoteSkillCatalogSchema.safeParse({ ...catalog, skills: [{ ...entry, preset: { ...entry.preset, id: BUILTIN_SKILL_IDS[0] } }] }).success).toBe(false);
+    expect(RemoteSkillCatalogSchema.safeParse({ ...catalog, skills: [{ ...entry, preset: { ...entry.preset,
+      packageId: BUILTIN_SKILL_IDS[0], packageDirectory: "original", skillPath: "skills/independent-card/SKILL.md",
+      upstream: { repository: "https://example.test/original", revision: "a".repeat(40) } } }] }).success).toBe(false);
     for (const packagePath of ["../escape.zip", "https://example.com/a.zip", "packages/%2e%2e.zip", "packages/../../escape.zip"]) {
       expect(RemoteSkillCatalogSchema.safeParse({ ...catalog, skills: [{ ...entry, package: { ...entry.package, path: packagePath } }] }).success).toBe(false);
     }

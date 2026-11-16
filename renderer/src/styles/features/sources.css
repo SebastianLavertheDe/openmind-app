@@ -52,10 +52,6 @@
 .daily-preferences-editor, .daily-preferences-panel { display: grid; gap: var(--space-4); min-width: 0; }
 .daily-preferences-settings { display: grid; gap: var(--space-4); min-width: 0; }
 .daily-preferences-actions { display: flex; justify-content: flex-start; }
-.topic-rules-editor, .topic-platform-editor { display: grid; gap: var(--space-3); min-width: 0; }
-.topic-platform-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
-.topic-platform-name { flex: 1; min-width: 0; }
-.topic-platform-editor { border-top: 1px solid var(--border); padding-top: var(--space-4); }
 @media (hover: hover) and (pointer: fine) {
   .rss-source-card:hover, .collector-source-card:hover { transform: translateY(-2px); border-color: var(--border-strong); box-shadow: 0 4px 12px color-mix(in srgb, var(--text) 6%, transparent); }
 }

@@ -26,6 +26,18 @@ function document() { return AuthoredSkillSchema.parse({ id: "1375bbe7-b4b7-4fbe
 function page(use = vi.fn()) { return render(<FeedbackProvider><SkillLibraryPage storageScope="fixture" providers={[]} onUseSkill={use} renderManagement={() => null} renderImport={() => null} /></FeedbackProvider>); }
 
 describe("Skill library product flows", () => {
+  it("keeps shared repository cards distinct when selecting a Skill", async () => {
+    const use = vi.fn();
+    entries = ["first", "second"].map(id => entry({ id, skillId: id, title: `${id} original`,
+      installed: true, enabled: true, key: "openmind-library/shared-original", digest,
+      entrypoint: `skills/${id}/SKILL.md`, upstream: { repository: "https://example.test/original", revision: "a".repeat(40) } }));
+    page(use);
+    const second = (await screen.findByRole("button", { name: "second original" })).closest("article")!;
+    await userEvent.setup().click(within(second).getByRole("button", { name: "Use skill" }));
+    await waitFor(() => expect(use).toHaveBeenCalledWith(expect.objectContaining({ id: "second", entrypoint: "skills/second/SKILL.md" })));
+    expect(window.openmind.installLibraryPreset).not.toHaveBeenCalled();
+  });
+
   it.each(["om-research-brief", "om-source-compare", "om-article-writer", "om-text-rewriter"])("hides removed presets in cached discovery and installed lists: %s", async id => {
     entries.push(entry({ id, skillId: id, title: "Removed app preset", installed: true, enabled: true, key: `openmind-library/${id}`, digest }));
     entries.push(entry({ id: `imported-${id}`, skillId: id, title: "User imported copy", origin: "git", installed: true, enabled: true, key: `user/${id}`, digest }));

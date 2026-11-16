@@ -7,7 +7,8 @@
   "excluded": [
     "knowledge-wiki-compiler",
     "skill-run-reporter",
-    "video-burnin-subtitles"
+    "video-burnin-subtitles",
+    "daily-topic-selector"
   ],
   "files": [
     {
@@ -257,34 +258,6 @@
     {
       "source": "daily-article-summarizer/uv.lock",
       "target": "config/skill-library/packages/daily-article-summarizer/uv.lock"
-    },
-    {
-      "source": "daily-topic-selector/SKILL.md",
-      "target": "config/skill-library/packages/daily-topic-selector/SKILL.md"
-    },
-    {
-      "source": "daily-topic-selector/cctools.skill.yaml",
-      "target": "config/skill-library/packages/daily-topic-selector/cctools.skill.yaml"
-    },
-    {
-      "source": "daily-topic-selector/pyproject.toml",
-      "target": "config/skill-library/packages/daily-topic-selector/pyproject.toml"
-    },
-    {
-      "source": "daily-topic-selector/scripts/ai_client.py",
-      "target": "config/skill-library/packages/daily-topic-selector/scripts/ai_client.py"
-    },
-    {
-      "source": "daily-topic-selector/scripts/generate_daily_topics.py",
-      "target": "config/skill-library/packages/daily-topic-selector/scripts/generate_daily_topics.py"
-    },
-    {
-      "source": "daily-topic-selector/scripts/runtime_paths.py",
-      "target": "config/skill-library/packages/daily-topic-selector/scripts/runtime_paths.py"
-    },
-    {
-      "source": "daily-topic-selector/uv.lock",
-      "target": "config/skill-library/packages/daily-topic-selector/uv.lock"
     },
     {
       "source": "daily-writing-orchestrator/SKILL.md",

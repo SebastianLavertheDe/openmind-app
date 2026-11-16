@@ -1,7 +1,7 @@
 import type { skillLibraryMessages as zh } from "../zh-CN/skill-library";
 import type { TranslationOf } from "../types";
 export const skillLibraryMessages = { skillLibrary: {
-  title: "Skills", explore: "Explore", mine: "My skills", views: "Skill view", categories: "Skill categories",
+  title: "Skills", explore: "Explore", mine: "My skills", views: "Skill view", categories: "Skill categories", original: "Upstream original",
   recommended: "For you", browseAll: "Browse all", loadFailed: "Skills could not be loaded. Try again.",
   refresh: "Refresh", offlineCached: "Cannot connect right now. Showing saved skills.", remoteUnavailable: "Online skills are temporarily unavailable. Your installed and personal skills are still available.",
   uncategorized: "Uncategorized", noImages: "No showcase images",

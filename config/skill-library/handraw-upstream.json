@@ -1,0 +1,92 @@
+{
+  "repository": "https://github.com/yang0/handraw-style",
+  "revision": "ab848ebfd478cdcd29b69ee2ee5090b4bb7b9d89",
+  "packageDirectory": "packages/handraw-style",
+  "files": 1065,
+  "entrypoints": [
+    {
+      "id": "article-cover-designer",
+      "path": "skills/article-cover-designer/SKILL.md"
+    },
+    {
+      "id": "article-illustration-planner",
+      "path": "skills/article-illustration-planner/SKILL.md"
+    },
+    {
+      "id": "community-share",
+      "path": "skills/community-share/SKILL.md"
+    },
+    {
+      "id": "editorial-hairstylist",
+      "path": "skills/couple-photo-orchestrator/skills/hairstyle/SKILL.md"
+    },
+    {
+      "id": "couple-photo-wardrobe-board",
+      "path": "skills/couple-photo-orchestrator/skills/huanzhuang/SKILL.md"
+    },
+    {
+      "id": "couple-photo-requirements-planner",
+      "path": "skills/couple-photo-orchestrator/skills/kefu/SKILL.md"
+    },
+    {
+      "id": "editorial-makeup-artist",
+      "path": "skills/couple-photo-orchestrator/skills/makeup/SKILL.md"
+    },
+    {
+      "id": "reference-beauty-prep",
+      "path": "skills/couple-photo-orchestrator/skills/meihua/SKILL.md"
+    },
+    {
+      "id": "couple-photo-shooting-planner",
+      "path": "skills/couple-photo-orchestrator/skills/paishe/SKILL.md"
+    },
+    {
+      "id": "couple-photo-orchestrator",
+      "path": "skills/couple-photo-orchestrator/SKILL.md"
+    },
+    {
+      "id": "custom-asset-manager",
+      "path": "skills/custom-asset-manager/SKILL.md"
+    },
+    {
+      "id": "handraw-skill",
+      "path": "skills/handdraw-style-prompter/SKILL.md"
+    },
+    {
+      "id": "ip-designer",
+      "path": "skills/ip-designer/SKILL.md"
+    },
+    {
+      "id": "layout-library-importer",
+      "path": "skills/layout-library-importer/SKILL.md"
+    },
+    {
+      "id": "handraw-personal-library",
+      "path": "skills/personal-library/SKILL.md"
+    },
+    {
+      "id": "poster-prompt-generator",
+      "path": "skills/poster-prompt-generator/SKILL.md"
+    },
+    {
+      "id": "release-illustration-planner",
+      "path": "skills/release-illustration-planner/SKILL.md"
+    },
+    {
+      "id": "style-business-analyzer",
+      "path": "skills/style-business-analyzer/SKILL.md"
+    },
+    {
+      "id": "style-fusion-prompter",
+      "path": "skills/style-fusion-prompter/SKILL.md"
+    },
+    {
+      "id": "style-library-importer",
+      "path": "skills/style-library-importer/SKILL.md"
+    },
+    {
+      "id": "tweet-style-importer",
+      "path": "skills/tweet-style-importer/SKILL.md"
+    }
+  ]
+}

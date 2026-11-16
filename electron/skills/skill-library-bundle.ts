@@ -7,6 +7,7 @@ import { buildAppPaths } from "../paths/app-paths-service";
 import { readSkillLibraryCatalog } from "./skill-library-catalog";
 import { SkillPackageService } from "./skill-package-service";
 import { readSkillAvatar } from "./skill-avatar";
+import { prepareOriginalSkillRepository } from "./original-skill-repository";
 
 /** Compile App-owned definitions into verified installable packages. No external repository is read. */
 export function prepareSkillLibraryBundle(configRoot: string, outputRoot: string, options: { includeIds?: readonly string[] } = {}): number {
@@ -23,6 +24,16 @@ export function prepareSkillLibraryBundle(configRoot: string, outputRoot: string
     const inspector = new SkillPackageService(buildAppPaths(path.join(temporary, "state"), path.join(temporary, "installed")));
     const packages: Record<string, string> = {};
     for (const entry of catalog.skills) {
+      if (entry.packageId) {
+        if (packages[entry.packageId]) continue;
+        const destination = path.join(bundle, entry.packageId);
+        fs.mkdirSync(destination);
+        prepareOriginalSkillRepository(configRoot, destination, catalog.skills.filter(item => item.packageId === entry.packageId), copyPackageSource);
+        const inspection = inspector.inspect(destination);
+        if (!inspection.valid) throw new Error(`${entry.packageId}: ${JSON.stringify(inspection.issues)}`);
+        packages[entry.packageId] = inspection.digest;
+        continue;
+      }
       const destination = path.join(bundle, entry.id);
       fs.mkdirSync(destination);
       const copy = resolveSkillLibraryCopy(entry, "en");
