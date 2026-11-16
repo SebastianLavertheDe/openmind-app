@@ -47,7 +47,7 @@
 
 ### 2.2 Skills 完整迁入范围
 
-当前外部仓库包含 16 个有 Manifest 的包，迁入其中 15 个。保留现有 Skill ID；`VideoDownload` 是源目录名，实际 ID 为 `video-download`。
+原迁移基线的外部仓库包含 16 个有 Manifest 的包，最初迁入其中 15 个并保留原 Skill ID。下表记录原迁移范围；视频下载现已退役，源码和打包项已移除。
 
 | Skill ID | 当前类型 | 处理 |
 | --- | --- | --- |
@@ -62,7 +62,7 @@
 | `skill-run-reporter` | process | 迁入，删除对知识库生成任务的固定检查 |
 | `asset-collector` | process | 迁入，保持素材收集能力 |
 | `video-burnin-subtitles` | process | 迁入，保留运行时依赖检查 |
-| `video-download` | process | 迁入，修正源目录与包 ID 的映射 |
+| `video-download` | process | 已退役，移除源码与打包项 |
 | `agent-browser` | agent | 迁入，沿用现有 Agent 执行入口 |
 | `creative-writing` | agent | 迁入，保持多平台创作能力 |
 | `ai-media-topic-selector` | agent | 迁入，与每日选题共用偏好定义，保留其手动调用方式 |
@@ -434,7 +434,7 @@ npm run test:e2e
 | 摘要、每日选题 | 真实安装包从临时 Provider 配置、Broker 注入到 Python 的完整链路；本地 HTTP 确定性模型响应、偏好变化、缓存与文档版本；选题可直接交给写作包 | 实际 Process Provider 凭据与模型输出质量 |
 | 写作编排、素材收集、兴趣标记、运行报告 | 已安装包执行、临时输入和实际输出/Artifact 校验 | 用户自己的输入材料 |
 | Reddit、X | 正式包、Python 入口、配置与凭据绑定、源启停契约 | 未使用真实账号执行公网登录采集 |
-| 视频下载、字幕烧录 | 正式包、依赖声明、Python 入口、导出绑定和受管工具路径；修正虚拟环境和 Python 模块启动方式 | 未下载真实视频或语音模型、未实测完整转写/字幕烧录 |
+| 视频下载、字幕烧录 | 已退役，源码和打包项已移除；原安装与运行历史保留 | 不再提供新执行入口 |
 | 浏览器 Agent、创作 Agent、手动选题 Agent | 原 Agent 身份、安装/启停/桥接，手动选题共享偏好和输出元数据 | 用户已连接的 Agent CLI、浏览器、模型及必要的导出位置 |
 | RSS 总结 Workflow | 采集→总结依赖，冻结包身份与偏好，原运行记录及取消行为 | 总结阶段仍需有效 Provider |
 

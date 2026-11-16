@@ -1,7 +1,7 @@
 /** Retired App-owned packages; user-imported copies keep their own lifecycle. */
 export const RETIRED_BUILTIN_SKILL_IDS = new Set([
   "creative-writing", "daily-writing-orchestrator", "ai-media-topic-selector", "daily-topic-selector",
-  "collect-interest-markers", "asset-collector", "skill-run-reporter", "video-burnin-subtitles",
+  "collect-interest-markers", "asset-collector", "skill-run-reporter", "video-burnin-subtitles", "video-download",
   "om-image-editor", "om-slide-outline", "om-slide-deck",
   "om-storyboard", "om-short-video", "om-landing-page", "om-mini-tool",
   "om-research-brief", "om-source-compare", "om-article-writer", "om-text-rewriter",

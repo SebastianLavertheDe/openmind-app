@@ -1,6 +1,6 @@
 # 应用技能库配置
 
-这里维护 28 张 Skill 卡片的定义。其中 6 个采集、总结、视频及工作流包随 App 内置；21 个 handraw-style 原版子 Skill 和 `agent-browser` 共 22 张卡片通过独立目录和 ZIP 下载分发，不进入 App 安装包。Agent、Process、Workflow 保留原执行类型；外部 Git 导入与用户编写的技能继续使用独立来源身份。
+这里维护 27 张 Skill 卡片的定义。其中 5 个采集、总结及工作流包随 App 内置；21 个 handraw-style 原版子 Skill 和 `agent-browser` 共 22 张卡片通过独立目录和 ZIP 下载分发，不进入 App 安装包。Agent、Process、Workflow 保留原执行类型；外部 Git 导入与用户编写的技能继续使用独立来源身份。
 `catalog.json` 包含技能清单、执行指令及中英文展示信息；App 构建不读取外部技能仓库。
 
 ## 添加技能
@@ -31,7 +31,7 @@
 }
 ```
 
-运行 `npm run publish:skill-library`，将上述新条目发布到项目根目录的 `skill-registry/`，然后刷新技能页。无需重新构建 App、修改 TypeScript 或翻译模块，也无需在 `cctools-skills` 添加目录。`prepare:skill-library` 同时准备 6 个内置包并发布目录；`build` 和 `dev:electron` 自动执行这个准备步骤。
+运行 `npm run publish:skill-library`，将上述新条目发布到项目根目录的 `skill-registry/`，然后刷新技能页。无需重新构建 App、修改 TypeScript 或翻译模块，也无需在 `cctools-skills` 添加目录。`prepare:skill-library` 同时准备 5 个内置包并发布目录；`build` 和 `dev:electron` 自动执行这个准备步骤。
 
 ## 可选辅助文件
 
@@ -118,16 +118,15 @@ App 中创建的技能保存在本地「我的」，不会自动投稿。公开�
 
 ## 分发与来源隔离
 
-App 安装包仅包含以下 6 个内置 Skill（ID 清单位于 `shared/skill-registry.ts`）：
+App 安装包仅包含以下 5 个内置 Skill（ID 清单位于 `shared/skill-registry.ts`）：
 
-- `video-download`：视频下载
 - `daily-article-summarizer`：每日文章总结
 - `reddit-fetcher`：Reddit 内容抓取
 - `rss-article-saver`：RSS 文章采集
 - `rss-to-summary-workflow`：RSS 到每日总结
 - `x-following-fetcher`：X Following 抓取
 
-这 6 个包输出到 `.build/skill-library/`，随安装包分发到 `resources/skill-library/`，在「探索」隐藏，安装后出现在「我的」。`OPENMIND_SKILL_LIBRARY_BUNDLE` 仍可指定这部分内置资源目录。它们的源码或应用执行能力更新仍按 App 版本交付。
+这 5 个包输出到 `.build/skill-library/`，随安装包分发到 `resources/skill-library/`，在「探索」隐藏，安装后出现在「我的」。`OPENMIND_SKILL_LIBRARY_BUNDLE` 仍可指定这部分内置资源目录。它们的源码或应用执行能力更新仍按 App 版本交付。
 
 其余 22 张探索卡片（handraw-style 21 张、浏览器自动化 1 张）通过独立目录发布：
 
@@ -155,7 +154,7 @@ skill-registry/
 
 目录和下载包缓存在 `<userData>/cache/skill-registry/`，按源隔离；安装后的代码仍在 `<内容根>/.agent/skills/`。源不可访问时使用最后有效的目录；已经下载并通过校验的 ZIP 可离线安装，未缓存的包需恢复源访问后才能下载。包读取校验大小和 SHA-256，安装前继续验证 manifest 与包内容摘要。摘要是完整性校验，不是发布者签名，因此来源应由维护者配置为可信目录或服务。浏览目录不会下载所有包，也不会把包安装到缓存目录。
 
-应用技能的发布者为 `openmind-library`。6 个内置包记录为 `sourceType: builtin`；独立目录包记录为 `sourceType: catalog`，保留实际目录来源和 ZIP 哈希。GitHub 导入保持 `sourceType: git` 和实际仓库地址。各来源共用执行机制和安装存储，但清单、更新及默认技能开关相互独立。GitHub 包即使使用相同 ID，也不会被认作应用技能或被其安装操作覆盖；切换独立目录来源也不会静默覆盖另一个目录源的同名安装。
+应用技能的发布者为 `openmind-library`。5 个内置包记录为 `sourceType: builtin`；独立目录包记录为 `sourceType: catalog`，保留实际目录来源和 ZIP 哈希。GitHub 导入保持 `sourceType: git` 和实际仓库地址。各来源共用执行机制和安装存储，但清单、更新及默认技能开关相互独立。GitHub 包即使使用相同 ID，也不会被认作应用技能或被其安装操作覆盖；切换独立目录来源也不会静默覆盖另一个目录源的同名安装。
 
 历史 App 内置卡片在明确使用时可迁移为目录来源。旧版官方默认集合的 `agent-browser` 也保留迁移路径：仅原生包、可验证的官方旧 Git 来源、未被用户保留且内容完整的安装可以显式迁移。浏览目录不会触发迁移；第三方、用户保留和修改过的副本不会被覆盖。关闭内置集合开关不删除任何已安装包或历史内容。
 
@@ -210,7 +209,7 @@ npx vitest run electron/skills/original-skill-repository.test.ts electron/skills
 
 ## 原生包与 RSS 转换器
 
-`catalog.json` 的 `packageDirectory` 指向 `packages/` 下源码，`executionKind` 保留 agent/process/workflow，`discoverable` 决定是否展示在探索中。`prepare:skill-library` 将 6 个内置包、它们需要的共享 `_shared` 和 RSS 源目录复制到忽略的 `.build/skill-library/`，其余包独立输出到 `skill-registry/`。两种分发都先验证并统一生成 `openmind-library` 身份及内容摘要。安装器继续识别 `cctools.skill.yaml` 和 `openmind.skill.yaml`。
+`catalog.json` 的 `packageDirectory` 指向 `packages/` 下源码，`executionKind` 保留 agent/process/workflow，`discoverable` 决定是否展示在探索中。`prepare:skill-library` 将 5 个内置包、它们需要的共享 `_shared` 和 RSS 源目录复制到忽略的 `.build/skill-library/`，其余包独立输出到 `skill-registry/`。两种分发都先验证并统一生成 `openmind-library` 身份及内容摘要。安装器继续识别 `cctools.skill.yaml` 和 `openmind.skill.yaml`。
 
 跨 Windows、macOS、Linux 同步内容仓库时，每台机器仍使用自己的 `openmindRoot` 配置，CLI 则使用显式的 `--root`。安装注册表中的标准路径 `…/.agent/skills/<skillId>` 在读取时解析到当前内容根目录下；读取不会将本机绝对路径回写到同步文件。安装包仍须通过内容摘要、Manifest 身份和真实路径边界校验；缺失、被修改或通过符号链接越界的包不会因此获得运行权限。旧的嵌套安装布局保持原有处理方式。
 

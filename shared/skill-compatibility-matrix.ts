@@ -89,20 +89,7 @@ export const SKILL_COMPATIBILITY_MATRIX: readonly SkillCompatibilityEntry[] = [
     notes: "Skill-data-scoped curl credentials parsed without shell execution; Python HTTP client; config schema; cache→Skill data."
   },
 
-  // --- Batch C: media, agent, workflow ---
-  {
-    id: "video-download",
-    sourceDir: "VideoDownload",
-    targetKind: "process",
-    runtimePacks: ["python-core", "media-core"],
-    externalExport: true,
-    openmindRead: [],
-    openmindWrite: [],
-    legacyIssues: [],
-    batch: "C",
-    primaryArtifact: "external export (video file)",
-    notes: "Remove cwd/parent inference; structured URL/output name; declare download/disk/model needs. Uses Export Location Binding."
-  },
+  // --- Batch C: agent, workflow ---
   {
     id: "agent-browser",
     sourceDir: "agent-browser",

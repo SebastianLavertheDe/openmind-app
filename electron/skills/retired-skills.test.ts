@@ -34,7 +34,7 @@ beforeAll(() => {
 });
 afterAll(() => { if (fixtureRoot) fs.rmSync(fixtureRoot, { recursive: true, force: true }); });
 const retiredFixtureIds = [
-  "daily-topic-selector", "daily-writing-orchestrator", "skill-run-reporter", "video-burnin-subtitles",
+  "daily-topic-selector", "daily-writing-orchestrator", "skill-run-reporter", "video-burnin-subtitles", "video-download",
   "om-image-editor", "om-slide-outline", "om-slide-deck",
   "om-storyboard", "om-short-video", "om-landing-page", "om-mini-tool",
   "om-research-brief", "om-source-compare", "om-article-writer", "om-text-rewriter"

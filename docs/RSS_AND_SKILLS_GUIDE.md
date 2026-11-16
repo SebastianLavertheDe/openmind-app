@@ -114,7 +114,7 @@ App 的定时规则明确保存自己的 IANA 时区；系统 crontab 使用主�
 
 Windows 可通过任务计划程序运行 `openmind.cmd`；macOS 可由 launchd 或用户自己的 cron 调用。两种启动器随包提供，本次实际安装包验证的平台为 Linux ARM64。
 
-## 6 个内置包与额外条件
+## 5 个内置包与额外条件
 
 | Skill | 类型 | 输出或使用条件 |
 | --- | --- | --- |
@@ -123,15 +123,14 @@ Windows 可通过任务计划程序运行 `openmind.cmd`；macOS 可由 launchd 
 | `rss-to-summary-workflow` | Workflow | 使用上述采集、总结包，保留同次偏好快照 |
 | `reddit-fetcher` | Process / Python | `reddit/`；用户管理的社区与网站访问条件 |
 | `x-following-fetcher` | Process / Python | `post/`、`article/`；用户自己的登录凭据 |
-| `video-download` | Process / Python | 用户选择的导出位置；yt-dlp、Whisper，按需使用 FFmpeg |
 
-Python 依赖由应用管理的 uv 环境根据已安装包准备。视频包包含较大的语音/模型依赖；下载模型、访问登录网站、配置外部导出位置仍由相应能力的正常设置流程完成。FFmpeg 复用应用的视频工具设置，Whisper 通过同一个 Python 解释器启动。
+Python 依赖由应用管理的 uv 环境根据已安装包准备。访问需要登录的网站仍由相应能力的正常设置流程完成。
 
-以上 6 个包随 App 分发，默认不在「探索」展示，安装后可在「我的」使用。`agent-browser` 改由下面的独立目录提供，仍要求已连接的 Agent CLI 与浏览器能力，证据导出位置由用户指定。
+以上 5 个包随 App 分发，默认不在「探索」展示，安装后可在「我的」使用。`agent-browser` 改由下面的独立目录提供，仍要求已连接的 Agent CLI 与浏览器能力，证据导出位置由用户指定。
 
 ## 22 张目录卡片与独立发布
 
-21 张 handraw-style 原版子 Skill 卡片和浏览器自动化 Agent，共 22 张探索卡片使用「远程卡片目录 + Skill ZIP 下载 + 本地缓存」。它们与上面的 6 个内置包共计 28 张卡片，源码仍统一维护在 `config/skill-library/`；App 安装包只包含 6 个内置包。图像卡片及作者/许可证说明见 [应用技能库配置](../config/skill-library/README.md#handraw-style-图像卡片)。
+21 张 handraw-style 原版子 Skill 卡片和浏览器自动化 Agent，共 22 张探索卡片使用「远程卡片目录 + Skill ZIP 下载 + 本地缓存」。它们与上面的 5 个内置包共计 27 张卡片，源码仍统一维护在 `config/skill-library/`；App 安装包只包含 5 个内置包。图像卡片及作者/许可证说明见 [应用技能库配置](../config/skill-library/README.md#handraw-style-图像卡片)。
 
 维护者修改源清单、提示词或资源后，运行 `npm run publish:skill-library` 即可生成项目根目录的 `skill-registry/catalog.json` 和 `skill-registry/packages/*.zip`，无需重新构建 App。生成目录已被 Git 忽略；提交源配置和资源，不提交生成 ZIP、用户内容或缓存。发布包采用内容哈希文件名，目录在全部包验证后才替换，旧包保留供正在使用旧目录的客户端获取。`prepare:skill-library` 也会生成该目录，便于开发启动。
 
@@ -141,7 +140,7 @@ Python 依赖由应用管理的 uv 环境根据已安装包准备。视频包包
 
 官方目录包使用 App 技能库身份；Git、目录、ZIP 导入和用户自建 Skill 继续使用独立来源，不因 ID 相同而被覆盖。兼容现有客户端的新增卡片可独立发布；需要新客户端能力的 Skill 仍须升级 App。
 
-运行报告（`skill-run-reporter`）和视频烧录字幕（`video-burnin-subtitles`）已退出内置清单，源码不再打包。升级会隐藏并停用确认属于 App 的旧安装，阻止新执行并停用相关定时规则；已有报告、`video/` 内容、安装文件及运行历史保留。用户导入或显式保留的副本继续按独立来源处理。
+运行报告（`skill-run-reporter`）、视频烧录字幕（`video-burnin-subtitles`）和视频下载（`video-download`）已退出内置清单，源码不再打包。升级会隐藏并停用确认属于 App 的旧安装，阻止新执行并停用相关定时规则；已有报告、`video/` 内容、安装文件及运行历史保留。用户导入或显式保留的副本继续按独立来源处理。
 
 图片风格编辑、演示内容策划、演示文稿制作、短视频脚本与分镜、短视频制作、落地页制作和交互小工具这 7 个配置式预设已退役，专属脚本不再打包；原先 10 个 handraw-style 改编预设也已退役，改为 21 个原版子 Skill 卡片，共享完整上游仓库安装。未选中时不向模型提供发现目录，只在对话明确选用时加载对应原版 `SKILL.md`。旧内置安装沿用上述退役机制；短视频的旧帧渲染命令明确报退役错误，不再加载脚本或启动桌面。
 

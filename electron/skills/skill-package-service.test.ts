@@ -355,18 +355,6 @@ describe("SkillPackageService", () => {
       const inspection = inspections.find((item) => item.manifest?.id === id);
       expect(inspection?.files.map((entry) => entry.path)).toContain(file);
     }
-    const videoDownload = service.inspect(path.join(skillsRoot, "video-download"));
-    expect(videoDownload?.manifest?.entrypoint.args).toEqual([
-      "{{ inputs.url }}",
-      "--output",
-      "{{ exports.videoExportDir }}",
-      "--output-name",
-      "{{ inputs.outputName }}"
-    ]);
-    const videoDownloadScript = fs.readFileSync(path.join(skillsRoot, "video-download", "main.py"), "utf8");
-    expect(videoDownloadScript).not.toContain("Path.cwd()");
-    expect(videoDownloadScript).toContain("--output must be an absolute Export Location path");
-
     const workflow = service.inspect(path.join(skillsRoot, "rss-to-summary-workflow"));
     expect(workflow?.manifest?.kind).toBe("workflow");
     expect(workflow?.manifest?.workflow.steps.map((step) => [step.id, step.skill, step.version])).toEqual([
@@ -386,17 +374,16 @@ describe("SkillPackageService", () => {
       .map((entry) => path.join(INTERNAL_SKILLS_ROOT, entry.name));
     const installed = packageDirectories.map((source) => service.install(source));
 
-    // Only the six core packages ship in the App; browser is downloaded.
+    // Only the five core packages ship in the App; browser is downloaded.
     // `_shared` has no manifest and remains outside the installation catalog.
     expect(installed.map((record) => record.id).sort()).toEqual([
       "daily-article-summarizer",
       "reddit-fetcher",
       "rss-article-saver",
       "rss-to-summary-workflow",
-      "video-download",
       "x-following-fetcher"
     ].sort());
-    expect(installed.length).toBe(6);
+    expect(installed.length).toBe(5);
     expect(installed.every((record) => service.isInstalledCopyUsable(record))).toBe(true);
 
     const sharedRoot = path.join(INTERNAL_SKILLS_ROOT, "rss-article-saver", "_shared");

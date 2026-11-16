@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 import { ALL_SKILL_IDS, SKILL_COMPATIBILITY_MATRIX } from "./skill-compatibility-matrix";
 
 describe("skill-compatibility-matrix", () => {
-  it("contains exactly 7 retained native skills", () => {
-    expect(SKILL_COMPATIBILITY_MATRIX.length).toBe(7);
-    expect(ALL_SKILL_IDS.length).toBe(7);
+  it("contains exactly 6 retained native skills", () => {
+    expect(SKILL_COMPATIBILITY_MATRIX.length).toBe(6);
+    expect(ALL_SKILL_IDS.length).toBe(6);
   });
 
-  it("classifies 5 process / 1 workflow / 1 agent", () => {
+  it("classifies 4 process / 1 workflow / 1 agent", () => {
     const counts = { process: 0, workflow: 0, agent: 0 } as Record<string, number>;
     for (const e of SKILL_COMPATIBILITY_MATRIX) counts[e.targetKind] += 1;
-    expect(counts).toEqual({ process: 5, workflow: 1, agent: 1 });
+    expect(counts).toEqual({ process: 4, workflow: 1, agent: 1 });
   });
 
   it("ids are unique", () => {
@@ -24,13 +24,13 @@ describe("skill-compatibility-matrix", () => {
     }
   });
 
-  it("retains 1 batch A skill, 3 batch B skills and 3 batch C skills", () => {
+  it("retains 1 batch A skill, 3 batch B skills and 2 batch C skills", () => {
     const a = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.batch === "A");
     const b = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.batch === "B");
     const c = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.batch === "C");
     expect(a.length).toBe(1);
     expect(b.length).toBe(3);
-    expect(c.length).toBe(3);
+    expect(c.length).toBe(2);
   });
 
   it("content-writing skills declare openmind write patterns only to known content tops", () => {
@@ -47,14 +47,11 @@ describe("skill-compatibility-matrix", () => {
     }
   });
 
-  it("VideoDownload is the only external-export process skill (Export Location Binding)", () => {
+  it("only agent-browser uses external exports", () => {
     const externalExporters = SKILL_COMPATIBILITY_MATRIX.filter((e) => e.externalExport);
     expect(externalExporters.map((e) => e.id).sort()).toEqual(
-      ["video-download", "agent-browser"].sort()
+      ["agent-browser"]
     );
-    const vd = SKILL_COMPATIBILITY_MATRIX.find((e) => e.id === "video-download")!;
-    expect(vd.targetKind).toBe("process");
-    expect(vd.openmindWrite.length).toBe(0);
   });
 
   it("the workflow skill is rss-to-summary-workflow and references child skills", () => {

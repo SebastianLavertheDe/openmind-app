@@ -225,7 +225,7 @@ describe("remote Skill library integration", () => {
   it("installs all original cards over one shared repository", async () => {
     const f = fixture(true);
     const snapshot = await f.service.snapshot();
-    expect(snapshot.entries.filter(entry => entry.distribution === "builtin")).toHaveLength(6);
+    expect(snapshot.entries.filter(entry => entry.distribution === "builtin")).toHaveLength(5);
     expect(snapshot.entries.filter(entry => entry.distribution === "remote")).toHaveLength(22);
     for (const remote of f.published.skills.filter((entry, index, entries) => entries.findIndex(other => other.package.path === entry.package.path) === index)) {
       const installed = await f.service.installFromCatalog(remote.preset.id);

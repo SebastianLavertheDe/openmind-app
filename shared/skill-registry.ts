@@ -4,7 +4,7 @@ import { SkillLibraryPresetSchema } from "./skill-library-catalog";
 
 /** Only these runtime integrations ship in the application installation. */
 export const BUILTIN_SKILL_IDS = [
-  "video-download", "daily-article-summarizer",
+  "daily-article-summarizer",
   "reddit-fetcher", "rss-article-saver", "rss-to-summary-workflow", "x-following-fetcher"
 ] as const;
 

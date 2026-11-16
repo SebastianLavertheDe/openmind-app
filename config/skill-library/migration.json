@@ -8,33 +8,10 @@
     "knowledge-wiki-compiler",
     "skill-run-reporter",
     "video-burnin-subtitles",
-    "daily-topic-selector"
+    "daily-topic-selector",
+    "video-download"
   ],
   "files": [
-    {
-      "source": "VideoDownload/README.md",
-      "target": "config/skill-library/packages/VideoDownload/README.md"
-    },
-    {
-      "source": "VideoDownload/SKILL.md",
-      "target": "config/skill-library/packages/VideoDownload/SKILL.md"
-    },
-    {
-      "source": "VideoDownload/cctools.skill.yaml",
-      "target": "config/skill-library/packages/VideoDownload/cctools.skill.yaml"
-    },
-    {
-      "source": "VideoDownload/main.py",
-      "target": "config/skill-library/packages/VideoDownload/main.py"
-    },
-    {
-      "source": "VideoDownload/pyproject.toml",
-      "target": "config/skill-library/packages/VideoDownload/pyproject.toml"
-    },
-    {
-      "source": "VideoDownload/uv.lock",
-      "target": "config/skill-library/packages/VideoDownload/uv.lock"
-    },
     {
       "source": "_shared/__init__.py",
       "target": "config/skill-library/packages/_shared/__init__.py"

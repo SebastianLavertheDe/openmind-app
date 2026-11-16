@@ -28,7 +28,7 @@ describe("remote Skill registry publication", () => {
     const config = path.resolve("config/skill-library");
     const sourceCatalog = fs.readFileSync(path.join(config, "catalog.json"), "utf8");
     const bundled = path.join(f.root, "app-bundle");
-    expect(prepareSkillLibraryBundle(config, bundled, { includeIds: BUILTIN_SKILL_IDS })).toBe(6);
+    expect(prepareSkillLibraryBundle(config, bundled, { includeIds: BUILTIN_SKILL_IDS })).toBe(5);
     expect(readSkillLibraryCatalog(bundled).skills.map(entry => entry.id).sort()).toEqual([...BUILTIN_SKILL_IDS].sort());
     const registry = publishSkillRegistry(config, f.output);
     expect(registry.skills).toHaveLength(22);
